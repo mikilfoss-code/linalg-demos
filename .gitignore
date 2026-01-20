@@ -1,0 +1,62 @@
+# ----------------------------
+# OS / Editor files
+# ----------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ----------------------------
+# Node / Vite / pnpm
+# ----------------------------
+**/node_modules/
+**/dist/
+**/.vite/
+**/*.log
+pnpm-debug.log*
+
+# If you ever generate build artifacts elsewhere
+**/.turbo/
+**/.cache/
+
+# ----------------------------
+# Env files / secrets
+# ----------------------------
+.env
+.env.*
+!.env.example
+
+# ----------------------------
+# Python
+# ----------------------------
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyd
+
+# Virtual environments
+.venv/
+**/.venv/
+venv/
+**/venv/
+
+# pytest / mypy / coverage
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ----------------------------
+# Python tooling caches
+# ----------------------------
+.uv-cache/
+pip-wheel-metadata/
+__pypackages__/
