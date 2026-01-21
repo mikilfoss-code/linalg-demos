@@ -1,0 +1,64 @@
+services:
+  # -------------------------
+  # Backend (FastAPI)
+  # -------------------------
+  - type: web
+    name: linalg-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Use a fully-qualified version if you set this via env var.
+      - key: PYTHON_VERSION
+        value: 3.14.2
+
+      # Optional: tighten CORS later; for now "*" is fine for demo APIs.
+      # - key: CORS_ALLOW_ORIGINS
+      #   value: "http://localhost:5173,https://linalg-demo.onrender.com"
+
+  # -------------------------
+  # Demo: linalg-vectors (Vite static site)
+  # -------------------------
+  - type: web
+    name: demo-linalg-vectors
+    runtime: static
+    rootDir: demos/linalg-vectors/frontend
+    buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 24.13.0
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: linalg-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # -------------------------
+  # Demo: linalg-matrix_transformations (Vite static site)
+  # -------------------------
+  - type: web
+    name: demo-linalg-matrix-transformations
+    runtime: static
+    rootDir: demos/linalg-matrix_transformations/frontend
+    buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 24.13.0
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: linalg-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

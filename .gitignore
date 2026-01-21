@@ -44,6 +44,8 @@ __pycache__/
 **/.venv/
 venv/
 **/venv/
+.venvs/
+**/.venvs/
 
 # pytest / mypy / coverage
 .pytest_cache/
