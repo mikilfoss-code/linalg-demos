@@ -1,26 +1,35 @@
-export type Vec = number[];
-export type Mat = number[][];
+export type {
+  Vec,
+  Mat,
+  HealthResponse,
+  MatrixApplyRequest,
+  MatrixApplyResponse,
+  EigenRequest,
+  EigenResponse
+} from "@shared/lib/types";
 
-export interface HealthResponse { status: string; }
+export {
+  assert,
+  isByte,
+  isByteVec,
+  isFiniteNumber,
+  isMat,
+  isNonNegativeInt,
+  isString,
+  isVec
+} from "@shared/lib/types";
 
-export interface MatrixApplyRequest { matrix: Mat; vector: Vec; }
-export interface MatrixApplyResponse { result: Vec; }
-
-export interface EigenRequest { matrix: Mat; }
-export interface EigenResponse {
-  eigenvalues: number[];
-  eigenvectors: Mat; // columns are eigenvectors
+export interface MnistSampleApi {
+  index: number;
+  label: number;
+  pixels: number[];
+  vector: number[];
 }
 
-export function isFiniteNumber(x: unknown): x is number {
-  return typeof x === "number" && Number.isFinite(x);
-}
-export function isVec(x: unknown): x is Vec {
-  return Array.isArray(x) && x.every(isFiniteNumber);
-}
-export function isMat(x: unknown): x is Mat {
-  return Array.isArray(x) && x.every(r => Array.isArray(r) && r.every(isFiniteNumber));
-}
-export function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+export interface MnistSamplesResponse {
+  source: string;
+  split: string;
+  imageSize: number;
+  totalCount: number;
+  samples: MnistSampleApi[];
 }

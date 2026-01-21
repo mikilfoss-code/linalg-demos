@@ -1,7 +1,8 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from mnist_data import sample_mnist
 
 def _cors_origins() -> list[str]:
     """
@@ -17,6 +18,7 @@ def _cors_origins() -> list[str]:
 
 
 app = FastAPI(title="Linear Algebra Demos API", version="0.1.0")
+MAX_MNIST_SAMPLES = 64
 
 origins = _cors_origins()
 app.add_middleware(
@@ -39,3 +41,22 @@ def info() -> dict:
         "service": "linalg-demos-backend",
         "version": app.version,
     }
+
+
+@app.get("/api/v1/mnist/samples")
+def mnist_samples(
+    count: int = Query(24, ge=1, le=MAX_MNIST_SAMPLES),
+    split: str = Query("train"),
+    seed: int | None = Query(None, ge=0),
+) -> dict:
+    """
+    Return random MNIST samples with pixel bytes and normalized vectors.
+
+    @param count: Number of samples to return (1..MAX_MNIST_SAMPLES).
+    @param split: Dataset split ("train" or "test").
+    @param seed: Optional RNG seed for reproducible sampling.
+    @returns: JSON payload containing MNIST samples and metadata.
+    """
+    if split not in ("train", "test"):
+        raise HTTPException(status_code=400, detail="split must be 'train' or 'test'")
+    return sample_mnist(count=count, seed=seed, split=split)

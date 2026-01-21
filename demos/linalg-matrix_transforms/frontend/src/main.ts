@@ -1,7 +1,7 @@
 import "./style.css";
-import { health } from "./lib/api";
+import { getApiBaseUrl, health } from "./lib/api";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+const API_BASE = getApiBaseUrl() || "(same origin)";
 
 const el = document.querySelector<HTMLDivElement>("#app");
 if (!el) throw new Error("Missing #app element");
@@ -22,10 +22,10 @@ const btn = document.querySelector<HTMLButtonElement>("#btn")!;
 
 btn.addEventListener("click", async () => {
   out.textContent = "Loading…";
-  try {
-    const data = await health();
-    out.textContent = JSON.stringify(data, null, 2);
-  } catch (e: any) {
-    out.textContent = `Error: ${e?.message ?? String(e)}`;
+  const result = await health();
+  if (!result.ok) {
+    out.textContent = `Error: ${result.error.message}`;
+    return;
   }
+  out.textContent = JSON.stringify(result.value, null, 2);
 });
