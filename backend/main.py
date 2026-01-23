@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from mnist_data import sample_mnist
+from .mnist_data import sample_mnist
 
 def _cors_origins() -> list[str]:
     """

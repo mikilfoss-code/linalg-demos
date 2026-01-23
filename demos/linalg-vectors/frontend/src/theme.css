@@ -1,0 +1,144 @@
+/* Theme tokens for layout + color. Update these to tweak sizing and palette. */
+:root {
+  color: var(--ink);
+  background-color: var(--paper);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+
+  /* Typography. */
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+
+  /* Spacing scale (rem-based). */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 2.5rem;
+  --space-9: 3.5rem;
+
+  /* Core palette + text. */
+  --ink: #1d2433;
+  --ink-soft: #3c4761;
+  --paper: #f4f0e6;
+  --surface: #fffaf1;
+  --surface-2: #f6efe1;
+  --accent: #f06449;
+  --accent-2: #2a9d8f;
+  --accent-3: #f4b942;
+  --accent-contrast: #fff8f0;
+  /* Vector outline color used for the selected pixel window. */
+  --vector-outline: #f06449;
+
+  /* Borders, shadows, and focus rings. */
+  --grid-line: rgba(29, 36, 51, 0.12);
+  --shadow-soft: rgba(24, 30, 40, 0.14);
+  --shadow-panel: rgba(18, 24, 33, 0.12);
+  --shadow-tile: rgba(20, 26, 34, 0.12);
+  --shadow-accent: rgba(240, 100, 73, 0.35);
+  --shadow-accent-soft: rgba(240, 100, 73, 0.25);
+  --focus-accent: rgba(240, 100, 73, 0.35);
+  --focus-teal: rgba(42, 157, 143, 0.35);
+  /* Border color for grayscale swatches in the vector list. */
+  --swatch-border: rgba(29, 36, 51, 0.18);
+
+  /* Background gradients + panel fills. */
+  --bg-radial-1: #fde4c9;
+  --bg-radial-2: #cfe9e2;
+  --bg-linear-top: #f9f3ea;
+  --bg-linear-bottom: #efe8dc;
+  --selected-card-start: #fff8ef;
+  --selected-card-end: #f5efe2;
+  --debug-item-bg: #fff7ea;
+  --debug-log-bg: #f3ecde;
+  /* Canvas backing color for digit thumbnails and swatches. */
+  --canvas-bg: #111;
+
+  /* Main layout split: image table (left) vs vector window (right). */
+  --layout-left-width: 30%;
+  --layout-right-width: 70%;
+  --layout-split: var(--layout-left-width) var(--layout-right-width);
+  --layout-gap: var(--space-7);
+
+  /* Vector window split: selected digit vs component list/slider. */
+  --vector-shell-left-width: 65%;
+  --vector-shell-right-width: 35%;
+  --vector-shell-split: var(--vector-shell-left-width) var(--vector-shell-right-width);
+  --vector-shell-gap: var(--space-4);
+
+  /* Image grid sizing and fallback values used before layout is measured. */
+  --grid-gap: var(--space-3);
+  --grid-size: 32px;
+  --grid-fallback-columns: 2;
+  --grid-fallback-rows: 5;
+  /* Minimum pixel size for each grid tile (drives columns/rows). */
+  --grid-tile-min: 90;
+  /* Maximum pixel size for each grid tile before we add more rows/columns. */
+  --grid-tile-max: 140;
+  /* Hard cap to avoid requesting too many samples from the backend. */
+  --grid-max-samples: 32;
+  /* Viewport height percentage used to estimate grid rows. */
+  --grid-height-vh: 70;
+
+  /* App shell sizing. */
+  --app-max-width: 1200px;
+  --app-padding: var(--space-8) var(--space-6) var(--space-9);
+  --section-gap: var(--space-7);
+
+  /* Panel chrome. */
+  --panel-radius: 20px;
+  --panel-padding: var(--space-6);
+  --panel-header-gap: var(--space-4);
+  --panel-header-margin-bottom: var(--space-5);
+
+  /* Hero sizes. */
+  --hero-gap: var(--space-6);
+  --hero-copy-max: 560px;
+  --hero-card-radius: 18px;
+  --hero-card-padding: var(--space-5) var(--space-6);
+  --hero-card-min-width: 240px;
+  --hero-card-gap: var(--space-2);
+
+  /* Grid tile chrome. */
+  --tile-radius: 14px;
+  --tile-padding: var(--space-2);
+
+  /* Selected digit card + canvas sizing. */
+  --selected-card-radius: 16px;
+  --selected-card-padding: var(--space-4);
+  --selected-card-gap: var(--space-4);
+  --selected-canvas-radius: 10px;
+  --selected-canvas-padding: var(--space-2);
+  /* Small-screen maximum for the selected digit canvas. */
+  --selected-canvas-max-sm: 280px;
+
+  /* Vector panel sizing and list density. */
+  --vector-panel-min-height: 600px;
+  --vector-panel-padding: var(--space-4);
+  --vector-panel-radius: 16px;
+  --vector-list-min-height: 360px;
+  /* Keeps values from touching the right panel edge. */
+  --vector-list-padding-right: var(--space-3);
+  --vector-slider-min-height: 360px;
+  /* Horizontal spacing inside vector rows. */
+  --vector-row-gap: var(--space-0);
+  --vector-index-width: 56px;
+  --vector-swatch-col: var(--vector-swatch-size);
+  --vector-swatch-size: 20px;
+  --vector-slider-width: 28px;
+
+  /* Status pill sizing. */
+  --status-pill-padding: var(--space-1) var(--space-3);
+  --status-pill-font-size: 0.85rem;
+  --status-pill-radius: 999px;
+
+  /* Footer spacing for panel actions. */
+  --panel-footer-margin: var(--space-4);
+}

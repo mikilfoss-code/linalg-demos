@@ -1,260 +1,297 @@
-:root {
-  color: #1d2433;
-  background-color: #f4f0e6;
-  font-family: "Space Grotesk", sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
+@import './theme.css';
 
-  --ink: #1d2433;
-  --ink-soft: #3c4761;
-  --paper: #f4f0e6;
-  --surface: #fffaf1;
-  --surface-2: #f6efe1;
-  --accent: #f06449;
-  --accent-2: #2a9d8f;
-  --accent-3: #f4b942;
-  --vector-outline: #f06449;
-  --grid: rgba(29, 36, 51, 0.12);
-  --shadow: rgba(24, 30, 40, 0.14);
-  --mono: "IBM Plex Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
-}
-
+/* Use border-box sizing so padding/borders don't change layout widths. */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
+/* Page background gradient + default text color for the app. */
 body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(1200px 700px at 10% -10%, #fde4c9 0%, transparent 60%),
-    radial-gradient(900px 600px at 110% 10%, #cfe9e2 0%, transparent 55%),
-    linear-gradient(180deg, #f9f3ea 0%, #efe8dc 100%);
+    radial-gradient(1200px 700px at 10% -10%, var(--bg-radial-1) 0%, transparent 60%),
+    radial-gradient(900px 600px at 110% 10%, var(--bg-radial-2) 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg-linear-top) 0%, var(--bg-linear-bottom) 100%);
   color: var(--ink);
 }
 
+/* Subtle fixed grid overlay texture on the full page. */
 body::before {
-  content: "";
+  content: '';
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 32px 32px;
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
   opacity: 0.35;
   pointer-events: none;
   z-index: -1;
 }
 
+/* App container: centered page width and outer padding. */
 #app {
-  max-width: 1200px;
+  max-width: var(--app-max-width);
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 3.5rem;
+  padding: var(--app-padding);
 }
 
+/* Stacks the major page sections vertically. */
 .app-shell {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: var(--section-gap);
 }
 
+/* Hero header layout with intro animation. */
 .hero {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: var(--hero-gap);
   align-items: flex-end;
   animation: rise 0.6s ease both;
 }
 
+/* Constrains width of hero text block. */
 .hero-copy {
-  max-width: 560px;
+  max-width: var(--hero-copy-max);
 }
 
+/* Small uppercase eyebrow label above the title. */
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.3em;
   font-size: 0.7rem;
   color: var(--ink-soft);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
+/* Main page title styling. */
 h1 {
   font-size: clamp(2.4rem, 4vw, 3.6rem);
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--space-3);
 }
 
+/* Subtitle text styling in hero. */
 .subtitle {
   margin: 0;
   color: var(--ink-soft);
   font-size: 1.05rem;
 }
 
+/* Summary card on the right side of the hero. */
 .hero-card {
   background: var(--surface);
-  border: 1px solid var(--grid);
-  border-radius: 18px;
-  padding: 1.25rem 1.5rem;
-  min-width: 240px;
+  border: 1px solid var(--grid-line);
+  border-radius: var(--hero-card-radius);
+  padding: var(--hero-card-padding);
+  min-width: var(--hero-card-min-width);
   display: grid;
-  gap: 0.6rem;
-  box-shadow: 0 20px 40px var(--shadow);
+  gap: var(--hero-card-gap);
+  box-shadow: 0 20px 40px var(--shadow-soft);
 }
 
+/* Muted metadata lines inside the hero card. */
 .meta-line {
   color: var(--ink-soft);
   font-size: 0.9rem;
 }
 
+/* Primary call-to-action button styling. */
 .primary {
   border: none;
   background: var(--accent);
-  color: #fff8f0;
-  padding: 0.7rem 1.2rem;
+  color: var(--accent-contrast);
+  padding: var(--space-3) var(--space-5);
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
+/* Hover lift and glow for primary button. */
 .primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(240, 100, 73, 0.35);
+  box-shadow: 0 12px 24px var(--shadow-accent);
 }
 
+/* Keyboard focus ring for primary button. */
 .primary:focus-visible {
-  outline: 3px solid rgba(240, 100, 73, 0.35);
+  outline: 3px solid var(--focus-accent);
   outline-offset: 2px;
 }
 
+/* Two-column main layout: grid panel + vector panel. */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
-  gap: 1.8rem;
+  grid-template-columns: var(--layout-split);
+  gap: var(--layout-gap);
 }
 
+/* Shared panel card styling. */
 .panel {
   background: var(--surface);
-  border: 1px solid var(--grid);
-  border-radius: 20px;
-  padding: 1.4rem;
-  box-shadow: 0 24px 48px rgba(18, 24, 33, 0.12);
+  border: 1px solid var(--grid-line);
+  border-radius: var(--panel-radius);
+  padding: var(--panel-padding);
+  box-shadow: 0 24px 48px var(--shadow-panel);
   animation: rise 0.7s ease both;
 }
 
+/* Staggered animation for the grid panel. */
 .panel-grid {
+  display: flex;
+  flex-direction: column;
   animation-delay: 0.05s;
 }
 
+/* Staggered animation for the vector panel. */
 .panel-vector {
   animation-delay: 0.12s;
 }
 
+/* Panel header row: title + status pill. */
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.2rem;
+  gap: var(--panel-header-gap);
+  margin-bottom: var(--panel-header-margin-bottom);
 }
 
+/* Panel title sizing. */
 .panel-header h2 {
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--space-1);
   font-size: 1.4rem;
 }
 
+/* Panel subtitle text styling. */
 .panel-subtitle {
   margin: 0;
   color: var(--ink-soft);
   font-size: 0.95rem;
 }
 
+/* Rounded status badge (e.g., loading state). */
 .status-pill {
   background: var(--surface-2);
-  border: 1px solid var(--grid);
-  padding: 0.35rem 0.8rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
+  border: 1px solid var(--grid-line);
+  padding: var(--status-pill-padding);
+  border-radius: var(--status-pill-radius);
+  font-size: var(--status-pill-font-size);
   color: var(--ink-soft);
   white-space: nowrap;
 }
 
+/* Grid of MNIST image tiles. */
 .mnist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(var(--grid-columns, 2), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--grid-rows, 1), var(--grid-row-size, 1fr));
+  gap: var(--grid-gap);
+  grid-auto-rows: var(--grid-row-size, 1fr);
+  flex: 1;
+  align-content: center;
+  min-height: 0;
 }
 
+/* Dim and desaturate tiles while loading. */
 .mnist-grid.is-loading {
   opacity: 0.6;
   filter: grayscale(0.3);
 }
 
+/* Footer row for grid actions (e.g., resample button). */
+.panel-footer {
+  margin-top: var(--panel-footer-margin);
+  display: flex;
+  justify-content: center;
+}
+
+/* Individual MNIST tile card styling. */
 .mnist-tile {
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--tile-radius);
   background: var(--surface-2);
-  padding: 0.5rem;
+  padding: var(--tile-padding);
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  aspect-ratio: 1 / 1;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   animation: tileIn 0.35s ease both;
   animation-delay: calc(var(--i) * 25ms);
   font: inherit;
 }
 
+/* Ensures MNIST canvas scales crisply in tiles. */
 .mnist-tile canvas {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
 }
 
+/* Hover lift and outline for tiles. */
 .mnist-tile:hover {
   transform: translateY(-2px);
-  border-color: rgba(240, 100, 73, 0.35);
-  box-shadow: 0 12px 20px rgba(20, 26, 34, 0.12);
+  border-color: var(--shadow-accent);
+  box-shadow: 0 12px 20px var(--shadow-tile);
 }
 
+/* Selected tile highlight. */
 .mnist-tile.is-selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(240, 100, 73, 0.25);
+  box-shadow: 0 0 0 2px var(--shadow-accent-soft);
 }
 
+/* Keyboard focus ring for tiles. */
 .mnist-tile:focus-visible {
-  outline: 3px solid rgba(42, 157, 143, 0.35);
+  outline: 3px solid var(--focus-teal);
   outline-offset: 2px;
 }
 
+/* Card showing the selected digit + metadata. */
 .selected-card {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: var(--selected-card-gap);
   align-items: center;
-  padding: 1rem;
-  border: 1px solid var(--grid);
-  border-radius: 16px;
-  background: linear-gradient(135deg, #fff8ef 0%, #f5efe2 100%);
+  padding: var(--selected-card-padding);
+  border: 1px solid var(--grid-line);
+  border-radius: var(--selected-card-radius);
+  background: linear-gradient(135deg, var(--selected-card-start) 0%, var(--selected-card-end) 100%);
 }
 
+/* Large selected-digit canvas styling. */
 #selected-canvas {
-  width: 160px;
-  height: 160px;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
   image-rendering: pixelated;
-  background: #111;
-  border-radius: 10px;
-  padding: 0.4rem;
+  background: var(--canvas-bg);
+  border-radius: var(--selected-canvas-radius);
+  padding: var(--selected-canvas-padding);
 }
 
+/* Layout for selected metadata text. */
 .selected-info {
   display: grid;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 
+/* Metadata label styling (uppercase, small). */
 .info-label {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -262,159 +299,191 @@ h1 {
   color: var(--ink-soft);
 }
 
+/* Metadata value styling (mono). */
 .info-value {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 1.05rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: var(--space-2);
 }
 
+/* Vector panel layout (vector list + slider). */
+.vector-shell {
+  display: grid;
+  grid-template-columns: var(--vector-shell-split);
+  gap: var(--vector-shell-gap);
+  align-items: start;
+}
+
+/* Stack content inside vector panel. */
+.vector-content {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Vector list card styling. */
 .vector-panel {
-  margin-top: 1.2rem;
-  padding: 1rem;
-  border-radius: 16px;
-  border: 1px solid var(--grid);
+  margin-top: var(--space-5);
+  min-height: var(--vector-panel-min-height);
+  padding: var(--vector-panel-padding);
+  border-radius: var(--vector-panel-radius);
+  border: 1px solid var(--grid-line);
   background: var(--surface-2);
 }
 
+/* Header row for vector controls and range text. */
 .vector-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
+/* Mono range text (indices shown). */
 .vector-range {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   color: var(--ink);
 }
 
+/* Layout for slider alongside vector list. */
 .vector-body {
   display: grid;
   grid-template-columns: 32px 1fr;
-  gap: 0.8rem;
+  gap: var(--space-3);
   align-items: stretch;
 }
 
+/* Container for the vector component rows. */
 .vector-list {
   display: grid;
-  gap: 0.45rem;
-  min-height: 280px;
+  gap: var(--space-2);
+  min-height: var(--vector-list-min-height);
+  padding-right: var(--vector-list-padding-right);
   outline: none;
 }
 
+/* Keyboard focus ring for vector list. */
 .vector-list:focus-visible {
-  outline: 2px solid rgba(42, 157, 143, 0.35);
+  outline: 2px solid var(--focus-teal);
   outline-offset: 4px;
   border-radius: 12px;
 }
 
+/* Row layout for each vector component. */
 .vector-row {
   display: grid;
-  grid-template-columns: 56px 64px 1fr;
+  grid-template-columns: var(--vector-index-width) var(--vector-swatch-col) 1fr;
   align-items: center;
-  gap: 0.6rem;
-  font-family: var(--mono);
+  gap: var(--vector-row-gap);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
 
+/* Emphasizes the component index. */
 .vector-index {
   color: var(--ink);
 }
 
-.vector-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(29, 36, 51, 0.12);
-  position: relative;
-  overflow: hidden;
+/* Background bar for component magnitude. */
+/* Grayscale swatch representing the pixel value. */
+.vector-swatch {
+  width: var(--vector-swatch-size);
+  height: var(--vector-swatch-size);
+  border-radius: 6px;
+  border: 1px solid var(--swatch-border);
+  background: var(--canvas-bg);
 }
 
-.vector-bar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  width: calc(var(--level) * 100%);
-  background: linear-gradient(90deg, var(--accent-2), var(--accent-3));
-  border-radius: inherit;
-}
-
+/* Right-aligned numeric value. */
 .vector-value {
   text-align: right;
 }
 
+/* Empty-state text when no vector data. */
 .vector-empty {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   color: var(--ink-soft);
 }
 
+/* Staggered animation for debug panel. */
 .panel-debug {
   animation-delay: 0.18s;
 }
 
+/* Debug stat cards grid. */
 .debug-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.8rem;
-  margin-bottom: 1rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
+/* Individual debug stat card styling. */
 .debug-item {
-  border: 1px dashed var(--grid);
+  border: 1px dashed var(--grid-line);
   border-radius: 12px;
-  padding: 0.6rem 0.75rem;
-  background: #fff7ea;
+  padding: var(--space-2) var(--space-3);
+  background: var(--debug-item-bg);
 }
 
+/* Debug label styling. */
 .debug-label {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   color: var(--ink-soft);
-  margin-bottom: 0.35rem;
+  margin-bottom: var(--space-1);
 }
 
+/* Debug value styling. */
 .debug-value {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--ink);
   word-break: break-word;
   margin: 0;
 }
 
+/* Separator for debug log area. */
 .debug-log {
-  border-top: 1px dashed var(--grid);
-  padding-top: 0.75rem;
+  border-top: 1px dashed var(--grid-line);
+  padding-top: var(--space-3);
 }
 
+/* Debug log content bubble. */
 .debug-log .debug-value {
-  background: #f3ecde;
-  padding: 0.6rem;
+  background: var(--debug-log-bg);
+  padding: var(--space-2);
   border-radius: 8px;
   white-space: pre-wrap;
 }
 
+/* Small helper hint text. */
 .hint {
-  margin: 0.6rem 0 0;
+  margin: var(--space-2) 0 0;
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
 
-input[type="range"] {
+/* Global range input styling (width + accent color). */
+input[type='range'] {
   width: 100%;
   accent-color: var(--accent-2);
 }
 
+/* Vertical range slider styling for vector window. */
 .vector-slider {
-  width: 28px;
-  min-height: 280px;
+  width: var(--vector-slider-width);
+  min-height: var(--vector-slider-min-height);
   height: 100%;
   writing-mode: vertical-rl;
   direction: rtl;
   -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
 }
 
+/* Rise-in animation used for panels/hero. */
 @keyframes rise {
   from {
     opacity: 0;
@@ -426,6 +495,7 @@ input[type="range"] {
   }
 }
 
+/* Staggered tile entrance animation. */
 @keyframes tileIn {
   from {
     opacity: 0;
@@ -437,21 +507,21 @@ input[type="range"] {
   }
 }
 
+/* Responsive single-column layout for smaller screens. */
 @media (max-width: 980px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
+  /* Keep selected card content stacked on small screens. */
   .selected-card {
     grid-template-columns: 1fr;
   }
 
+  /* Reduce selected canvas size on small screens. */
   #selected-canvas {
-    width: 100px;
-    height: 100px;
+    max-width: var(--selected-canvas-max-sm);
+    max-height: var(--selected-canvas-max-sm);
   }
 }
 
+/* Respect reduced-motion preferences by removing animations. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

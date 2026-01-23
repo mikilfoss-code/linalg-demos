@@ -8,6 +8,7 @@
 - demos/linalg-vectors/frontend/ - Vite + TypeScript demo site for vectors.
 - demos/linalg-matrix_transforms/frontend/ - Vite + TypeScript demo site for matrix transforms.
 - demos/shared/ - Shared frontend helper modules for demos.
+- .nvmrc - Pinned Node.js version for local development.
 - render.yaml - Render deployment configuration for backend + static demos.
 - AGENTS.md - repo-specific agent instructions.
 - CODEMAP.md - this document.
@@ -37,6 +38,7 @@
 - demos/linalg-vectors/frontend/src/main.ts - MNIST vector explorer UI entry with debug panel and vector window highlighting.
 - demos/linalg-matrix_transforms/frontend/src/main.ts - Matrix transforms demo entry (currently basic health check UI).
 - demos/linalg-vectors/frontend/src/lib/mnist.ts - Fetches MNIST samples from the backend and converts them for canvas rendering.
+- demos/linalg-vectors/frontend/src/theme.css - Layout + color tokens for the vectors demo theme.
 - backend/mnist_data.py - Downloads MNIST files, caches datasets, and serves sampled vectors.
 - demos/\*/frontend/src/lib/api.ts - API client helpers, base URL selection, fetch wrapper, and response validation.
 - demos/\*/frontend/vite.config.ts - Vite dev server config with backend API proxying and @shared alias wiring.
@@ -124,9 +126,19 @@
   - Outputs: next UI state.
   - Side effects: none (pure state transition).
   - Error cases: none.
-- drawVectorWindowOutline(ctx, size, offset, windowSize, vectorLength) -> void (demos/linalg-vectors/frontend/src/main.ts)
-  - Inputs: canvas context, image size, vector window offset, window size, vector length.
-  - Outputs: draws a border outline for pixels mapped to the current vector window.
+- computeGridLayout(width, height, columnGap, rowGap) -> {layout, rowSize} (demos/linalg-vectors/frontend/src/main.ts)
+  - Inputs: grid container width, viewport-derived target height, and CSS gaps.
+  - Outputs: responsive grid layout (columns/rows) plus computed row size for square tiles, clamped by grid tile min/max and capped by GRID_MAX_SAMPLES.
+  - Side effects: none.
+  - Error cases: none.
+- syncSamplesToTarget(targetCount) -> void (demos/linalg-vectors/frontend/src/main.ts)
+  - Inputs: target sample count derived from grid layout.
+  - Outputs: none.
+  - Side effects: appends or trims samples via async fetches.
+  - Error cases: surfaces fetch errors via Result.ok=false and UI error state.
+- drawVectorWindowOutline(ctx, imageSize, displaySize, offset, windowSize, vectorLength) -> void (demos/linalg-vectors/frontend/src/main.ts)
+  - Inputs: canvas context, image size (pixels), display size (CSS px), vector window offset, window size, vector length.
+  - Outputs: draws one or more single-row outline rectangles for the current vector window slice at display scale.
   - Side effects: draws on the selected digit canvas.
   - Error cases: none.
 
@@ -138,6 +150,12 @@
 - VITE_API_BASE_URL (frontend)
   - Affects: API base URL used by demo clients; dev builds use same-origin when unset.
   - Used in: demos/\*/frontend/src/lib/api.ts::getApiBaseUrl.
+- --vector-outline (frontend CSS)
+  - Affects: outline color for the active vector window highlight.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
+- --space-0..--space-9 (frontend CSS)
+  - Affects: shared spacing scale for margins, padding, and gaps across the vectors demo.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
 - MNIST_ENDPOINT (frontend)
   - Affects: backend path used for MNIST sampling requests.
   - Used in: demos/linalg-vectors/frontend/src/lib/mnist.ts.
@@ -150,9 +168,33 @@
 - MAX_MNIST_SAMPLES (backend)
   - Affects: request limit for /api/v1/mnist/samples.
   - Used in: backend/main.py.
-- SAMPLE_COUNT (frontend)
-  - Affects: number of MNIST images shown in the grid.
-  - Used in: demos/linalg-vectors/frontend/src/main.ts.
+- --layout-left-width / --layout-right-width (frontend CSS)
+  - Affects: column split between the image table and vector window panels.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-shell-left-width / --vector-shell-right-width (frontend CSS)
+  - Affects: split between the selected digit and component window inside the vector panel.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --grid-tile-min (frontend CSS)
+  - Affects: minimum pixel size for MNIST tiles when computing responsive grid rows/columns.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
+- --grid-tile-max (frontend CSS)
+  - Affects: maximum pixel size for MNIST tiles before adding more rows/columns.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
+- --grid-max-samples (frontend CSS)
+  - Affects: cap on responsive grid sample count to stay within backend limits.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
+- --grid-height-vh (frontend CSS)
+  - Affects: viewport-height ratio used to estimate how many grid rows to display.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
+- --grid-row-size (frontend CSS)
+  - Affects: fixed pixel row height for the MNIST grid to keep tiles square.
+  - Used in: demos/linalg-vectors/frontend/src/style.css and demos/linalg-vectors/frontend/src/main.ts.
+- --grid-fallback-columns / --grid-fallback-rows (frontend CSS)
+  - Affects: initial grid rows/columns used before the layout is measured.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
+- --vector-list-padding-right (frontend CSS)
+  - Affects: right padding for the vector component list to keep values off the panel edge.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
 - VECTOR_WINDOW (frontend)
   - Affects: number of vector components shown at once.
   - Used in: demos/linalg-vectors/frontend/src/main.ts.
@@ -163,8 +205,11 @@
   - Affects: backend runtime version.
   - Used in: render.yaml.
 - NODE_VERSION (Render)
-  - Affects: demo build/runtime environment.
+  - Affects: demo build/runtime environment; keep in sync with .nvmrc.
   - Used in: render.yaml.
+- NODE_VERSION (local dev)
+  - Affects: local Node.js version used by nvm when running demos.
+  - Used in: .nvmrc.
 - RENDER_EXTERNAL_URL (Render-provided)
   - Affects: frontends' VITE_API_BASE_URL via Render service binding.
   - Used in: render.yaml envVars for demo services.
@@ -176,9 +221,9 @@
   - Owner/lifetime: module-global; lives for process lifetime.
   - Invariants: CORS middleware is applied before serving requests.
 - state (vectors frontend, demos/linalg-vectors/frontend/src/main.ts)
-  - Contains: loading status, MNIST metadata, sampled images, selected index, vector offset, last error message.
+  - Contains: loading status, MNIST metadata, sampled images, selected index, vector offset, responsive grid layout, target sample count, last error message.
   - Owner/lifetime: module-local; lives for the browser session.
-  - Invariants: selectedId references samples; vectorOffset stays within vector bounds.
+  - Invariants: selectedId references samples; vectorOffset stays within vector bounds; targetSampleCount matches gridLayout rows x columns.
 - _dataset_cache (backend, backend/mnist_data.py)
   - Contains: cached MNIST datasets by split.
   - Owner/lifetime: module-global; lives for process lifetime.
