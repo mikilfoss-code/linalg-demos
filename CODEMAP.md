@@ -8,6 +8,7 @@
 - demos/linalg-vectors/frontend/ - Vite + TypeScript demo site for vectors.
 - demos/linalg-matrix_transforms/frontend/ - Vite + TypeScript demo site for matrix transforms.
 - demos/shared/ - Shared frontend helper modules for demos.
+- demos/shared/src/ui/ - Shared UI assets (CSS shell for new demos).
 - .nvmrc - Pinned Node.js version for local development.
 - render.yaml - Render deployment configuration for backend + static demos.
 - AGENTS.md - repo-specific agent instructions.
@@ -44,7 +45,9 @@
 - demos/\*/frontend/vite.config.ts - Vite dev server config with backend API proxying and @shared alias wiring.
 - demos/shared/src/lib/result.ts - Shared Result helpers for API responses.
 - demos/shared/src/lib/types.ts - Shared types (Vec/Mat) and runtime validators.
+- demos/shared/src/lib/api.ts - Shared API client + service factory for demo frontends.
 - demos/linalg-vectors/frontend/src/lib/types.ts - MNIST-specific API types that re-export shared validators.
+- demos/shared/src/ui/demo-shell.css - Shared CSS shell classes for new demo layouts.
 - demos/\*/frontend/src/style.css - Demo-level styling.
 - render.yaml - Render service definitions and env wiring for backend + demo sites.
 
@@ -128,9 +131,19 @@
   - Error cases: none.
 - computeGridLayout(width, height, columnGap, rowGap) -> {layout, rowSize} (demos/linalg-vectors/frontend/src/main.ts)
   - Inputs: grid container width, viewport-derived target height, and CSS gaps.
-  - Outputs: responsive grid layout (columns/rows) plus computed row size for square tiles, clamped by grid tile min/max and capped by GRID_MAX_SAMPLES.
+  - Outputs: responsive grid layout (columns/rows) plus computed row size for square tiles, with a strict tile max and sample-count cap.
   - Side effects: none.
   - Error cases: none.
+- createApiClient(baseUrl?) -> {baseUrl, requestJson} (demos/shared/src/lib/api.ts)
+  - Inputs: optional API base URL override.
+  - Outputs: API client with normalized base URL and JSON request helper.
+  - Side effects: none.
+  - Error cases: requestJson returns Result.ok=false on network/HTTP/validation errors.
+- createApi({baseUrl?, client?, features?}) -> ApiService (demos/shared/src/lib/api.ts)
+  - Inputs: optional base URL/client override and feature flags.
+  - Outputs: API service for health/matrix/eigen plus requestJson.
+  - Side effects: none.
+  - Error cases: returns Result.ok=false on validation or network/HTTP errors.
 - syncSamplesToTarget(targetCount) -> void (demos/linalg-vectors/frontend/src/main.ts)
   - Inputs: target sample count derived from grid layout.
   - Outputs: none.
@@ -171,17 +184,17 @@
 - --layout-left-width / --layout-right-width (frontend CSS)
   - Affects: column split between the image table and vector window panels.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
-- --vector-shell-left-width / --vector-shell-right-width (frontend CSS)
-  - Affects: split between the selected digit and component window inside the vector panel.
+- --vector-shell-gap (frontend CSS)
+  - Affects: gap between the selected image column and the vector info column.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
 - --grid-tile-min (frontend CSS)
   - Affects: minimum pixel size for MNIST tiles when computing responsive grid rows/columns.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
 - --grid-tile-max (frontend CSS)
-  - Affects: maximum pixel size for MNIST tiles before adding more rows/columns.
+  - Affects: strict maximum pixel size for MNIST tiles; columns increase to keep tiles at or below this cap.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
 - --grid-max-samples (frontend CSS)
-  - Affects: cap on responsive grid sample count to stay within backend limits.
+  - Affects: cap on responsive grid sample count; rows are trimmed first to keep tile sizing stable.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
 - --grid-height-vh (frontend CSS)
   - Affects: viewport-height ratio used to estimate how many grid rows to display.
@@ -193,7 +206,31 @@
   - Affects: initial grid rows/columns used before the layout is measured.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/main.ts.
 - --vector-list-padding-right (frontend CSS)
-  - Affects: right padding for the vector component list to keep values off the panel edge.
+  - Affects: right padding for the entire vector info column to keep values off the panel edge.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-hint-margin-top (frontend CSS)
+  - Affects: spacing above the vector panel hint text.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --selected-card-min-width (frontend CSS)
+  - Affects: minimum width for the selected digit card column.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-value-min-width (frontend CSS)
+  - Affects: minimum width for the vector value column.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-panel-min-width (frontend CSS)
+  - Affects: minimum width for the vector window panel to fit image + info column.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-info-min-width (frontend CSS)
+  - Affects: minimum width for the vector info column based on slider + component columns.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-slider-gap (frontend CSS)
+  - Affects: horizontal gap between the vector slider and component list.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-index-swatch-gap (frontend CSS)
+  - Affects: spacer column between the index and swatch in the vector row grid.
+  - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
+- --vector-swatch-value-gap (frontend CSS)
+  - Affects: spacer column between the swatch and value in the vector row grid.
   - Used in: demos/linalg-vectors/frontend/src/theme.css and demos/linalg-vectors/frontend/src/style.css.
 - VECTOR_WINDOW (frontend)
   - Affects: number of vector components shown at once.

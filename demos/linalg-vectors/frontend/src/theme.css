@@ -67,11 +67,8 @@
   --layout-split: var(--layout-left-width) var(--layout-right-width);
   --layout-gap: var(--space-7);
 
-  /* Vector window split: selected digit vs component list/slider. */
-  --vector-shell-left-width: 65%;
-  --vector-shell-right-width: 35%;
-  --vector-shell-split: var(--vector-shell-left-width) var(--vector-shell-right-width);
-  --vector-shell-gap: var(--space-4);
+  /* Vector window spacing between selected digit and component list/slider. */
+  --vector-shell-gap: var(--space-9);
 
   /* Image grid sizing and fallback values used before layout is measured. */
   --grid-gap: var(--space-3);
@@ -120,18 +117,32 @@
   --selected-canvas-max-sm: 280px;
 
   /* Vector panel sizing and list density. */
+  --selected-card-min-width: 260px;
+  --vector-value-min-width: 72px;
   --vector-panel-min-height: 600px;
+  --vector-panel-min-width: calc(
+    var(--selected-card-min-width) + var(--vector-info-min-width) + var(--vector-shell-gap)
+  );
   --vector-panel-padding: var(--space-4);
   --vector-panel-radius: 16px;
   --vector-list-min-height: 360px;
   /* Keeps values from touching the right panel edge. */
-  --vector-list-padding-right: var(--space-3);
+  --vector-list-padding-right: var(--space-6);
   --vector-slider-min-height: 360px;
-  /* Horizontal spacing inside vector rows. */
-  --vector-row-gap: var(--space-0);
+  --vector-hint-margin-top: var(--space-7);
+  /* Gap between the slider and the component list. */
+  --vector-slider-gap: var(--space-0);
+  /* Vector row column sizing. */
   --vector-index-width: 56px;
   --vector-swatch-col: var(--vector-swatch-size);
   --vector-swatch-size: 20px;
+  --vector-index-swatch-gap: var(--space-5);
+  --vector-swatch-value-gap: var(--space-1);
+  --vector-info-min-width: calc(
+    var(--vector-slider-width) + var(--vector-slider-gap) + var(--vector-index-width) +
+      var(--vector-index-swatch-gap) + var(--vector-swatch-col) + var(--vector-swatch-value-gap) +
+      var(--vector-value-min-width)
+  );
   --vector-slider-width: 28px;
 
   /* Status pill sizing. */

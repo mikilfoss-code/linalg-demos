@@ -265,6 +265,7 @@ h1 {
   grid-template-columns: 1fr;
   gap: var(--selected-card-gap);
   align-items: center;
+  width: 100%;
   padding: var(--selected-card-padding);
   border: 1px solid var(--grid-line);
   border-radius: var(--selected-card-radius);
@@ -309,7 +310,7 @@ h1 {
 /* Vector panel layout (vector list + slider). */
 .vector-shell {
   display: grid;
-  grid-template-columns: var(--vector-shell-split);
+  grid-template-columns: minmax(var(--selected-card-min-width), 1fr) max-content;
   gap: var(--vector-shell-gap);
   align-items: start;
 }
@@ -318,12 +319,18 @@ h1 {
 .vector-content {
   display: grid;
   gap: var(--space-3);
+  justify-items: center;
+  justify-self: end;
+  width: max-content;
+  min-width: var(--vector-info-min-width);
+  padding-right: var(--vector-list-padding-right);
 }
 
 /* Vector list card styling. */
 .vector-panel {
-  margin-top: var(--space-5);
+  margin-top: var(--space-0);
   min-height: var(--vector-panel-min-height);
+  min-width: var(--vector-panel-min-width);
   padding: var(--vector-panel-padding);
   border-radius: var(--vector-panel-radius);
   border: 1px solid var(--grid-line);
@@ -337,6 +344,8 @@ h1 {
   justify-content: space-between;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
+  width: max-content;
+  justify-self: center;
 }
 
 /* Mono range text (indices shown). */
@@ -348,9 +357,11 @@ h1 {
 /* Layout for slider alongside vector list. */
 .vector-body {
   display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: var(--space-3);
+  grid-template-columns: var(--vector-slider-width) max-content;
+  column-gap: var(--vector-slider-gap);
   align-items: stretch;
+  width: max-content;
+  justify-self: center;
 }
 
 /* Container for the vector component rows. */
@@ -358,8 +369,9 @@ h1 {
   display: grid;
   gap: var(--space-2);
   min-height: var(--vector-list-min-height);
-  padding-right: var(--vector-list-padding-right);
   outline: none;
+  width: max-content;
+  justify-self: center;
 }
 
 /* Keyboard focus ring for vector list. */
@@ -372,9 +384,14 @@ h1 {
 /* Row layout for each vector component. */
 .vector-row {
   display: grid;
-  grid-template-columns: var(--vector-index-width) var(--vector-swatch-col) 1fr;
+  grid-template-columns:
+    var(--vector-index-width)
+    var(--vector-index-swatch-gap)
+    var(--vector-swatch-col)
+    var(--vector-swatch-value-gap)
+    minmax(var(--vector-value-min-width), max-content);
   align-items: center;
-  gap: var(--vector-row-gap);
+  column-gap: 0;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--ink-soft);
@@ -382,12 +399,15 @@ h1 {
 
 /* Emphasizes the component index. */
 .vector-index {
+  grid-column: 1;
   color: var(--ink);
+  text-align: right;
 }
 
 /* Background bar for component magnitude. */
 /* Grayscale swatch representing the pixel value. */
 .vector-swatch {
+  grid-column: 3;
   width: var(--vector-swatch-size);
   height: var(--vector-swatch-size);
   border-radius: 6px;
@@ -397,6 +417,7 @@ h1 {
 
 /* Right-aligned numeric value. */
 .vector-value {
+  grid-column: 5;
   text-align: right;
 }
 
@@ -464,6 +485,12 @@ h1 {
   margin: var(--space-2) 0 0;
   font-size: 0.85rem;
   color: var(--ink-soft);
+}
+
+/* Centered hint for the vector panel footer. */
+.hint-vector {
+  text-align: center;
+  margin-top: var(--vector-hint-margin-top);
 }
 
 /* Global range input styling (width + accent color). */

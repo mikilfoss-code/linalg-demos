@@ -1,0 +1,69 @@
+.demo-shell {
+  --demo-ink: #1d2433;
+  --demo-ink-soft: #3c4761;
+  --demo-surface: #fffaf1;
+  --demo-border: rgba(29, 36, 51, 0.12);
+  --demo-shadow: rgba(18, 24, 33, 0.12);
+  --demo-radius: 16px;
+  --demo-gap: 1rem;
+
+  color: var(--demo-ink);
+  font-family: "Space Grotesk", sans-serif;
+  line-height: 1.5;
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+.demo-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--demo-gap);
+  margin-bottom: 1.5rem;
+}
+
+.demo-title {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+}
+
+.demo-subtitle {
+  margin: 0;
+  color: var(--demo-ink-soft);
+}
+
+.demo-panel {
+  background: var(--demo-surface);
+  border: 1px solid var(--demo-border);
+  border-radius: var(--demo-radius);
+  padding: 1.5rem;
+  box-shadow: 0 20px 40px var(--demo-shadow);
+}
+
+.demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.demo-button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.6rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #f06449;
+  color: #fff8f0;
+}
+
+.demo-output {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #f6f0e4;
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}

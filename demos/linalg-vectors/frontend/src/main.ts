@@ -127,9 +127,9 @@ app.innerHTML = `
                   aria-label="Vector component window"
                 ></div>
               </div>
-              <p class="hint">Scroll here or drag the slider to move through components.</p>
             </div>
           </div>
+          <p class="hint hint-vector">Scroll or drag the slider to move through vector components.</p>
         </div>
       </div>
     </section>
@@ -319,38 +319,28 @@ function syncCanvasToDisplay(
 function clampGridLayout(layout: GridLayout): GridLayout {
   let columns = Math.max(1, Math.floor(layout.columns));
   let rows = Math.max(1, Math.floor(layout.rows));
-  let total = columns * rows;
-
   const maxSamples = getGridMaxSamples();
-  if (total > maxSamples) {
-    // Scale down uniformly, then trim if we still exceed the backend cap.
-    const scale = Math.sqrt(maxSamples / total);
-    columns = Math.max(1, Math.floor(columns * scale));
-    rows = Math.max(1, Math.floor(rows * scale));
-    total = columns * rows;
-
-    while (total > maxSamples) {
-      if (columns >= rows && columns > 1) {
-        columns -= 1;
-      } else if (rows > 1) {
-        rows -= 1;
-      } else {
-        break;
-      }
-      total = columns * rows;
+  if (columns * rows > maxSamples) {
+    // Prefer trimming rows to preserve column count (keeps tile max cap strict).
+    if (columns > maxSamples) {
+      columns = maxSamples;
+      rows = 1;
+    } else {
+      rows = Math.max(1, Math.floor(maxSamples / columns));
     }
   }
 
   return { columns, rows };
 }
 
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
 function computeColumnCount(width: number, tileSize: number, columnGap: number): number {
   if (tileSize <= 0 || width <= 0) return 1;
   return Math.max(1, Math.floor((width + columnGap) / (tileSize + columnGap)));
+}
+
+function computeColumnCountForMax(width: number, tileSize: number, columnGap: number): number {
+  if (tileSize <= 0 || width <= 0) return 1;
+  return Math.max(1, Math.ceil((width + columnGap) / (tileSize + columnGap)));
 }
 
 function computeRowSize(width: number, columns: number, columnGap: number): number {
@@ -373,25 +363,24 @@ function computeGridLayout(
 ): { layout: GridLayout; rowSize: number } {
   const tileMin = getGridTileMin();
   const tileMax = getGridTileMax(tileMin);
-  let columns = computeColumnCount(width, tileMin, columnGap);
-  let rowSize = computeRowSize(width, columns, columnGap);
-  const clampedSize = clampNumber(rowSize, tileMin, tileMax);
+  const maxColumnsForMin = computeColumnCount(width, tileMin, columnGap);
+  const minColumnsForMax = computeColumnCountForMax(width, tileMax, columnGap);
 
-  if (clampedSize !== rowSize) {
-    // Recompute columns when we hit the min/max bounds so the grid packs correctly.
-    columns = computeColumnCount(width, clampedSize, columnGap);
-    rowSize = computeRowSize(width, columns, columnGap);
+  // Start from the width-driven tile size, then enforce the strict max cap.
+  let columns = Math.max(1, maxColumnsForMin);
+  if (minColumnsForMax > columns) {
+    columns = minColumnsForMax;
   }
 
-  const rows = computeRowCount(height, rowSize, rowGap);
+  let rowSize = computeRowSize(width, columns, columnGap);
+  let rows = computeRowCount(height, rowSize, rowGap);
   let layout = clampGridLayout({ columns, rows });
 
-  // If clamping reduces columns, recompute row size and row count so rows pack correctly.
+  // If max-sample clamping reduces columns, recompute row sizing.
   if (layout.columns !== columns) {
     rowSize = computeRowSize(width, layout.columns, columnGap);
-    const clampedRows = computeRowCount(height, rowSize, rowGap);
-    layout = clampGridLayout({ columns: layout.columns, rows: clampedRows });
-    return { layout, rowSize };
+    rows = computeRowCount(height, rowSize, rowGap);
+    layout = clampGridLayout({ columns: layout.columns, rows });
   }
 
   return { layout, rowSize };
@@ -746,14 +735,7 @@ function renderSelected(sample: MnistSample | null, tileSize: number, offset: nu
     ctx.putImageData(toImageData(sample, tileSize), 0, 0);
   }
 
-  drawVectorWindowOutline(
-    ctx,
-    tileSize,
-    displaySize,
-    offset,
-    VECTOR_WINDOW,
-    sample.vector.length
-  );
+  drawVectorWindowOutline(ctx, tileSize, displaySize, offset, VECTOR_WINDOW, sample.vector.length);
   // selectedIndexEl.textContent = String(sample.index);
   selectedStatus.textContent = `MNIST #${sample.index} (label ${sample.label})`;
 }
@@ -789,7 +771,7 @@ function renderVector(sample: MnistSample | null, offset: number) {
 
     const indexEl = document.createElement('div');
     indexEl.className = 'vector-index';
-    indexEl.textContent = String(i + 1).padStart(3, '0');
+    indexEl.textContent = String(i + 1);
 
     const valueEl = document.createElement('div');
     valueEl.className = 'vector-value';
