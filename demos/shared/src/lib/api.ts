@@ -151,10 +151,10 @@ export function createApi(options: {
   if (features.matrixApply) {
     api.matrixApply = (req: MatrixApplyRequest) => {
       if (!isMat(req.matrix)) {
-        return fail(buildError("matrix must be number[][]", 0));
+        return Promise.resolve(fail(buildError("matrix must be number[][]", 0)));
       }
       if (!isVec(req.vector)) {
-        return fail(buildError("vector must be number[]", 0));
+        return Promise.resolve(fail(buildError("vector must be number[]", 0)));
       }
       return client.requestJson(
         "/api/v1/matrix/apply",
@@ -166,7 +166,7 @@ export function createApi(options: {
   if (features.eigen) {
     api.eigen = (req: EigenRequest) => {
       if (!isMat(req.matrix)) {
-        return fail(buildError("matrix must be number[][]", 0));
+        return Promise.resolve(fail(buildError("matrix must be number[][]", 0)));
       }
       return client.requestJson(
         "/api/v1/matrix/eig",

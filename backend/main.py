@@ -2,7 +2,11 @@ import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from .mnist_data import sample_mnist
+try:
+    from .mnist_data import sample_mnist
+except ImportError:
+    # Allow `uvicorn main:app` when running from backend/.
+    from mnist_data import sample_mnist
 
 def _cors_origins() -> list[str]:
     """
