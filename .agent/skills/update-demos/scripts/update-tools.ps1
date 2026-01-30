@@ -11,7 +11,7 @@ function Assert-LastExit([string]$what) {
   if ($LASTEXITCODE -ne 0) { throw "$what failed (exit $LASTEXITCODE)" }
 }
 
-function Has-Command([string]$name) {
+function Test-CommandExists([string]$name) {
   return @(Get-Command $name -ErrorAction SilentlyContinue).Count -gt 0
 }
 
@@ -21,7 +21,7 @@ function Invoke-WingetUpgradeOrInstall([string]$id, [string]$commandName) {
 
   $notInstalledCodes = @(-1978335189, -1978335212)
   if ($notInstalledCodes -contains $exit) {
-    if (Has-Command $commandName) {
+    if (Test-CommandExists -name $commandName) {
       Write-Host "winget has no record for $id, but $commandName is already available; skipping install." -ForegroundColor Yellow
       $global:LASTEXITCODE = 0
       return
@@ -71,14 +71,15 @@ Write-Host ("Using Node major: {0}" -f $resolvedNodeMajor)
 & volta install "node@$resolvedNodeMajor"
 Assert-LastExit "volta install node"
 
-if ($env:VOLTA_FEATURE_PNPM -eq "1") {
-  & volta install "pnpm@$PnpmMajor"
-  Assert-LastExit "volta install pnpm"
-} else {
-  & corepack enable pnpm
-  & corepack prepare pnpm@latest --activate
-  Assert-LastExit "corepack prepare pnpm"
+# Require Volta pnpm feature flag; do not fall back to Corepack.
+$userFlag = [Environment]::GetEnvironmentVariable("VOLTA_FEATURE_PNPM", "User")
+if ($env:VOLTA_FEATURE_PNPM -ne "1" -and $userFlag -ne "1") {
+  throw "VOLTA_FEATURE_PNPM is not enabled. Run: [Environment]::SetEnvironmentVariable('VOLTA_FEATURE_PNPM','1','User') and reopen Antigravity/terminal."
 }
+
+Write-Host ("Installing pnpm major: {0}" -f $PnpmMajor)
+& volta install "pnpm@$PnpmMajor"
+Assert-LastExit "volta install pnpm"
 
 Write-Host "`n== Versions =="
 & uv --version
