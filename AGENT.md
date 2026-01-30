@@ -1,4 +1,4 @@
-## linalg-demos (monorepo)
+# linalg-demos (monorepo)
 
 ## Repo description
 

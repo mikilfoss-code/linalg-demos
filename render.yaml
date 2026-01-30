@@ -43,12 +43,12 @@ services:
         destination: /index.html
 
   # -------------------------
-  # Demo: linalg-matrix_transformations (Vite static site)
+  # Demo: linalg-matrix_transforms (Vite static site)
   # -------------------------
   - type: web
-    name: demo-linalg-matrix-transformations
+    name: demo-linalg-matrix-transforms
     runtime: static
-    rootDir: demos/linalg-matrix_transformations/frontend
+    rootDir: demos/linalg-matrix_transforms/frontend
     buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm build
     staticPublishPath: dist
     envVars:

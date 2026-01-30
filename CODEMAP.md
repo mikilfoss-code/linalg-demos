@@ -5,13 +5,15 @@
 ## Repo layout
 
 - backend/ - FastAPI backend serving shared API endpoints.
+- backend/requirements.in - Direct backend dependency declarations (lock lives in requirements.txt).
 - demos/linalg-vectors/frontend/ - Vite + TypeScript demo site for vectors.
 - demos/linalg-matrix_transforms/frontend/ - Vite + TypeScript demo site for matrix transforms.
 - demos/shared/ - Shared frontend helper modules for demos.
 - demos/shared/src/ui/ - Shared UI assets (CSS shell for new demos).
+- .agent/ - Local agent rules, skills, and workflow scripts.
 - .nvmrc - Pinned Node.js version for local development.
 - render.yaml - Render deployment configuration for backend + static demos.
-- AGENTS.md - repo-specific agent instructions.
+- AGENT.md - repo-specific agent instructions.
 - CODEMAP.md - this document.
 
 ## Entry points
@@ -33,6 +35,10 @@
 - Build: pnpm build
 - Entry module: src/main.ts
 
+### Tooling (maintenance)
+
+- Update tools + deps: powershell -ExecutionPolicy Bypass -File .agent/skills/update-demos/scripts/run-update.ps1
+
 ## Key modules and responsibilities
 
 - backend/main.py - FastAPI app, CORS configuration, and health/info endpoints.
@@ -48,6 +54,8 @@
 - demos/shared/src/lib/api.ts - Shared API client + service factory for demo frontends.
 - demos/linalg-vectors/frontend/src/lib/types.ts - MNIST-specific API types that re-export shared validators.
 - demos/shared/src/ui/demo-shell.css - Shared CSS shell classes for new demo layouts.
+- .agent/skills/update-demos/scripts/run-update.ps1 - Orchestrates tool, backend, and frontend dependency updates.
+- .agent/skills/update-demos/scripts/update-tools.ps1 - Updates uv/Volta/Node/pnpm, deriving the Node major from .nvmrc by default.
 - demos/\*/frontend/src/style.css - Demo-level styling.
 - render.yaml - Render service definitions and env wiring for backend + demo sites.
 
@@ -301,11 +309,11 @@
 - Services:
   - linalg-backend (python web service)
   - demo-linalg-vectors (static site)
-  - demo-linalg-matrix-transformations (static site)
+  - demo-linalg-matrix-transforms (static site)
 - rootDir mapping:
   - backend -> backend/
   - demo-linalg-vectors -> demos/linalg-vectors/frontend
-  - demo-linalg-matrix-transformations -> demos/linalg-matrix_transformations/frontend
+  - demo-linalg-matrix-transforms -> demos/linalg-matrix_transforms/frontend
 - Build/start commands:
   - backend: pip install -r requirements.txt; uvicorn main:app --host 0.0.0.0 --port $PORT
   - demos: npm i -g pnpm@10; pnpm install --frozen-lockfile; pnpm build; publish dist/

@@ -1,0 +1,19 @@
+# backend/requirements.in
+# Direct (top-level) dependencies only. Pinned versions live in requirements.txt.
+
+# Web API
+fastapi<1
+uvicorn[standard]<1
+python-multipart<1
+
+# Numerics / linear algebra
+numpy>=2.3.2,<3
+scipy>=1.16.1,<2
+
+# Image I/O (for basic image analysis workflows)
+pillow>=11,<13
+
+# Optional (enable only if/when needed)
+# scikit-learn
+# scikit-image
+# matplotlib

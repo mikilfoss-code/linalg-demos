@@ -1,31 +1,68 @@
 .demo-shell {
+  --demo-font-sans: "Space Grotesk", sans-serif;
+  --demo-font-mono: "IBM Plex Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+
+  --demo-space-0: 0;
+  --demo-space-1: 0.25rem;
+  --demo-space-2: 0.5rem;
+  --demo-space-3: 0.75rem;
+  --demo-space-4: 1rem;
+  --demo-space-5: 1.25rem;
+  --demo-space-6: 1.5rem;
+  --demo-space-7: 2rem;
+  --demo-space-8: 2.5rem;
+  --demo-space-9: 3.5rem;
+
   --demo-ink: #1d2433;
   --demo-ink-soft: #3c4761;
+  --demo-paper: #f4f0e6;
   --demo-surface: #fffaf1;
+  --demo-surface-2: #f6efe1;
+  --demo-accent: #f06449;
+  --demo-accent-2: #2a9d8f;
+  --demo-accent-contrast: #fff8f0;
+
   --demo-border: rgba(29, 36, 51, 0.12);
   --demo-shadow: rgba(18, 24, 33, 0.12);
+  --demo-shadow-soft: rgba(24, 30, 40, 0.14);
+
   --demo-radius: 16px;
-  --demo-gap: 1rem;
+  --demo-panel-radius: 20px;
+  --demo-gap: var(--demo-space-4);
+
+  --demo-bg-radial-1: #fde4c9;
+  --demo-bg-radial-2: #cfe9e2;
+  --demo-bg-linear-top: #f9f3ea;
+  --demo-bg-linear-bottom: #efe8dc;
 
   color: var(--demo-ink);
-  font-family: "Space Grotesk", sans-serif;
+  background-color: var(--demo-paper);
+  background:
+    radial-gradient(1200px 700px at 10% -10%, var(--demo-bg-radial-1) 0%, transparent 60%),
+    radial-gradient(900px 600px at 110% 10%, var(--demo-bg-radial-2) 0%, transparent 55%),
+    linear-gradient(180deg, var(--demo-bg-linear-top) 0%, var(--demo-bg-linear-bottom) 100%);
+  font-family: var(--demo-font-sans);
   line-height: 1.5;
-  max-width: 960px;
-  margin: 2rem auto;
-  padding: 2rem;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--demo-space-8) var(--demo-space-6) var(--demo-space-9);
+  min-height: 100vh;
 }
 
 .demo-header {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--demo-gap);
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--demo-space-6);
 }
 
 .demo-title {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin: 0 0 var(--demo-space-2);
+  font-size: clamp(2.4rem, 4vw, 3.6rem);
 }
 
 .demo-subtitle {
@@ -36,34 +73,46 @@
 .demo-panel {
   background: var(--demo-surface);
   border: 1px solid var(--demo-border);
-  border-radius: var(--demo-radius);
-  padding: 1.5rem;
-  box-shadow: 0 20px 40px var(--demo-shadow);
+  border-radius: var(--demo-panel-radius);
+  padding: var(--demo-space-6);
+  box-shadow: 0 24px 48px var(--demo-shadow);
 }
 
 .demo-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: var(--demo-space-3);
+  margin-top: var(--demo-space-4);
 }
 
 .demo-button {
   border: none;
   border-radius: 999px;
-  padding: 0.6rem 1.2rem;
+  padding: var(--demo-space-3) var(--demo-space-5);
   font-weight: 600;
   cursor: pointer;
-  background: #f06449;
-  color: #fff8f0;
+  background: var(--demo-accent);
+  color: var(--demo-accent-contrast);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.demo-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(240, 100, 73, 0.25);
+}
+
+.demo-button:focus-visible {
+  outline: 3px solid rgba(240, 100, 73, 0.35);
+  outline-offset: 2px;
 }
 
 .demo-output {
-  margin-top: 1rem;
-  padding: 1rem;
+  margin-top: var(--demo-space-4);
+  padding: var(--demo-space-4);
   border-radius: 12px;
-  background: #f6f0e4;
-  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  border: 1px solid var(--demo-border);
+  background: var(--demo-surface-2);
+  font-family: var(--demo-font-mono);
   font-size: 0.9rem;
   white-space: pre-wrap;
 }
