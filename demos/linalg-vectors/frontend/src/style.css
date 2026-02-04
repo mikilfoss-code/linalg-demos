@@ -101,6 +101,28 @@ h1 {
   font-size: 0.9rem;
 }
 
+/* Dataset selector stack inside the hero summary card. */
+.dataset-select-wrap {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Dataset chooser styling. */
+.dataset-select {
+  border: 1px solid var(--grid-line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Keyboard focus ring for dataset chooser. */
+.dataset-select:focus-visible {
+  outline: 3px solid var(--focus-teal);
+  outline-offset: 2px;
+}
+
 /* Primary call-to-action button styling. */
 .primary {
   border: none;
@@ -231,12 +253,14 @@ h1 {
   animation: tileIn 0.35s ease both;
   animation-delay: calc(var(--i) * 25ms);
   font: inherit;
+  aspect-ratio: var(--tile-aspect-ratio, 1 / 1);
 }
 
 /* Ensures MNIST canvas scales crisply in tiles. */
 .mnist-tile canvas {
   width: 100%;
   height: 100%;
+  object-fit: contain;
   image-rendering: pixelated;
 }
 
@@ -265,7 +289,9 @@ h1 {
   grid-template-columns: 1fr;
   gap: var(--selected-card-gap);
   align-items: center;
-  width: 100%;
+  flex: 0 0 auto;
+  margin-top: var(--selected-card-top-offset, 0);
+  width: var(--selected-card-width);
   padding: var(--selected-card-padding);
   border: 1px solid var(--grid-line);
   border-radius: var(--selected-card-radius);
@@ -276,42 +302,22 @@ h1 {
 #selected-canvas {
   width: 100%;
   height: auto;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: var(--selected-canvas-aspect, 1 / 1);
   max-width: 100%;
   max-height: 100%;
   display: block;
   image-rendering: pixelated;
-  background: var(--canvas-bg);
+  background: var(--selected-canvas-bg, transparent);
   border-radius: var(--selected-canvas-radius);
   padding: var(--selected-canvas-padding);
 }
 
-/* Layout for selected metadata text. */
-.selected-info {
-  display: grid;
-  gap: var(--space-1);
-}
-
-/* Metadata label styling (uppercase, small). */
-.info-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--ink-soft);
-}
-
-/* Metadata value styling (mono). */
-.info-value {
-  font-family: var(--font-mono);
-  font-size: 1.05rem;
-  margin-bottom: var(--space-2);
-}
-
 /* Vector panel layout (vector list + slider). */
 .vector-shell {
-  display: grid;
-  grid-template-columns: minmax(var(--selected-card-min-width), 1fr) max-content;
+  display: flex;
+  flex-wrap: nowrap;
   gap: var(--vector-shell-gap);
+  justify-content: center;
   align-items: start;
 }
 
@@ -319,11 +325,11 @@ h1 {
 .vector-content {
   display: grid;
   gap: var(--space-3);
-  justify-items: center;
-  justify-self: end;
-  width: max-content;
+  justify-items: stretch;
+  flex: 0 0 auto;
+  width: var(--vector-info-min-width);
   min-width: var(--vector-info-min-width);
-  padding-right: var(--vector-list-padding-right);
+  padding-right: 0;
 }
 
 /* Vector list card styling. */
@@ -335,33 +341,38 @@ h1 {
   border-radius: var(--vector-panel-radius);
   border: 1px solid var(--grid-line);
   background: var(--surface-2);
+  overflow-x: auto;
 }
 
 /* Header row for vector controls and range text. */
 .vector-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  width: max-content;
-  justify-self: center;
+  margin-bottom: var(--space-4);
+  width: 100%;
+  justify-self: stretch;
 }
 
 /* Mono range text (indices shown). */
 .vector-range {
   font-family: var(--font-mono);
   color: var(--ink);
+  width: var(--vector-range-width);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Layout for slider alongside vector list. */
 .vector-body {
   display: grid;
-  grid-template-columns: var(--vector-slider-width) max-content;
+  grid-template-columns: var(--vector-slider-width) 1fr;
   column-gap: var(--vector-slider-gap);
   align-items: stretch;
-  width: max-content;
-  justify-self: center;
+  width: 100%;
+  justify-self: stretch;
 }
 
 /* Container for the vector component rows. */
@@ -370,8 +381,32 @@ h1 {
   gap: var(--space-2);
   min-height: var(--vector-list-min-height);
   outline: none;
-  width: max-content;
-  justify-self: center;
+  width: var(--vector-list-width);
+  justify-self: start;
+  position: relative;
+}
+
+/* A single bracket pair encloses the full visible vector window. */
+.vector-list::before,
+.vector-list::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--vector-bracket-width);
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  pointer-events: none;
+}
+
+.vector-list::before {
+  left: calc(var(--vector-index-width) + var(--vector-index-bracket-gap));
+  border-left: 1px solid var(--ink);
+}
+
+.vector-list::after {
+  right: 0;
+  border-right: 1px solid var(--ink);
 }
 
 /* Keyboard focus ring for vector list. */
@@ -384,12 +419,16 @@ h1 {
 /* Row layout for each vector component. */
 .vector-row {
   display: grid;
+  width: max-content;
+  justify-self: start;
   grid-template-columns:
     var(--vector-index-width)
-    var(--vector-index-swatch-gap)
+    var(--vector-index-bracket-gap)
+    var(--vector-bracket-content-gap)
     var(--vector-swatch-col)
     var(--vector-swatch-value-gap)
-    minmax(var(--vector-value-min-width), max-content);
+    var(--vector-value-width)
+    var(--vector-value-bracket-gap);
   align-items: center;
   column-gap: 0;
   font-family: var(--font-mono);
@@ -400,25 +439,30 @@ h1 {
 /* Emphasizes the component index. */
 .vector-index {
   grid-column: 1;
+  width: var(--vector-index-width);
   color: var(--ink);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Background bar for component magnitude. */
 /* Grayscale swatch representing the pixel value. */
 .vector-swatch {
-  grid-column: 3;
+  grid-column: 4;
   width: var(--vector-swatch-size);
   height: var(--vector-swatch-size);
   border-radius: 6px;
   border: 1px solid var(--swatch-border);
   background: var(--canvas-bg);
+  justify-self: center;
 }
 
 /* Right-aligned numeric value. */
 .vector-value {
-  grid-column: 5;
+  grid-column: 6;
+  width: var(--vector-value-width);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Empty-state text when no vector data. */
@@ -539,6 +583,7 @@ input[type='range'] {
   /* Keep selected card content stacked on small screens. */
   .selected-card {
     grid-template-columns: 1fr;
+    width: min(100%, var(--selected-card-width));
   }
 
   /* Reduce selected canvas size on small screens. */

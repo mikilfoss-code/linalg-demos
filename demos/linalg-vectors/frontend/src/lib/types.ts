@@ -19,17 +19,33 @@ export {
   isVec
 } from "@shared/lib/types";
 
-export interface MnistSampleApi {
-  index: number;
-  label: number;
-  pixels: number[];
-  vector: number[];
+export type DatasetId = string;
+export type DatasetSplit = "train" | "test" | "all";
+
+export interface DatasetOptionApi {
+  id: DatasetId;
+  displayName: string;
+  defaultSplit: DatasetSplit;
 }
 
-export interface MnistSamplesResponse {
-  source: string;
-  split: string;
-  imageSize: number;
+export interface DatasetsResponse {
+  defaultDataset: DatasetId;
+  datasets: DatasetOptionApi[];
+}
+
+export interface DatasetSampleApi {
+  index: number;
+  label: number;
+  labelName?: string;
+  pixels: number[];
+}
+
+export interface DatasetSamplesResponse {
+  source: DatasetId;
+  displayName: string;
+  split: DatasetSplit;
+  imageWidth: number;
+  imageHeight: number;
   totalCount: number;
-  samples: MnistSampleApi[];
+  samples: DatasetSampleApi[];
 }

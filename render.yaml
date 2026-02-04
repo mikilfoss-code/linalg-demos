@@ -31,7 +31,7 @@ services:
     envVars:
       # Keep in sync with .nvmrc for local dev parity.
       - key: NODE_VERSION
-        value: 25.4.0
+        value: 25.6.0
       - key: VITE_API_BASE_URL
         fromService:
           name: linalg-backend
@@ -54,7 +54,7 @@ services:
     envVars:
       # Keep in sync with .nvmrc for local dev parity.
       - key: NODE_VERSION
-        value: 25.4.0
+        value: 25.6.0
       - key: VITE_API_BASE_URL
         fromService:
           name: linalg-backend

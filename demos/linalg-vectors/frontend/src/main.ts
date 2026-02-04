@@ -1,23 +1,39 @@
 import './style.css';
+import { listDatasets } from './lib/api';
 import {
-  MNIST_ENDPOINT,
-  loadMnistSamples,
+  DATASET_SAMPLES_ENDPOINT,
+  loadDatasetSamples,
   toImageData,
-  type MnistMeta,
-  type MnistSample,
-} from './lib/mnist';
+  type DatasetMeta,
+  type DatasetSample,
+} from './lib/dataset';
+import { type DatasetId } from './lib/types';
 
 type GridLayout = { columns: number; rows: number };
+type DatasetOption = { id: DatasetId; label: string };
 
 const VECTOR_WINDOW = 10;
-const DEFAULT_IMAGE_SIZE = 28;
+const DEFAULT_IMAGE_WIDTH = 28;
+const DEFAULT_IMAGE_HEIGHT = 28;
+
+const DEFAULT_DATASET: DatasetId = 'mnist';
+
+function getDatasetLabel(dataset: DatasetId, options: DatasetOption[]): string {
+  return options.find((option) => option.id === dataset)?.label ?? dataset;
+}
+
+function isDatasetOption(value: string, options: DatasetOption[]): value is DatasetId {
+  return options.some((option) => option.id === value);
+}
 
 type AppStatus = 'loading' | 'ready' | 'error';
 
 type AppState = {
   status: AppStatus;
-  meta: MnistMeta | null;
-  samples: MnistSample[];
+  dataset: DatasetId;
+  datasetOptions: DatasetOption[];
+  meta: DatasetMeta | null;
+  samples: DatasetSample[];
   selectedId: number | null;
   vectorOffset: number;
   gridLayout: GridLayout;
@@ -27,11 +43,13 @@ type AppState = {
 
 type Action =
   | { type: 'load-start' }
-  | { type: 'load-success'; meta: MnistMeta; samples: MnistSample[] }
+  | { type: 'catalog-success'; dataset: DatasetId; datasetOptions: DatasetOption[] }
+  | { type: 'load-success'; meta: DatasetMeta; samples: DatasetSample[] }
   | { type: 'load-error'; message: string }
+  | { type: 'dataset-change'; dataset: DatasetId }
   | { type: 'samples-start' }
-  | { type: 'samples-success'; meta: MnistMeta; samples: MnistSample[] }
-  | { type: 'samples-append'; meta: MnistMeta; samples: MnistSample[] }
+  | { type: 'samples-success'; meta: DatasetMeta; samples: DatasetSample[] }
+  | { type: 'samples-append'; meta: DatasetMeta; samples: DatasetSample[] }
   | { type: 'samples-trim'; targetSampleCount: number }
   | { type: 'layout-change'; layout: GridLayout; targetSampleCount: number }
   | { type: 'select'; id: number }
@@ -46,14 +64,18 @@ app.innerHTML = `
     <header class="hero">
       <div class="hero-copy">
         <div class="eyebrow">Linear Algebra Demo</div>
-        <h1>MNIST Vector Explorer</h1>
+        <h1>Image Vector Explorer</h1>
         <p class="subtitle">
-          Pick a handwritten digit and inspect its 784-dimensional vector.
+          Pick an image and inspect its pixel vector.
           Scroll through 10 consecutive components at a time.
         </p>
       </div>
       <div class="hero-card">
-        <div class="meta-line">Dataset: MNIST</div>
+        <label class="dataset-select-wrap" for="dataset-select">
+          <span class="meta-line">Dataset</span>
+          <select id="dataset-select" class="dataset-select"></select>
+        </label>
+        <div class="meta-line">Active source: <span id="dataset-name">--</span></div>
         <div class="meta-line">Sample size: <span id="sample-count">--</span></div>
       </div>
     </header>
@@ -65,13 +87,13 @@ app.innerHTML = `
             <h2>Image table</h2>
             <p class="panel-subtitle">Select an image</p>
           </div>
-          <div class="status-pill" id="status-pill">Loading MNIST data...</div>
+          <div class="status-pill" id="status-pill">Loading dataset data...</div>
         </div>
         <div
           class="mnist-grid is-loading"
           id="mnist-grid"
           role="grid"
-          aria-label="MNIST sample grid"
+          aria-label="Sample grid"
         ></div>
         <div class="panel-footer">
           <button class="primary" id="resample" type="button">Draw new sample</button>
@@ -93,15 +115,7 @@ app.innerHTML = `
         <div class="vector-panel">
           <div class="vector-shell">
             <div class="selected-card">
-              <canvas id="selected-canvas" width="28" height="28" aria-label="Selected digit"></canvas>
-              <!-- <div class="selected-info">
-                <div class="info-label">Selected index</div>
-                <div class="info-value" id="selected-index">--</div>
-                <div class="info-label">Vector length</div>
-                <div class="info-value" id="vector-length">--</div>
-                <div class="info-label">Window start</div>
-                <div class="info-value" id="vector-start">0</div>
-              </div> -->
+              <canvas id="selected-canvas" width="28" height="28" aria-label="Selected image"></canvas>
             </div>
 
             <div class="vector-content">
@@ -187,15 +201,15 @@ app.innerHTML = `
 const statusPill = app.querySelector<HTMLDivElement>('#status-pill')!;
 const selectedStatus = app.querySelector<HTMLDivElement>('#selected-status')!;
 const gridEl = app.querySelector<HTMLDivElement>('#mnist-grid')!;
+const datasetSelect = app.querySelector<HTMLSelectElement>('#dataset-select')!;
+const datasetNameEl = app.querySelector<HTMLSpanElement>('#dataset-name')!;
 const resampleBtn = app.querySelector<HTMLButtonElement>('#resample')!;
 const sampleCountEl = app.querySelector<HTMLSpanElement>('#sample-count')!;
 const selectedCanvas = app.querySelector<HTMLCanvasElement>('#selected-canvas')!;
 // Offscreen buffer keeps ImageData scaling crisp without relying on CSS scaling.
 const selectedBuffer = document.createElement('canvas');
 const selectedBufferCtx = selectedBuffer.getContext('2d');
-// const selectedIndexEl = app.querySelector<HTMLDivElement>("#selected-index")!;
 const vectorLengthEl = app.querySelector<HTMLDivElement>('#vector-length')!;
-// const vectorStartEl = app.querySelector<HTMLDivElement>("#vector-start")!;
 const vectorRangeEl = app.querySelector<HTMLDivElement>('#vector-range')!;
 const vectorSlider = app.querySelector<HTMLInputElement>('#vector-slider')!;
 const vectorList = app.querySelector<HTMLDivElement>('#vector-list')!;
@@ -258,8 +272,23 @@ function getOutlineColor() {
   );
 }
 
+function renderDatasetOptions(options: DatasetOption[], selectedDataset: DatasetId) {
+  datasetSelect.textContent = '';
+  const fragment = document.createDocumentFragment();
+  options.forEach((option) => {
+    const optionEl = document.createElement('option');
+    optionEl.value = option.id;
+    optionEl.textContent = option.label;
+    fragment.appendChild(optionEl);
+  });
+  datasetSelect.appendChild(fragment);
+  datasetSelect.value = selectedDataset;
+}
+
 let state: AppState = {
   status: 'loading',
+  dataset: DEFAULT_DATASET,
+  datasetOptions: [],
   meta: null,
   samples: [],
   selectedId: null,
@@ -268,7 +297,7 @@ let state: AppState = {
   targetSampleCount: FALLBACK_GRID_LAYOUT.columns * FALLBACK_GRID_LAYOUT.rows,
 };
 
-let lastSamples: MnistSample[] | null = null;
+let lastSamples: DatasetSample[] | null = null;
 let sampleRequestId = 0;
 let isSampling = false;
 
@@ -286,34 +315,45 @@ function parsePixelValue(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getCanvasContentSize(canvas: HTMLCanvasElement, fallback: number): number {
+function getCanvasContentSize(
+  canvas: HTMLCanvasElement,
+  fallbackWidth: number,
+  fallbackHeight: number
+): { width: number; height: number } {
   const rect = canvas.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) {
-    return fallback;
+    return { width: fallbackWidth, height: fallbackHeight };
   }
   const styles = getComputedStyle(canvas);
   const paddingX = parsePixelValue(styles.paddingLeft) + parsePixelValue(styles.paddingRight);
   const paddingY = parsePixelValue(styles.paddingTop) + parsePixelValue(styles.paddingBottom);
-  const contentWidth = Math.max(0, rect.width - paddingX);
-  const contentHeight = Math.max(0, rect.height - paddingY);
-  return Math.max(1, Math.min(contentWidth, contentHeight));
+  return {
+    width: Math.max(1, rect.width - paddingX),
+    height: Math.max(1, rect.height - paddingY),
+  };
 }
 
 function syncCanvasToDisplay(
   canvas: HTMLCanvasElement,
-  fallback: number
-): { size: number; scale: number } {
-  const size = getCanvasContentSize(canvas, fallback);
+  fallbackWidth: number,
+  fallbackHeight: number
+): { width: number; height: number; scale: number } {
+  const contentSize = getCanvasContentSize(canvas, fallbackWidth, fallbackHeight);
   const scale = window.devicePixelRatio || 1;
-  const pixelSize = Math.max(1, Math.round(size * scale));
+  const pixelWidth = Math.max(1, Math.round(contentSize.width * scale));
+  const pixelHeight = Math.max(1, Math.round(contentSize.height * scale));
 
   // Match the canvas backing store to its CSS size so 1px strokes stay 1px.
-  if (canvas.width !== pixelSize || canvas.height !== pixelSize) {
-    canvas.width = pixelSize;
-    canvas.height = pixelSize;
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
   }
 
-  return { size: canvas.width / scale, scale };
+  return {
+    width: canvas.width / scale,
+    height: canvas.height / scale,
+    scale,
+  };
 }
 
 function clampGridLayout(layout: GridLayout): GridLayout {
@@ -359,7 +399,9 @@ function computeGridLayout(
   width: number,
   height: number,
   columnGap: number,
-  rowGap: number
+  rowGap: number,
+  imageWidth: number,
+  imageHeight: number
 ): { layout: GridLayout; rowSize: number } {
   const tileMin = getGridTileMin();
   const tileMax = getGridTileMax(tileMin);
@@ -372,13 +414,17 @@ function computeGridLayout(
     columns = minColumnsForMax;
   }
 
+  const ratio = imageHeight > 0 ? imageHeight / Math.max(imageWidth, 1) : 1;
+  const aspectFloor = Math.max(1, ratio);
   let rowSize = computeRowSize(width, columns, columnGap);
+  rowSize = Math.max(rowSize, rowSize * aspectFloor);
   let rows = computeRowCount(height, rowSize, rowGap);
   let layout = clampGridLayout({ columns, rows });
 
   // If max-sample clamping reduces columns, recompute row sizing.
   if (layout.columns !== columns) {
     rowSize = computeRowSize(width, layout.columns, columnGap);
+    rowSize = Math.max(rowSize, rowSize * aspectFloor);
     rows = computeRowCount(height, rowSize, rowGap);
     layout = clampGridLayout({ columns: layout.columns, rows });
   }
@@ -404,7 +450,7 @@ function sliderValueToOffset(value: number, sliderMax: number): number {
   return sliderMax - value;
 }
 
-function getSelectedSample(current: AppState): MnistSample | null {
+function getSelectedSample(current: AppState): DatasetSample | null {
   if (current.selectedId === null) return null;
   return current.samples[current.selectedId] ?? null;
 }
@@ -413,9 +459,23 @@ function reducer(current: AppState, action: Action): AppState {
   switch (action.type) {
     case 'load-start':
       return { ...current, status: 'loading', error: undefined };
+    case 'catalog-success':
+      return {
+        ...current,
+        status: 'loading',
+        dataset: action.dataset,
+        datasetOptions: action.datasetOptions,
+        meta: null,
+        samples: [],
+        selectedId: null,
+        vectorOffset: 0,
+        error: undefined,
+      };
     case 'load-success':
       return {
         status: 'ready',
+        dataset: current.dataset,
+        datasetOptions: current.datasetOptions,
         meta: action.meta,
         samples: action.samples,
         selectedId: action.samples.length ? 0 : null,
@@ -425,6 +485,17 @@ function reducer(current: AppState, action: Action): AppState {
       };
     case 'load-error':
       return { ...current, status: 'error', error: action.message };
+    case 'dataset-change':
+      return {
+        ...current,
+        dataset: action.dataset,
+        status: 'loading',
+        meta: null,
+        samples: [],
+        selectedId: null,
+        vectorOffset: 0,
+        error: undefined,
+      };
     case 'samples-start':
       return { ...current, status: 'loading', error: undefined };
     case 'samples-success':
@@ -533,9 +604,10 @@ async function appendSamples(missingCount: number) {
   if (missingCount <= 0) return;
   if (isSampling) return;
   isSampling = true;
+  const dataset = state.dataset;
   const requestId = nextSampleRequestId();
   dispatch({ type: 'samples-start' });
-  const result = await loadMnistSamples(missingCount);
+  const result = await loadDatasetSamples(dataset, missingCount);
   if (requestId !== sampleRequestId) {
     isSampling = false;
     return;
@@ -558,9 +630,10 @@ async function appendSamples(missingCount: number) {
 async function replaceSamples(count: number) {
   cancelPendingSampleRequest();
   isSampling = true;
+  const dataset = state.dataset;
   const requestId = nextSampleRequestId();
   dispatch({ type: 'samples-start' });
-  const result = await loadMnistSamples(count);
+  const result = await loadDatasetSamples(dataset, count);
   if (requestId !== sampleRequestId) {
     isSampling = false;
     return;
@@ -600,7 +673,7 @@ function getGridTargetHeight(): number {
 
 function setGridRowSize(rowSize: number) {
   if (!Number.isFinite(rowSize) || rowSize <= 0) return;
-  // Keep rows square with columns so vertical gaps don't stretch with panel height.
+  // Keep a stable row height so sample count stays tied to measured grid space.
   gridEl.style.setProperty('--grid-row-size', `${rowSize}px`);
 }
 
@@ -611,12 +684,27 @@ function updateLayoutFromGridSize(
 ) {
   if (width <= 0 || height <= 0) return;
   const { columnGap, rowGap } = getGridGaps();
-  const { layout, rowSize } = computeGridLayout(width, height, columnGap, rowGap);
+  const imageWidth = state.meta?.imageWidth ?? DEFAULT_IMAGE_WIDTH;
+  const imageHeight = state.meta?.imageHeight ?? DEFAULT_IMAGE_HEIGHT;
+  const { layout, rowSize } = computeGridLayout(
+    width,
+    height,
+    columnGap,
+    rowGap,
+    imageWidth,
+    imageHeight
+  );
   setGridRowSize(rowSize);
   updateGridLayout(layout, options);
 }
 
-function renderGrid(samples: MnistSample[], selectedId: number | null, tileSize: number) {
+function renderGrid(
+  samples: DatasetSample[],
+  selectedId: number | null,
+  imageWidth: number,
+  imageHeight: number,
+  sourceLabel: string
+) {
   gridEl.textContent = '';
   const fragment = document.createDocumentFragment();
 
@@ -628,16 +716,17 @@ function renderGrid(samples: MnistSample[], selectedId: number | null, tileSize:
     button.setAttribute('role', 'gridcell');
     button.setAttribute('aria-pressed', i === selectedId ? 'true' : 'false');
     button.classList.toggle('is-selected', i === selectedId);
-    button.setAttribute('aria-label', `MNIST index ${sample.index}`);
+    button.setAttribute('aria-label', `${sourceLabel} index ${sample.index}`);
     button.style.setProperty('--i', String(i));
+    button.style.setProperty('--tile-aspect-ratio', `${imageWidth} / ${imageHeight}`);
 
     const canvas = document.createElement('canvas');
-    canvas.width = tileSize;
-    canvas.height = tileSize;
+    canvas.width = imageWidth;
+    canvas.height = imageHeight;
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.imageSmoothingEnabled = false;
-      ctx.putImageData(toImageData(sample, tileSize), 0, 0);
+      ctx.putImageData(toImageData(sample, imageWidth, imageHeight), 0, 0);
     }
 
     button.appendChild(canvas);
@@ -658,8 +747,10 @@ function updateGridSelection(selectedId: number | null) {
 
 function drawVectorWindowOutline(
   ctx: CanvasRenderingContext2D,
-  imageSize: number,
-  displaySize: number,
+  imageWidth: number,
+  imageHeight: number,
+  displayWidth: number,
+  displayHeight: number,
   offset: number,
   windowSize: number,
   vectorLength: number
@@ -675,24 +766,30 @@ function drawVectorWindowOutline(
   ctx.lineJoin = 'miter';
   ctx.lineCap = 'square';
 
-  const cellSize = displaySize / imageSize;
-  if (!Number.isFinite(cellSize) || cellSize <= 0) {
+  const cellWidth = displayWidth / imageWidth;
+  const cellHeight = displayHeight / imageHeight;
+  if (
+    !Number.isFinite(cellWidth) ||
+    !Number.isFinite(cellHeight) ||
+    cellWidth <= 0 ||
+    cellHeight <= 0
+  ) {
     ctx.restore();
     return;
   }
 
-  const startRow = Math.floor(start / imageSize);
-  const startCol = start % imageSize;
+  const startRow = Math.floor(start / imageWidth);
+  const startCol = start % imageWidth;
   const endIndex = endExclusive - 1;
-  const endRow = Math.floor(endIndex / imageSize);
-  const endCol = endIndex % imageSize;
+  const endRow = Math.floor(endIndex / imageWidth);
+  const endCol = endIndex % imageWidth;
 
   const drawRowOutline = (row: number, colStart: number, colEnd: number) => {
     if (colEnd < colStart) return;
-    const width = (colEnd - colStart + 1) * cellSize;
-    const height = cellSize;
-    const x = colStart * cellSize;
-    const y = row * cellSize;
+    const width = (colEnd - colStart + 1) * cellWidth;
+    const height = cellHeight;
+    const x = colStart * cellWidth;
+    const y = row * cellHeight;
     // Keep the 1px stroke inside the row bounds for a crisp outline.
     ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
   };
@@ -700,9 +797,9 @@ function drawVectorWindowOutline(
   if (startRow === endRow) {
     drawRowOutline(startRow, startCol, endCol);
   } else {
-    drawRowOutline(startRow, startCol, imageSize - 1);
+    drawRowOutline(startRow, startCol, imageWidth - 1);
     for (let row = startRow + 1; row < endRow; row += 1) {
-      drawRowOutline(row, 0, imageSize - 1);
+      drawRowOutline(row, 0, imageWidth - 1);
     }
     drawRowOutline(endRow, 0, endCol);
   }
@@ -710,42 +807,60 @@ function drawVectorWindowOutline(
   ctx.restore();
 }
 
-function renderSelected(sample: MnistSample | null, tileSize: number, offset: number) {
+function renderSelected(
+  sample: DatasetSample | null,
+  imageWidth: number,
+  imageHeight: number,
+  offset: number,
+  sourceLabel: string
+) {
   const ctx = selectedCanvas.getContext('2d');
   if (!ctx) return;
-  const { size: displaySize, scale } = syncCanvasToDisplay(selectedCanvas, tileSize);
+  selectedCanvas.style.setProperty('--selected-canvas-aspect', `${imageWidth} / ${imageHeight}`);
+  const { width: displayWidth, height: displayHeight, scale } = syncCanvasToDisplay(
+    selectedCanvas,
+    imageWidth,
+    imageHeight
+  );
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, displaySize, displaySize);
+  ctx.clearRect(0, 0, displayWidth, displayHeight);
 
   if (!sample) {
-    // selectedIndexEl.textContent = "--";
     selectedStatus.textContent = 'No selection';
     return;
   }
 
   if (selectedBufferCtx) {
-    if (selectedBuffer.width !== tileSize || selectedBuffer.height !== tileSize) {
-      selectedBuffer.width = tileSize;
-      selectedBuffer.height = tileSize;
+    if (selectedBuffer.width !== imageWidth || selectedBuffer.height !== imageHeight) {
+      selectedBuffer.width = imageWidth;
+      selectedBuffer.height = imageHeight;
     }
-    selectedBufferCtx.putImageData(toImageData(sample, tileSize), 0, 0);
-    ctx.drawImage(selectedBuffer, 0, 0, displaySize, displaySize);
+    selectedBufferCtx.putImageData(toImageData(sample, imageWidth, imageHeight), 0, 0);
+    ctx.drawImage(selectedBuffer, 0, 0, displayWidth, displayHeight);
   } else {
-    ctx.putImageData(toImageData(sample, tileSize), 0, 0);
+    ctx.putImageData(toImageData(sample, imageWidth, imageHeight), 0, 0);
   }
 
-  drawVectorWindowOutline(ctx, tileSize, displaySize, offset, VECTOR_WINDOW, sample.vector.length);
-  // selectedIndexEl.textContent = String(sample.index);
-  selectedStatus.textContent = `MNIST #${sample.index} (label ${sample.label})`;
+  drawVectorWindowOutline(
+    ctx,
+    imageWidth,
+    imageHeight,
+    displayWidth,
+    displayHeight,
+    offset,
+    VECTOR_WINDOW,
+    sample.vector.length
+  );
+  const label = sample.labelName ? sample.labelName : `label ${sample.label}`;
+  selectedStatus.textContent = `${sourceLabel} #${sample.index} (${label})`;
 }
 
-function renderVector(sample: MnistSample | null, offset: number) {
+function renderVector(sample: DatasetSample | null, offset: number) {
   if (!sample) {
     vectorRangeEl.textContent = 'Components --';
     vectorSlider.value = '0';
     vectorSlider.max = '0';
-    // vectorStartEl.textContent = "0";
     vectorList.innerHTML = `<div class="vector-empty">Select an image to view its vector.</div>`;
     return;
   }
@@ -758,7 +873,6 @@ function renderVector(sample: MnistSample | null, offset: number) {
   vectorRangeEl.textContent = `Components ${clampedOffset + 1} - ${end}`;
   vectorSlider.max = String(sliderMax);
   vectorSlider.value = String(offsetToSliderValue(clampedOffset, sliderMax));
-  // vectorStartEl.textContent = String(clampedOffset);
 
   vectorList.textContent = '';
   const fragment = document.createDocumentFragment();
@@ -795,11 +909,11 @@ function renderVector(sample: MnistSample | null, offset: number) {
 
 function renderDebug(current: AppState) {
   debugStatus.textContent = current.status;
-  debugEndpoint.textContent = MNIST_ENDPOINT;
+  debugEndpoint.textContent = DATASET_SAMPLES_ENDPOINT;
   debugSource.textContent = current.meta?.source ?? '--';
   debugSplit.textContent = current.meta?.split ?? '--';
   debugSize.textContent = current.meta
-    ? `${current.meta.imageSize}x${current.meta.imageSize}`
+    ? `${current.meta.imageWidth}x${current.meta.imageHeight}`
     : '--';
   debugTotal.textContent = current.meta ? String(current.meta.totalCount) : '--';
   debugSamples.textContent = String(current.samples.length);
@@ -809,38 +923,45 @@ function renderDebug(current: AppState) {
 }
 
 function render(current: AppState) {
+  const requestedDatasetLabel = getDatasetLabel(current.dataset, current.datasetOptions);
+  const activeDatasetLabel = current.meta?.displayName ?? requestedDatasetLabel;
+
+  renderDatasetOptions(current.datasetOptions, current.dataset);
+  datasetNameEl.textContent = activeDatasetLabel;
   sampleCountEl.textContent = String(current.targetSampleCount);
   resampleBtn.disabled = !current.meta || current.status === 'loading';
+  datasetSelect.disabled = current.status === 'loading' || current.datasetOptions.length === 0;
 
   if (current.status === 'loading' && !current.meta) {
     statusPill.hidden = false;
-    statusPill.textContent = 'Loading MNIST data...';
+    statusPill.textContent = `Loading ${requestedDatasetLabel} data...`;
   } else if (current.status === 'loading') {
     statusPill.hidden = false;
     statusPill.textContent = 'Sampling images...';
   } else if (current.status === 'error') {
     statusPill.hidden = false;
-    statusPill.textContent = current.error ?? 'Failed to load MNIST.';
+    statusPill.textContent = current.error ?? `Failed to load ${requestedDatasetLabel}.`;
   } else {
     statusPill.hidden = true;
     statusPill.textContent = '';
   }
 
-  const tileSize = current.meta?.imageSize ?? DEFAULT_IMAGE_SIZE;
-  const vectorLength = tileSize * tileSize;
+  const imageWidth = current.meta?.imageWidth ?? DEFAULT_IMAGE_WIDTH;
+  const imageHeight = current.meta?.imageHeight ?? DEFAULT_IMAGE_HEIGHT;
+  const vectorLength = imageWidth * imageHeight;
   vectorLengthEl.textContent = current.meta ? String(vectorLength) : '--';
 
   gridEl.classList.toggle('is-loading', current.status === 'loading' && !current.samples.length);
 
   if (current.samples !== lastSamples) {
-    renderGrid(current.samples, current.selectedId, tileSize);
+    renderGrid(current.samples, current.selectedId, imageWidth, imageHeight, activeDatasetLabel);
     lastSamples = current.samples;
   } else {
     updateGridSelection(current.selectedId);
   }
 
   const selectedSample = getSelectedSample(current);
-  renderSelected(selectedSample, tileSize, current.vectorOffset);
+  renderSelected(selectedSample, imageWidth, imageHeight, current.vectorOffset, activeDatasetLabel);
   renderVector(selectedSample, current.vectorOffset);
   renderDebug(current);
 }
@@ -921,17 +1042,59 @@ vectorList.addEventListener('keydown', (event) => {
   }
 });
 
+datasetSelect.addEventListener('change', (event) => {
+  const nextDataset = (event.target as HTMLSelectElement).value;
+  if (!isDatasetOption(nextDataset, state.datasetOptions) || nextDataset === state.dataset) {
+    datasetSelect.value = state.dataset;
+    return;
+  }
+
+  dispatch({ type: 'dataset-change', dataset: nextDataset });
+  void replaceSamples(state.targetSampleCount);
+});
+
 resampleBtn.addEventListener('click', () => {
   void replaceSamples(state.targetSampleCount);
 });
 
 function init() {
   dispatch({ type: 'load-start' });
-  requestAnimationFrame(() => {
-    const { width } = gridEl.getBoundingClientRect();
-    updateLayoutFromGridSize(width, getGridTargetHeight(), { syncSamples: false });
-    void replaceSamples(state.targetSampleCount);
-  });
+  void (async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        const { width } = gridEl.getBoundingClientRect();
+        updateLayoutFromGridSize(width, getGridTargetHeight(), { syncSamples: false });
+        resolve();
+      });
+    });
+
+    const catalog = await listDatasets();
+    if (!catalog.ok) {
+      dispatch({ type: 'load-error', message: catalog.error.message });
+      return;
+    }
+
+    const datasetOptions: DatasetOption[] = catalog.value.datasets.map((dataset) => ({
+      id: dataset.id,
+      label: dataset.displayName || dataset.id,
+    }));
+    if (!datasetOptions.length) {
+      dispatch({ type: 'load-error', message: 'No datasets available from backend.' });
+      return;
+    }
+
+    let defaultDataset = catalog.value.defaultDataset;
+    if (!isDatasetOption(defaultDataset, datasetOptions)) {
+      defaultDataset = datasetOptions[0].id;
+    }
+
+    dispatch({
+      type: 'catalog-success',
+      dataset: defaultDataset,
+      datasetOptions,
+    });
+    await replaceSamples(state.targetSampleCount);
+  })();
 }
 
 init();

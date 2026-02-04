@@ -1,3 +1,14 @@
+# ---------------------------
+# secrets / agent caches
+#----------------------------
+auth.json
+**/auth.json
+.codex/
+**/.codex/
+.gemini/
+**/.gemini/
+
+
 # ----------------------------
 # OS / Editor files
 # ----------------------------
@@ -56,9 +67,16 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
+# Datasets cache
+backend/data/
+
 # ----------------------------
 # Python tooling caches
 # ----------------------------
 .uv-cache/
 pip-wheel-metadata/
 __pypackages__/
+
+# pnpm local store
+.pnpm-store/
+

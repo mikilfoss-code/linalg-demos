@@ -68,10 +68,10 @@
   --layout-gap: var(--space-7);
 
   /* Vector window spacing between selected digit and component list/slider. */
-  --vector-shell-gap: var(--space-9);
+  --vector-shell-gap: var(--space-6);
 
   /* Image grid sizing and fallback values used before layout is measured. */
-  --grid-gap: var(--space-3);
+  --grid-gap: var(--space-4);
   --grid-size: 32px;
   --grid-fallback-columns: 2;
   --grid-fallback-rows: 5;
@@ -111,23 +111,32 @@
   --selected-card-radius: 16px;
   --selected-card-padding: var(--space-4);
   --selected-card-gap: var(--space-4);
+  --selected-card-width: clamp(260px, 50%, 420px);
+  --selected-card-top-offset: calc(0.5rem + var(--space-3));
   --selected-canvas-radius: 10px;
   --selected-canvas-padding: var(--space-2);
   /* Small-screen maximum for the selected digit canvas. */
   --selected-canvas-max-sm: 280px;
 
   /* Vector panel sizing and list density. */
-  --selected-card-min-width: 260px;
-  --vector-value-min-width: 72px;
+  --vector-value-width: 72px;
+  --vector-bracket-width: 6px;
+  --vector-index-bracket-gap: var(--space-3);
+  --vector-bracket-content-gap: var(--space-2);
+  --vector-value-bracket-gap: var(--space-2);
+  --vector-range-width: 24ch;
   --vector-panel-min-height: 600px;
   --vector-panel-min-width: calc(
-    var(--selected-card-min-width) + var(--vector-info-min-width) + var(--vector-shell-gap)
+    var(--selected-card-width) + var(--vector-info-min-width) + var(--vector-shell-gap)
   );
-  --vector-panel-padding: var(--space-4);
+  --vector-panel-padding: var(--space-2);
   --vector-panel-radius: 16px;
   --vector-list-min-height: 360px;
-  /* Keeps values from touching the right panel edge. */
-  --vector-list-padding-right: var(--space-6);
+  --vector-list-width: calc(
+    var(--vector-index-width) + var(--vector-index-bracket-gap) +
+      var(--vector-bracket-content-gap) + var(--vector-swatch-col) +
+      var(--vector-swatch-value-gap) + var(--vector-value-width) + var(--vector-value-bracket-gap)
+  );
   --vector-slider-min-height: 360px;
   --vector-hint-margin-top: var(--space-7);
   /* Gap between the slider and the component list. */
@@ -136,12 +145,9 @@
   --vector-index-width: 56px;
   --vector-swatch-col: var(--vector-swatch-size);
   --vector-swatch-size: 20px;
-  --vector-index-swatch-gap: var(--space-5);
   --vector-swatch-value-gap: var(--space-1);
   --vector-info-min-width: calc(
-    var(--vector-slider-width) + var(--vector-slider-gap) + var(--vector-index-width) +
-      var(--vector-index-swatch-gap) + var(--vector-swatch-col) + var(--vector-swatch-value-gap) +
-      var(--vector-value-min-width)
+    var(--vector-slider-width) + var(--vector-slider-gap) + var(--vector-list-width)
   );
   --vector-slider-width: 28px;
 

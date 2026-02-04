@@ -2,19 +2,22 @@
 description: 'Run backend + one chosen demo locally (Windows PowerShell)'
 ---
 
-Goal: run locally
+# Run Backend and One Demo Locally
 
 1. Backend:
 
-- Activate venv: C:\Users\mfoss3\.venvs\linalg-demos\Scripts\Activate.ps1
-- From backend/: install deps (pip install -r requirements.txt) if needed
-- Run: uvicorn main:app --reload --port 8000
+- Activate venv: `C:\Users\mfoss3\.venvs\linalg-demos\Scripts\Activate.ps1`
+- From repo root, install deps from `requirements.in` workflow if needed:
+  - `uv pip compile backend/requirements.in -o backend/requirements.txt`
+  - `uv pip sync backend/requirements.txt`
+  - fallback: `python -m pip install -r backend/requirements.in`
+- Run from repo root: `python -m uvicorn backend.main:app --reload --port 8000`
 
-2. Frontend (ask which demo):
+1. Frontend (ask which demo):
 
-- cd demos/<demo-name>/frontend
+- `cd demos/{demo-name}/frontend`
 - pnpm install
-- pnpm dev
+- pnpm dev --port 5173
 
 Confirm:
 
