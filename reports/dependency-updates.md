@@ -1,6 +1,6 @@
 # Dependency update report
 
-Generated: 2026-02-06 19:51:09
+Generated: 2026-02-07 09:56:59
 
 ## Toolchain
 
@@ -18,7 +18,7 @@ _None found._
 
 ## Node/JS (pnpm outdated)
 
-Scopes scanned: **2**
+Scopes scanned: **3**
 
 - Note: @types/node is a TypeScript package and is separate from the Node runtime.
 - Node runtime target from .nvmrc: **25.6.0**
@@ -28,6 +28,7 @@ Scopes scanned: **2**
 | -------------------- | -------------------- | ----------------- | -------------------- |
 | node:frontend:lin... | demos\linalg-matr... | 0                 | 0                    |
 | node:frontend:lin... | demos\linalg-vect... | 0                 | 0                    |
+| node:root            | .                    | 0                 | 0                    |
 
 - Runtime dependency upgrades available: **0**
 - Dev dependency upgrades available: **0**

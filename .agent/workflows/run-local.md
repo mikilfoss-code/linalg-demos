@@ -15,9 +15,13 @@ description: 'Run backend + one chosen demo locally (Windows PowerShell)'
 
 1. Frontend (ask which demo):
 
-- `cd demos/{demo-name}/frontend`
-- pnpm install
-- pnpm dev --port 5173
+- From repo root (preferred workspace flow):
+  - `pnpm install`
+  - vectors demo: `pnpm dev:vectors`
+  - matrix demo: `pnpm dev:matrix`
+- Or per-demo fallback:
+  - `cd demos/{demo-name}/frontend`
+  - `pnpm dev --port 5173`
 
 Confirm:
 

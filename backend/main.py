@@ -1,16 +1,13 @@
 import os
-import logging
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 
 try:
-    from .datasets import available_datasets, sample_dataset
+    from .api.routes.datasets import router as datasets_router
 except ImportError:
     # Allow `uvicorn main:app` when running from backend/.
-    from datasets import available_datasets, sample_dataset
-
-logger = logging.getLogger(__name__)
+    from api.routes.datasets import router as datasets_router
 
 def _cors_origins() -> list[str]:
     """
@@ -26,7 +23,6 @@ def _cors_origins() -> list[str]:
 
 
 app = FastAPI(title="Linear Algebra Demos API", version="0.1.0")
-MAX_DATASET_SAMPLES = 64
 
 origins = _cors_origins()
 app.add_middleware(
@@ -36,6 +32,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(datasets_router)
 
 
 @app.get("/health")
@@ -49,64 +46,6 @@ def info() -> dict:
         "service": "linalg-demos-backend",
         "version": app.version,
     }
-
-
-@app.get("/api/v1/datasets")
-def datasets() -> dict:
-    return {
-        "defaultDataset": "mnist",
-        "datasets": available_datasets(),
-    }
-
-
-@app.get("/api/v1/datasets/samples")
-def dataset_samples(
-    dataset: str = Query("mnist"),
-    count: int = Query(24, ge=1, le=MAX_DATASET_SAMPLES),
-    split: str | None = Query(None),
-    seed: int | None = Query(None, ge=0),
-) -> dict:
-    """
-    Return random dataset samples (image or text).
-
-    @param dataset: Dataset id.
-    @param count: Number of samples to return (1..MAX_DATASET_SAMPLES).
-    @param split: Optional split ("train"|"test"|"all"), validated by dataset.
-    @param seed: Optional RNG seed for reproducible sampling.
-    @returns: JSON payload containing sampled rows and metadata.
-    """
-    try:
-        return sample_dataset(dataset=dataset, count=count, split=split, seed=seed)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.exception("Dataset sampling failed for dataset=%s split=%s", dataset, split)
-        split_suffix = f" (split='{split}')" if split is not None else ""
-        detail = (
-            f"Failed to load dataset '{dataset}'"
-            f"{split_suffix}: "
-            f"{exc.__class__.__name__}: {exc}"
-        )
-        raise HTTPException(status_code=500, detail=detail) from exc
-
-
-@app.get("/api/v1/mnist/samples")
-def mnist_samples(
-    count: int = Query(24, ge=1, le=MAX_DATASET_SAMPLES),
-    split: str = Query("train"),
-    seed: int | None = Query(None, ge=0),
-) -> dict:
-    """
-    Backward-compatible MNIST route.
-    """
-    try:
-        return sample_dataset(dataset="mnist", count=count, split=split, seed=seed)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.exception("MNIST sampling failed for split=%s", split)
-        detail = f"Failed to load dataset 'mnist' (split='{split}'): {exc.__class__.__name__}: {exc}"
-        raise HTTPException(status_code=500, detail=detail) from exc
 
 
 def _validate_matrix(raw_matrix: object) -> np.ndarray:

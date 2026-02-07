@@ -157,7 +157,8 @@ export async function datasetSamples(
   dataset: DatasetId,
   count: number,
   seed?: number,
-  split?: "train" | "test" | "all"
+  split?: "train" | "test" | "all",
+  signal?: AbortSignal
 ): Promise<Result<DatasetSamplesResponse>> {
   if (!isNonNegativeInt(count) || count <= 0) {
     return fail(buildError("count must be a positive integer", 0));
@@ -177,7 +178,7 @@ export async function datasetSamples(
 
   return api.requestJson(
     `/api/v1/datasets/samples?${params.toString()}`,
-    { method: "GET" },
+    { method: "GET", signal },
     validateDatasetSamples
   );
 }

@@ -67,9 +67,10 @@ export const DATASET_SAMPLES_ENDPOINT = "/api/v1/datasets/samples";
 export async function loadDatasetSamples(
   dataset: DatasetId,
   count: number,
-  seed?: number
+  seed?: number,
+  signal?: AbortSignal
 ): Promise<Result<DatasetSampleSet>> {
-  const response = await datasetSamples(dataset, count, seed);
+  const response = await datasetSamples(dataset, count, seed, undefined, signal);
   if (!response.ok) {
     return response;
   }

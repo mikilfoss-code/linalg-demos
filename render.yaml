@@ -25,9 +25,9 @@ services:
   - type: web
     name: demo-linalg-vectors
     runtime: static
-    rootDir: demos/linalg-vectors/frontend
-    buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm build
-    staticPublishPath: dist
+    rootDir: .
+    buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @linalg/demo-vectors build
+    staticPublishPath: demos/linalg-vectors/frontend/dist
     envVars:
       # Keep in sync with .nvmrc for local dev parity.
       - key: NODE_VERSION
@@ -48,9 +48,9 @@ services:
   - type: web
     name: demo-linalg-matrix-transforms
     runtime: static
-    rootDir: demos/linalg-matrix_transforms/frontend
-    buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm build
-    staticPublishPath: dist
+    rootDir: .
+    buildCommand: npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @linalg/demo-matrix-transforms build
+    staticPublishPath: demos/linalg-matrix_transforms/frontend/dist
     envVars:
       # Keep in sync with .nvmrc for local dev parity.
       - key: NODE_VERSION

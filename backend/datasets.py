@@ -9,7 +9,11 @@ from typing import Callable, Literal
 import numpy as np
 from scipy import sparse
 from sklearn.datasets import fetch_20newsgroups, fetch_lfw_people, fetch_openml
-from sklearn.feature_extraction.text import CountVectorizer
+
+try:
+    from .services.text_vectorization import create_20newsgroups_vectorizer
+except ImportError:
+    from services.text_vectorization import create_20newsgroups_vectorizer
 
 DatasetName = Literal["mnist", "fashion-mnist", "faces-in-the-wild", "20newsgroups"]
 DatasetSplit = Literal["train", "test", "all"]
@@ -19,10 +23,6 @@ DATA_ROOT = Path(__file__).resolve().parent / "data"
 OPENML_DATA_HOME = DATA_ROOT / "openml"
 LFW_DATA_HOME = DATA_ROOT / "lfw"
 NEWSGROUPS_DATA_HOME = DATA_ROOT / "20newsgroups"
-EMAIL_ADDRESS_RE = re.compile(r"(?i)\b[\w.%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
-VALID_VOCAB_TOKEN_RE = re.compile(r"^[A-Za-z]{2,}$")
-HAS_VOWEL_RE = re.compile(r"[aeiou]")
-HAS_CONSONANT_RE = re.compile(r"[b-df-hj-np-tv-z]")
 
 # MNIST and Fashion-MNIST publish 60k train + 10k test rows in order.
 OPENML_TRAIN_COUNT = 60_000
@@ -162,21 +162,9 @@ def _load_20newsgroups_dataset() -> RawDataset:
     labels = np.asarray(bunch.target, dtype=np.int64)
     label_names = tuple(str(name) for name in np.asarray(bunch.target_names))
 
-    vectorizer = CountVectorizer(
-        stop_words="english",
-        max_features=9999,
-        preprocessor=_strip_email_addresses,
-        token_pattern=r"(?u)\b[a-zA-Z]{2,}\b",
-    )
+    vectorizer = create_20newsgroups_vectorizer(max_features=15000)
     counts = vectorizer.fit_transform(texts).tocsr()
-    raw_vocab = vectorizer.get_feature_names_out()
-
-    keep_indices = [
-        index for index, token in enumerate(raw_vocab) if _is_valid_vocab_token(str(token))
-    ]
-    if len(keep_indices) != len(raw_vocab):
-        counts = counts[:, keep_indices].tocsr()
-    vocab = tuple(str(raw_vocab[index]) for index in keep_indices)
+    vocab = tuple(str(token) for token in vectorizer.get_feature_names_out())
 
     return _prepare_text_dataset(
         source="20newsgroups",
@@ -359,13 +347,6 @@ def get_dataset(dataset: str = "mnist", split: str | None = None) -> DatasetView
             return cached
 
         raw_dataset = _raw_dataset_cache.get(spec.source)
-        if raw_dataset is not None and spec.source == "20newsgroups":
-            # Refresh stale in-process cache from older tokenization rules.
-            if _contains_invalid_vocab_tokens(raw_dataset.vocab):
-                raw_dataset = None
-                stale_keys = [key for key in _split_dataset_cache.keys() if key[0] == spec.source]
-                for key in stale_keys:
-                    del _split_dataset_cache[key]
         if raw_dataset is None:
             raw_dataset = spec.loader()
             _raw_dataset_cache[spec.source] = raw_dataset
@@ -581,30 +562,6 @@ def _first_sentence(text: str, max_length: int = 200) -> str:
     if len(snippet) > max_length:
         return snippet[: max_length - 1].rstrip() + "…"
     return snippet
-
-
-def _strip_email_addresses(text: str) -> str:
-    if not text:
-        return ""
-    without_emails = EMAIL_ADDRESS_RE.sub(" ", text)
-    return without_emails.lower()
-
-
-def _is_valid_vocab_token(token: str) -> bool:
-    normalized = token.lower()
-    if VALID_VOCAB_TOKEN_RE.fullmatch(normalized) is None:
-        return False
-    if HAS_VOWEL_RE.search(normalized) is None:
-        return False
-    if HAS_CONSONANT_RE.search(normalized) is None:
-        return False
-    return True
-
-
-def _contains_invalid_vocab_tokens(vocab: tuple[str, ...] | None) -> bool:
-    if vocab is None:
-        return False
-    return any(not _is_valid_vocab_token(token) for token in vocab)
 
 
 def _to_label_ids(raw_labels: np.ndarray) -> np.ndarray:
