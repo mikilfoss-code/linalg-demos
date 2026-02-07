@@ -36,6 +36,8 @@
   --accent-contrast: #fff8f0;
   /* Vector outline color used for the selected pixel window. */
   --vector-outline: #f06449;
+  /* RGB tuple for word highlight in text mode. */
+  --word-highlight: 240, 100, 73;
 
   /* Borders, shadows, and focus rings. */
   --grid-line: rgba(29, 36, 51, 0.12);
@@ -83,6 +85,8 @@
   --grid-max-samples: 32;
   /* Viewport height percentage used to estimate grid rows. */
   --grid-height-vh: 70;
+  /* Minimum pixel height for a text thumbnail row. */
+  --text-tile-min-height: 110;
 
   /* App shell sizing. */
   --app-max-width: 1200px;
@@ -115,6 +119,8 @@
   --selected-card-top-offset: calc(0.5rem + var(--space-3));
   --selected-canvas-radius: 10px;
   --selected-canvas-padding: var(--space-2);
+  --selected-text-min-height: 280px;
+  --selected-text-max-height: 420px;
   /* Small-screen maximum for the selected digit canvas. */
   --selected-canvas-max-sm: 280px;
 
@@ -136,6 +142,15 @@
     var(--vector-index-width) + var(--vector-index-bracket-gap) +
       var(--vector-bracket-content-gap) + var(--vector-swatch-col) +
       var(--vector-swatch-value-gap) + var(--vector-value-width) + var(--vector-value-bracket-gap)
+  );
+  --vector-text-word-width: var(--vector-text-word-width-dynamic, 12ch);
+  --vector-text-bracket-word-gap: var(--space-2);
+  --vector-text-word-gap: var(--space-0);
+  --vector-text-count-width: 40px;
+  --vector-text-list-width: calc(
+    var(--vector-index-width) + var(--vector-index-bracket-gap) +
+      var(--vector-text-bracket-word-gap) + var(--vector-text-word-width) +
+      var(--vector-text-word-gap) + var(--vector-text-count-width) + var(--vector-value-bracket-gap)
   );
   --vector-slider-min-height: 360px;
   --vector-hint-margin-top: var(--space-7);

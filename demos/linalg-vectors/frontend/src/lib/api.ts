@@ -6,11 +6,14 @@ import {
   isNonNegativeInt,
   isString,
   type DatasetId,
+  type DatasetModality,
   type DatasetOptionApi,
   type DatasetsResponse,
-  type DatasetSampleApi,
+  type DatasetImageSampleApi,
   type DatasetSplit,
   type DatasetSamplesResponse,
+  type DatasetTextSampleApi,
+  type WordCountApi,
 } from "./types";
 
 const api = createApi();
@@ -29,11 +32,16 @@ function isDatasetSplit(value: unknown): value is DatasetSplit {
   return value === "train" || value === "test" || value === "all";
 }
 
+function isDatasetModality(value: unknown): value is DatasetModality {
+  return value === "image" || value === "text";
+}
+
 function validateDatasetOption(data: any): DatasetOptionApi {
   assert(data && typeof data === "object", "Invalid dataset option");
   assert(isDatasetId(data.id), "Invalid dataset option id");
   assert(isString(data.displayName), "Invalid dataset option displayName");
   assert(isDatasetSplit(data.defaultSplit), "Invalid dataset option defaultSplit");
+  assert(isDatasetModality(data.modality), "Invalid dataset option modality");
   return data as DatasetOptionApi;
 }
 
@@ -45,7 +53,19 @@ function validateDatasets(data: any): DatasetsResponse {
   return data as DatasetsResponse;
 }
 
-function validateDatasetSample(data: any, pixelCount: number): DatasetSampleApi {
+function validateWordCount(data: any, vectorLength: number): WordCountApi {
+  assert(data && typeof data === "object", "Invalid word-count entry");
+  assert(isNonNegativeInt(data.index), "Invalid word-count index");
+  assert(isNonNegativeInt(data.count), "Invalid word-count count");
+  if (data.weight !== undefined) {
+    assert(typeof data.weight === "number", "Invalid word-count weight");
+    assert(data.weight >= 0 && data.weight <= 1, "Invalid word-count weight");
+  }
+  assert(data.index < vectorLength, "Invalid word-count index");
+  return data as WordCountApi;
+}
+
+function validateImageSample(data: any, pixelCount: number): DatasetImageSampleApi {
   assert(data && typeof data === "object", "Invalid dataset sample");
   assert(isNonNegativeInt(data.index), "Invalid dataset sample index");
   assert(isNonNegativeInt(data.label), "Invalid dataset sample label");
@@ -54,7 +74,21 @@ function validateDatasetSample(data: any, pixelCount: number): DatasetSampleApi 
   }
   assert(isByteVec(data.pixels), "Invalid dataset sample pixels");
   assert(data.pixels.length === pixelCount, "Invalid dataset sample pixel length");
-  return data as DatasetSampleApi;
+  return data as DatasetImageSampleApi;
+}
+
+function validateTextSample(data: any, vectorLength: number): DatasetTextSampleApi {
+  assert(data && typeof data === "object", "Invalid dataset sample");
+  assert(isNonNegativeInt(data.index), "Invalid dataset sample index");
+  assert(isNonNegativeInt(data.label), "Invalid dataset sample label");
+  if (data.labelName !== undefined) {
+    assert(isString(data.labelName), "Invalid dataset sample labelName");
+  }
+  assert(isString(data.rawText), "Invalid dataset sample rawText");
+  assert(isString(data.snippet), "Invalid dataset sample snippet");
+  assert(Array.isArray(data.wordCounts), "Invalid dataset sample wordCounts");
+  data.wordCounts.forEach((entry: any) => validateWordCount(entry, vectorLength));
+  return data as DatasetTextSampleApi;
 }
 
 function validateDatasetSamples(data: any): DatasetSamplesResponse {
@@ -62,6 +96,7 @@ function validateDatasetSamples(data: any): DatasetSamplesResponse {
   assert(isDatasetId(data.source), "Invalid dataset response source");
   assert(isString(data.displayName), "Invalid dataset response display name");
   assert(isDatasetSplit(data.split), "Invalid dataset response split");
+  assert(isDatasetModality(data.modality), "Invalid dataset response modality");
   assert(
     typeof data.imageWidth === "number" &&
       Number.isInteger(data.imageWidth) &&
@@ -75,6 +110,12 @@ function validateDatasetSamples(data: any): DatasetSamplesResponse {
     "Invalid dataset image height"
   );
   assert(
+    typeof data.vectorLength === "number" &&
+      Number.isInteger(data.vectorLength) &&
+      data.vectorLength > 0,
+    "Invalid dataset vector length"
+  );
+  assert(
     typeof data.totalCount === "number" &&
       Number.isInteger(data.totalCount) &&
       data.totalCount > 0,
@@ -82,8 +123,15 @@ function validateDatasetSamples(data: any): DatasetSamplesResponse {
   );
   assert(Array.isArray(data.samples), "Invalid dataset samples array");
 
-  const pixelCount = data.imageWidth * data.imageHeight;
-  data.samples.forEach((sample: any) => validateDatasetSample(sample, pixelCount));
+  if (data.modality === "image") {
+    const pixelCount = data.imageWidth * data.imageHeight;
+    data.samples.forEach((sample: any) => validateImageSample(sample, pixelCount));
+  } else {
+    assert(Array.isArray(data.vocab), "Invalid dataset vocab");
+    data.vocab.forEach((entry: any) => assert(isString(entry), "Invalid dataset vocab entry"));
+    assert(data.vocab.length === data.vectorLength, "Invalid dataset vocab length");
+    data.samples.forEach((sample: any) => validateTextSample(sample, data.vectorLength));
+  }
   return data as DatasetSamplesResponse;
 }
 

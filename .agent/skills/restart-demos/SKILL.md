@@ -30,19 +30,25 @@ description: Restart local dev servers for the linalg monorepo on Windows. Start
 1. Activate the shared venv:
    - `& "$env:USERPROFILE\.venvs\linalg-demos\Scripts\Activate.ps1"`
 
-2. Ensure backend deps are present (run only if needed):
-   - Preferred: `uv pip sync backend/requirements.txt`
-   - Fallback: `python -m pip install -r backend/requirements.txt`
+2. Verify the interpreter points to the shared venv:
+   - `python -c "import sys,os; print(sys.executable); print(os.environ.get('VIRTUAL_ENV'))"`
+   - It MUST point to `C:\Users\mfoss3\.venvs\linalg-demos`
+   - If not, stop and report.
 
-3. If port 8000 is already in use:
+3. Ensure backend deps are present (run only if needed) using the `requirements.in` workflow:
+   - `uv pip compile backend/requirements.in -o backend/requirements.txt`
+   - `uv pip sync backend/requirements.txt`
+   - Fallback: `python -m pip install -r backend/requirements.in`
+
+4. If port 8000 is already in use:
    - `powershell -ExecutionPolicy Bypass -File .agent\skills\restart-demos\scripts\who-owns-port.ps1 -Port 8000`
    - Ask user whether to stop the owning process. If approved:
      - `powershell -ExecutionPolicy Bypass -File .agent\skills\restart-demos\scripts\stop-port.ps1 -Port 8000 -Force`
 
-4. Start backend from repo root:
+5. Start backend from repo root:
    - `python -m uvicorn backend.main:app --reload --port 8000`
 
-5. Verify (in a separate terminal):
+6. Verify (in a separate terminal):
    - `Invoke-RestMethod http://127.0.0.1:8000/health`
 
 ### C) Frontend (port 5173)

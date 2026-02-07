@@ -223,6 +223,12 @@ h1 {
   min-height: 0;
 }
 
+/* Single-column grid layout for text datasets. */
+.mnist-grid.is-text-grid {
+  grid-template-columns: 1fr;
+  align-content: start;
+}
+
 /* Dim and desaturate tiles while loading. */
 .mnist-grid.is-loading {
   opacity: 0.6;
@@ -254,6 +260,32 @@ h1 {
   animation-delay: calc(var(--i) * 25ms);
   font: inherit;
   aspect-ratio: var(--tile-aspect-ratio, 1 / 1);
+}
+
+/* Text-only thumbnail styling for document datasets. */
+.mnist-tile.text-tile {
+  aspect-ratio: auto;
+  place-items: start;
+  padding: var(--space-4);
+  text-align: left;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.text-snippet {
+  font-size: 0.82rem;
+  color: var(--ink);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 100%;
+  width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 /* Ensures MNIST canvas scales crisply in tiles. */
@@ -298,6 +330,14 @@ h1 {
   background: linear-gradient(135deg, var(--selected-card-start) 0%, var(--selected-card-end) 100%);
 }
 
+.selected-card.is-text-mode #selected-canvas {
+  display: none;
+}
+
+.selected-card:not(.is-text-mode) .selected-text {
+  display: none;
+}
+
 /* Large selected-digit canvas styling. */
 #selected-canvas {
   width: 100%;
@@ -310,6 +350,47 @@ h1 {
   background: var(--selected-canvas-bg, transparent);
   border-radius: var(--selected-canvas-radius);
   padding: var(--selected-canvas-padding);
+}
+
+/* Selected text display (used for document datasets). */
+.selected-text {
+  display: grid;
+  width: 100%;
+}
+
+.selected-text-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.selected-text-content {
+  border: 1px solid var(--grid-line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: var(--space-3);
+  min-height: var(--selected-text-min-height);
+  max-height: var(--selected-text-max-height);
+  overflow: auto;
+  white-space: pre-wrap;
+  line-height: 1.42;
+  font-size: 0.9rem;
+  color: var(--ink);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.text-word {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 2px;
+  transition: background-color 0.15s ease;
+}
+
+.text-word.is-highlighted {
+  background-color: rgba(var(--word-highlight), var(--word-highlight-alpha, 0.18));
 }
 
 /* Vector panel layout (vector list + slider). */
@@ -344,23 +425,30 @@ h1 {
   overflow-x: auto;
 }
 
+/* Text mode overrides for vector panel sizing. */
+.vector-panel.is-text-mode {
+  --vector-list-width: var(--vector-text-list-width);
+}
+
 /* Header row for vector controls and range text. */
 .vector-controls {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
   width: 100%;
   justify-self: stretch;
+  /* Center header over bracketed components only (ignore slider column). */
+  padding-left: calc(var(--vector-index-width) + var(--vector-index-bracket-gap));
 }
 
 /* Mono range text (indices shown). */
 .vector-range {
   font-family: var(--font-mono);
   color: var(--ink);
-  width: var(--vector-range-width);
-  text-align: right;
+  width: calc(var(--vector-list-width) - var(--vector-index-width) - var(--vector-index-bracket-gap));
+  text-align: center;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -434,6 +522,39 @@ h1 {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--ink-soft);
+}
+
+.vector-row.is-text {
+  grid-template-columns:
+    var(--vector-index-width)
+    var(--vector-index-bracket-gap)
+    var(--vector-text-bracket-word-gap)
+    var(--vector-text-word-width)
+    var(--vector-text-word-gap)
+    var(--vector-text-count-width)
+    var(--vector-value-bracket-gap);
+  cursor: pointer;
+}
+
+.vector-row.is-text.is-highlighted .vector-word {
+  background-color: rgba(var(--word-highlight), var(--vector-word-highlight-alpha, 0.18));
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.vector-word {
+  grid-column: 4;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vector-count {
+  grid-column: 6;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 /* Emphasizes the component index. */

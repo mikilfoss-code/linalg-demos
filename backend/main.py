@@ -5,10 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 
 try:
-    from .mnist_data import available_datasets, sample_dataset
+    from .datasets import available_datasets, sample_dataset
 except ImportError:
     # Allow `uvicorn main:app` when running from backend/.
-    from mnist_data import available_datasets, sample_dataset
+    from datasets import available_datasets, sample_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +67,13 @@ def dataset_samples(
     seed: int | None = Query(None, ge=0),
 ) -> dict:
     """
-    Return random image samples with grayscale pixel bytes.
+    Return random dataset samples (image or text).
 
-    @param dataset: Dataset id ("mnist"|"fashion-mnist"|"faces-in-the-wild").
+    @param dataset: Dataset id.
     @param count: Number of samples to return (1..MAX_DATASET_SAMPLES).
     @param split: Optional split ("train"|"test"|"all"), validated by dataset.
     @param seed: Optional RNG seed for reproducible sampling.
-    @returns: JSON payload containing sampled images and metadata.
+    @returns: JSON payload containing sampled rows and metadata.
     """
     try:
         return sample_dataset(dataset=dataset, count=count, split=split, seed=seed)

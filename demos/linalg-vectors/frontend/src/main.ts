@@ -6,24 +6,44 @@ import {
   toImageData,
   type DatasetMeta,
   type DatasetSample,
+  type ImageSample,
+  type TextSample,
 } from './lib/dataset';
-import { type DatasetId } from './lib/types';
+import { type DatasetId, type DatasetModality } from './lib/types';
 
 type GridLayout = { columns: number; rows: number };
-type DatasetOption = { id: DatasetId; label: string };
+type DatasetOption = { id: DatasetId; label: string; modality: DatasetModality };
 
 const VECTOR_WINDOW = 10;
 const DEFAULT_IMAGE_WIDTH = 28;
 const DEFAULT_IMAGE_HEIGHT = 28;
 
 const DEFAULT_DATASET: DatasetId = 'mnist';
+const WORD_REGEX = /\b[a-zA-Z]{2,}\b/g;
+const EMAIL_REGEX = /\b[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
 function getDatasetLabel(dataset: DatasetId, options: DatasetOption[]): string {
   return options.find((option) => option.id === dataset)?.label ?? dataset;
 }
 
+function getDatasetModality(dataset: DatasetId, options: DatasetOption[]): DatasetModality | null {
+  return options.find((option) => option.id === dataset)?.modality ?? null;
+}
+
 function isDatasetOption(value: string, options: DatasetOption[]): value is DatasetId {
   return options.some((option) => option.id === value);
+}
+
+function isImageSample(sample: DatasetSample | null): sample is ImageSample {
+  return sample?.kind === 'image';
+}
+
+function isTextSample(sample: DatasetSample | null): sample is TextSample {
+  return sample?.kind === 'text';
+}
+
+function getActiveModality(current: AppState): DatasetModality | null {
+  return current.meta?.modality ?? getDatasetModality(current.dataset, current.datasetOptions);
 }
 
 type AppStatus = 'loading' | 'ready' | 'error';
@@ -84,8 +104,8 @@ app.innerHTML = `
       <div class="panel panel-grid">
         <div class="panel-header">
           <div>
-            <h2>Image table</h2>
-            <p class="panel-subtitle">Select an image</p>
+            <h2 id="grid-title">Image table</h2>
+            <p class="panel-subtitle" id="grid-subtitle">Select an image</p>
           </div>
           <div class="status-pill" id="status-pill">Loading dataset data...</div>
         </div>
@@ -103,8 +123,9 @@ app.innerHTML = `
       <div class="panel panel-vector">
         <div class="panel-header">
           <div>
-            <h2>Vector window</h2>
-            <p class="panel-subtitle">10 components at a time
+            <h2 id="vector-title">Vector window</h2>
+            <p class="panel-subtitle" id="vector-subtitle">
+            <span id="vector-subtitle-leading">10 components at a time</span>
             <span aria-hidden="true">&middot;</span>
             dimension: <span id="vector-length">--</span>
             </p>
@@ -116,6 +137,16 @@ app.innerHTML = `
           <div class="vector-shell">
             <div class="selected-card">
               <canvas id="selected-canvas" width="28" height="28" aria-label="Selected image"></canvas>
+              <div class="selected-text" id="selected-text" hidden>
+                <div class="selected-text-body">
+                  <div
+                    class="selected-text-content"
+                    id="selected-text-content"
+                    tabindex="0"
+                    aria-label="Selected document text"
+                  ></div>
+                </div>
+              </div>
             </div>
 
             <div class="vector-content">
@@ -170,7 +201,7 @@ app.innerHTML = `
           <div class="debug-value" id="debug-split">--</div>
         </div>
         <div class="debug-item">
-          <div class="debug-label">Image size</div>
+          <div class="debug-label" id="debug-size-label">Image size</div>
           <div class="debug-value" id="debug-size">--</div>
         </div>
         <div class="debug-item">
@@ -199,13 +230,21 @@ app.innerHTML = `
 `;
 
 const statusPill = app.querySelector<HTMLDivElement>('#status-pill')!;
+const gridTitle = app.querySelector<HTMLHeadingElement>('#grid-title')!;
+const gridSubtitle = app.querySelector<HTMLParagraphElement>('#grid-subtitle')!;
 const selectedStatus = app.querySelector<HTMLDivElement>('#selected-status')!;
 const gridEl = app.querySelector<HTMLDivElement>('#mnist-grid')!;
+const vectorPanel = app.querySelector<HTMLDivElement>('.vector-panel')!;
+const vectorTitle = app.querySelector<HTMLHeadingElement>('#vector-title')!;
+const vectorSubtitleLeading = app.querySelector<HTMLSpanElement>('#vector-subtitle-leading')!;
 const datasetSelect = app.querySelector<HTMLSelectElement>('#dataset-select')!;
 const datasetNameEl = app.querySelector<HTMLSpanElement>('#dataset-name')!;
 const resampleBtn = app.querySelector<HTMLButtonElement>('#resample')!;
 const sampleCountEl = app.querySelector<HTMLSpanElement>('#sample-count')!;
+const selectedCard = app.querySelector<HTMLDivElement>('.selected-card')!;
 const selectedCanvas = app.querySelector<HTMLCanvasElement>('#selected-canvas')!;
+const selectedText = app.querySelector<HTMLDivElement>('#selected-text')!;
+const selectedTextContent = app.querySelector<HTMLDivElement>('#selected-text-content')!;
 // Offscreen buffer keeps ImageData scaling crisp without relying on CSS scaling.
 const selectedBuffer = document.createElement('canvas');
 const selectedBufferCtx = selectedBuffer.getContext('2d');
@@ -217,6 +256,7 @@ const debugStatus = app.querySelector<HTMLDivElement>('#debug-status')!;
 const debugEndpoint = app.querySelector<HTMLDivElement>('#debug-endpoint')!;
 const debugSource = app.querySelector<HTMLDivElement>('#debug-source')!;
 const debugSplit = app.querySelector<HTMLDivElement>('#debug-split')!;
+const debugSizeLabel = app.querySelector<HTMLDivElement>('#debug-size-label')!;
 const debugSize = app.querySelector<HTMLDivElement>('#debug-size')!;
 const debugTotal = app.querySelector<HTMLDivElement>('#debug-total')!;
 const debugSamples = app.querySelector<HTMLDivElement>('#debug-samples')!;
@@ -242,6 +282,10 @@ function getGridTileMin(): number {
 
 function getGridTileMax(min: number): number {
   return Math.max(getCssNumber('--grid-tile-max', 180), min);
+}
+
+function getTextTileHeight(): number {
+  return getCssNumber('--text-tile-min-height', 96);
 }
 
 function getGridMaxSamples(): number {
@@ -300,6 +344,14 @@ let state: AppState = {
 let lastSamples: DatasetSample[] | null = null;
 let sampleRequestId = 0;
 let isSampling = false;
+let lastTextSignature = '';
+let activeTextWordSpans = new Map<string, HTMLSpanElement[]>();
+let activeTextWordWeights = new Map<string, number>();
+let activeHighlightedWord: string | null = null;
+let vocabIndexMap: Map<string, number> | null = null;
+let vocabSignature = '';
+let lastModality: DatasetModality | null = null;
+let textWordWidthSignature = '';
 
 function nextSampleRequestId(): number {
   sampleRequestId += 1;
@@ -450,9 +502,127 @@ function sliderValueToOffset(value: number, sliderMax: number): number {
   return sliderMax - value;
 }
 
+function ensureVocabIndexMap(meta: DatasetMeta | null): Map<string, number> | null {
+  const vocab = meta?.vocab ?? null;
+  if (!vocab || vocab.length === 0) {
+    vocabIndexMap = null;
+    vocabSignature = '';
+    return null;
+  }
+  const signature = `${meta?.source ?? 'unknown'}:${vocab.length}`;
+  if (signature !== vocabSignature || !vocabIndexMap) {
+    const nextMap = new Map<string, number>();
+    vocab.forEach((word, index) => {
+      nextMap.set(word, index);
+    });
+    vocabIndexMap = nextMap;
+    vocabSignature = signature;
+  }
+  return vocabIndexMap;
+}
+
+function clearTextHighlight() {
+  if (!activeHighlightedWord) return;
+  const spans = activeTextWordSpans.get(activeHighlightedWord);
+  spans?.forEach((span) => {
+    span.classList.remove('is-highlighted');
+    span.style.removeProperty('--word-highlight-alpha');
+  });
+  activeHighlightedWord = null;
+}
+
+function clearVectorHighlight() {
+  const rows = vectorList.querySelectorAll<HTMLElement>('.vector-row.is-text.is-highlighted');
+  rows.forEach((row) => {
+    row.classList.remove('is-highlighted');
+    row.style.removeProperty('--vector-word-highlight-alpha');
+  });
+}
+
+function setVectorHighlight(word: string | null, weight: number) {
+  clearVectorHighlight();
+  if (!word || weight <= 0) return;
+
+  const rows = vectorList.querySelectorAll<HTMLElement>('.vector-row.is-text');
+  rows.forEach((row) => {
+    const rowWord = row.dataset.word;
+    const count = Number(row.dataset.count) || 0;
+    if (rowWord === word && count > 0) {
+      row.classList.add('is-highlighted');
+      row.style.setProperty('--vector-word-highlight-alpha', String(weight));
+    }
+  });
+}
+
+function setTextHighlight(word: string | null, weight: number) {
+  if (!word || weight <= 0) {
+    clearTextHighlight();
+    clearVectorHighlight();
+    return;
+  }
+  clearTextHighlight();
+  clearVectorHighlight();
+  setVectorHighlight(word, weight);
+  const spans = activeTextWordSpans.get(word);
+  if (spans && spans.length > 0) {
+    spans.forEach((span) => {
+      span.classList.add('is-highlighted');
+      span.style.setProperty('--word-highlight-alpha', String(weight));
+    });
+  }
+  activeHighlightedWord = word;
+}
+
+function updateVectorTextWordWidth(meta: DatasetMeta | null) {
+  if (!meta || meta.modality !== 'text' || !meta.vocab || meta.vocab.length === 0) {
+    vectorPanel.style.removeProperty('--vector-text-word-width-dynamic');
+    textWordWidthSignature = '';
+    return;
+  }
+
+  const signature = `${meta.source}:${meta.vectorLength}:${meta.vocab.length}`;
+  if (signature === textWordWidthSignature) {
+    return;
+  }
+
+  const longestWordLength = meta.vocab.reduce((longest, word) => Math.max(longest, word.length), 2);
+  vectorPanel.style.setProperty('--vector-text-word-width-dynamic', `${longestWordLength}ch`);
+  textWordWidthSignature = signature;
+}
+
+function getEmailRanges(text: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  EMAIL_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = EMAIL_REGEX.exec(text)) !== null) {
+    ranges.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return ranges;
+}
+
+function isInsideRanges(index: number, ranges: Array<{ start: number; end: number }>): boolean {
+  for (const range of ranges) {
+    if (index >= range.start && index < range.end) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function getSelectedSample(current: AppState): DatasetSample | null {
   if (current.selectedId === null) return null;
   return current.samples[current.selectedId] ?? null;
+}
+
+function getSelectedVectorLength(current: AppState, selected: DatasetSample | null): number {
+  if (!selected || !current.meta) return 0;
+  if (current.meta.modality === 'text') {
+    return current.meta.vectorLength;
+  }
+  if (isImageSample(selected)) {
+    return selected.vector.length;
+  }
+  return current.meta.vectorLength;
 }
 
 function reducer(current: AppState, action: Action): AppState {
@@ -549,14 +719,16 @@ function reducer(current: AppState, action: Action): AppState {
       };
     case 'set-offset': {
       const selected = getSelectedSample(current);
-      if (!selected) return current;
-      const nextOffset = clampOffset(action.offset, selected.vector.length);
+      const vectorLength = getSelectedVectorLength(current, selected);
+      if (!selected || vectorLength <= 0) return current;
+      const nextOffset = clampOffset(action.offset, vectorLength);
       return { ...current, vectorOffset: nextOffset };
     }
     case 'shift-offset': {
       const selected = getSelectedSample(current);
-      if (!selected) return current;
-      const nextOffset = clampOffset(current.vectorOffset + action.delta, selected.vector.length);
+      const vectorLength = getSelectedVectorLength(current, selected);
+      if (!selected || vectorLength <= 0) return current;
+      const nextOffset = clampOffset(current.vectorOffset + action.delta, vectorLength);
       return { ...current, vectorOffset: nextOffset };
     }
     default:
@@ -684,6 +856,14 @@ function updateLayoutFromGridSize(
 ) {
   if (width <= 0 || height <= 0) return;
   const { columnGap, rowGap } = getGridGaps();
+  if (getActiveModality(state) === 'text') {
+    const rowSize = getTextTileHeight();
+    const rows = computeRowCount(height, rowSize, rowGap);
+    const layout = clampGridLayout({ columns: 1, rows });
+    setGridRowSize(rowSize);
+    updateGridLayout(layout, options);
+    return;
+  }
   const imageWidth = state.meta?.imageWidth ?? DEFAULT_IMAGE_WIDTH;
   const imageHeight = state.meta?.imageHeight ?? DEFAULT_IMAGE_HEIGHT;
   const { layout, rowSize } = computeGridLayout(
@@ -701,11 +881,31 @@ function updateLayoutFromGridSize(
 function renderGrid(
   samples: DatasetSample[],
   selectedId: number | null,
+  meta: DatasetMeta | null,
+  sourceLabel: string
+) {
+  gridEl.textContent = '';
+  if (!meta) return;
+  if (meta.modality === 'text') {
+    renderTextGrid(samples.filter(isTextSample), selectedId, sourceLabel);
+  } else {
+    renderImageGrid(
+      samples.filter(isImageSample),
+      selectedId,
+      meta.imageWidth,
+      meta.imageHeight,
+      sourceLabel
+    );
+  }
+}
+
+function renderImageGrid(
+  samples: ImageSample[],
+  selectedId: number | null,
   imageWidth: number,
   imageHeight: number,
   sourceLabel: string
 ) {
-  gridEl.textContent = '';
   const fragment = document.createDocumentFragment();
 
   samples.forEach((sample, i) => {
@@ -730,6 +930,35 @@ function renderGrid(
     }
 
     button.appendChild(canvas);
+    fragment.appendChild(button);
+  });
+
+  gridEl.appendChild(fragment);
+}
+
+function renderTextGrid(
+  samples: TextSample[],
+  selectedId: number | null,
+  sourceLabel: string
+) {
+  const fragment = document.createDocumentFragment();
+
+  samples.forEach((sample, i) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mnist-tile text-tile';
+    button.dataset.sampleId = String(i);
+    button.setAttribute('role', 'gridcell');
+    button.setAttribute('aria-pressed', i === selectedId ? 'true' : 'false');
+    button.classList.toggle('is-selected', i === selectedId);
+    button.setAttribute('aria-label', `${sourceLabel} document ${sample.index}`);
+    button.style.setProperty('--i', String(i));
+
+    const snippet = document.createElement('div');
+    snippet.className = 'text-snippet';
+    snippet.textContent = sample.snippet || sample.rawText || '';
+
+    button.appendChild(snippet);
     fragment.appendChild(button);
   });
 
@@ -809,18 +1038,50 @@ function drawVectorWindowOutline(
 
 function renderSelected(
   sample: DatasetSample | null,
-  imageWidth: number,
-  imageHeight: number,
+  meta: DatasetMeta | null,
+  offset: number,
+  sourceLabel: string,
+  fallbackModality: DatasetModality | null
+) {
+  if (!meta) {
+    selectedStatus.textContent = 'No selection';
+    if (fallbackModality === 'text') {
+      selectedCard.classList.add('is-text-mode');
+      selectedCanvas.hidden = true;
+      selectedText.hidden = false;
+      selectedTextContent.textContent = 'Select a document to view its text.';
+    } else {
+      selectedCard.classList.remove('is-text-mode');
+      selectedCanvas.hidden = false;
+      selectedText.hidden = true;
+      selectedTextContent.textContent = '';
+    }
+    return;
+  }
+
+  if (meta.modality === 'text') {
+    renderSelectedText(isTextSample(sample) ? sample : null, meta, sourceLabel);
+  } else {
+    renderSelectedImage(isImageSample(sample) ? sample : null, meta, offset, sourceLabel);
+  }
+}
+
+function renderSelectedImage(
+  sample: ImageSample | null,
+  meta: DatasetMeta,
   offset: number,
   sourceLabel: string
 ) {
+  selectedCard.classList.remove('is-text-mode');
+  selectedCanvas.hidden = false;
+  selectedText.hidden = true;
   const ctx = selectedCanvas.getContext('2d');
   if (!ctx) return;
-  selectedCanvas.style.setProperty('--selected-canvas-aspect', `${imageWidth} / ${imageHeight}`);
+  selectedCanvas.style.setProperty('--selected-canvas-aspect', `${meta.imageWidth} / ${meta.imageHeight}`);
   const { width: displayWidth, height: displayHeight, scale } = syncCanvasToDisplay(
     selectedCanvas,
-    imageWidth,
-    imageHeight
+    meta.imageWidth,
+    meta.imageHeight
   );
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.imageSmoothingEnabled = false;
@@ -832,20 +1093,20 @@ function renderSelected(
   }
 
   if (selectedBufferCtx) {
-    if (selectedBuffer.width !== imageWidth || selectedBuffer.height !== imageHeight) {
-      selectedBuffer.width = imageWidth;
-      selectedBuffer.height = imageHeight;
+    if (selectedBuffer.width !== meta.imageWidth || selectedBuffer.height !== meta.imageHeight) {
+      selectedBuffer.width = meta.imageWidth;
+      selectedBuffer.height = meta.imageHeight;
     }
-    selectedBufferCtx.putImageData(toImageData(sample, imageWidth, imageHeight), 0, 0);
+    selectedBufferCtx.putImageData(toImageData(sample, meta.imageWidth, meta.imageHeight), 0, 0);
     ctx.drawImage(selectedBuffer, 0, 0, displayWidth, displayHeight);
   } else {
-    ctx.putImageData(toImageData(sample, imageWidth, imageHeight), 0, 0);
+    ctx.putImageData(toImageData(sample, meta.imageWidth, meta.imageHeight), 0, 0);
   }
 
   drawVectorWindowOutline(
     ctx,
-    imageWidth,
-    imageHeight,
+    meta.imageWidth,
+    meta.imageHeight,
     displayWidth,
     displayHeight,
     offset,
@@ -856,15 +1117,108 @@ function renderSelected(
   selectedStatus.textContent = `${sourceLabel} #${sample.index} (${label})`;
 }
 
-function renderVector(sample: DatasetSample | null, offset: number) {
+function renderSelectedText(sample: TextSample | null, meta: DatasetMeta, sourceLabel: string) {
+  selectedCard.classList.add('is-text-mode');
+  selectedCanvas.hidden = true;
+  selectedText.hidden = false;
+
   if (!sample) {
-    vectorRangeEl.textContent = 'Components --';
-    vectorSlider.value = '0';
-    vectorSlider.max = '0';
-    vectorList.innerHTML = `<div class="vector-empty">Select an image to view its vector.</div>`;
+    selectedStatus.textContent = 'No selection';
+    selectedTextContent.textContent = 'Select a document to view its text.';
     return;
   }
 
+  const label = sample.labelName ? sample.labelName : `label ${sample.label}`;
+  selectedStatus.textContent = `${sourceLabel} #${sample.index} (${label})`;
+
+  const signature = `${meta.source}:${sample.index}`;
+  if (signature !== lastTextSignature) {
+    renderSelectedTextContent(sample, meta);
+    lastTextSignature = signature;
+  }
+}
+
+function renderSelectedTextContent(sample: TextSample, meta: DatasetMeta) {
+  clearTextHighlight();
+  activeTextWordSpans = new Map<string, HTMLSpanElement[]>();
+  activeTextWordWeights = new Map<string, number>();
+  selectedTextContent.textContent = '';
+  selectedTextContent.scrollTop = 0;
+
+  const vocabMap = ensureVocabIndexMap(meta);
+  if (!vocabMap) {
+    selectedTextContent.textContent = sample.rawText;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  const text = sample.rawText;
+  const emailRanges = getEmailRanges(text);
+  sample.wordCounts.forEach((entry) => {
+    const word = meta.vocab?.[entry.index];
+    if (word) {
+      activeTextWordWeights.set(word, entry.weight);
+    }
+  });
+  WORD_REGEX.lastIndex = 0;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = WORD_REGEX.exec(text)) !== null) {
+    const start = match.index;
+    const word = match[0];
+    const end = start + word.length;
+    if (start > lastIndex) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex, start)));
+    }
+    if (isInsideRanges(start, emailRanges)) {
+      fragment.appendChild(document.createTextNode(word));
+      lastIndex = end;
+      continue;
+    }
+
+    const normalized = word.toLowerCase();
+    const vocabIndex = vocabMap.get(normalized);
+    if (vocabIndex !== undefined) {
+      const span = document.createElement('span');
+      span.className = 'text-word';
+      span.textContent = word;
+      span.dataset.word = normalized;
+      span.dataset.index = String(vocabIndex);
+      const entries = activeTextWordSpans.get(normalized);
+      if (entries) {
+        entries.push(span);
+      } else {
+        activeTextWordSpans.set(normalized, [span]);
+      }
+      fragment.appendChild(span);
+    } else {
+      fragment.appendChild(document.createTextNode(word));
+    }
+    lastIndex = end;
+  }
+  if (lastIndex < text.length) {
+    fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+  selectedTextContent.appendChild(fragment);
+}
+
+function renderVector(sample: DatasetSample | null, offset: number, meta: DatasetMeta | null) {
+  if (!sample || !meta) {
+    vectorRangeEl.textContent = 'Components --';
+    vectorSlider.value = '0';
+    vectorSlider.max = '0';
+    vectorList.innerHTML = `<div class="vector-empty">Select a sample to view its vector.</div>`;
+    return;
+  }
+
+  if (meta.modality === 'text' && isTextSample(sample)) {
+    renderTextVector(sample, offset, meta);
+  } else if (isImageSample(sample)) {
+    renderImageVector(sample, offset);
+  }
+}
+
+function renderImageVector(sample: ImageSample, offset: number) {
   const vector = sample.vector;
   const clampedOffset = clampOffset(offset, vector.length);
   const end = Math.min(vector.length, clampedOffset + VECTOR_WINDOW);
@@ -907,13 +1261,73 @@ function renderVector(sample: DatasetSample | null, offset: number) {
   vectorList.appendChild(fragment);
 }
 
+function renderTextVector(sample: TextSample, offset: number, meta: DatasetMeta) {
+  const vectorLength = meta.vectorLength;
+  const clampedOffset = clampOffset(offset, vectorLength);
+  const end = Math.min(vectorLength, clampedOffset + VECTOR_WINDOW);
+  const sliderMax = getSliderMax(vectorLength);
+
+  vectorRangeEl.textContent = `Components ${clampedOffset + 1} - ${end}`;
+  vectorSlider.max = String(sliderMax);
+  vectorSlider.value = String(offsetToSliderValue(clampedOffset, sliderMax));
+
+  const wordCounts = new Map<number, { count: number; weight: number }>();
+  sample.wordCounts.forEach((entry) => {
+    wordCounts.set(entry.index, { count: entry.count, weight: entry.weight });
+  });
+
+  vectorList.textContent = '';
+  const fragment = document.createDocumentFragment();
+
+  for (let i = clampedOffset; i < end; i += 1) {
+    const row = document.createElement('div');
+    row.className = 'vector-row is-text';
+    row.dataset.index = String(i);
+
+    const word = meta.vocab?.[i] ?? '';
+    if (word) {
+      row.dataset.word = word;
+    }
+    const entry = wordCounts.get(i);
+    const count = entry?.count ?? 0;
+    const weight = entry?.weight ?? 0;
+    row.dataset.weight = String(weight);
+    row.dataset.count = String(count);
+
+    const indexEl = document.createElement('div');
+    indexEl.className = 'vector-index';
+    indexEl.textContent = String(i + 1);
+
+    const wordEl = document.createElement('div');
+    wordEl.className = 'vector-word';
+    wordEl.textContent = word || '--';
+
+    const countEl = document.createElement('div');
+    countEl.className = 'vector-count';
+    countEl.textContent = String(count);
+
+    row.appendChild(indexEl);
+    row.appendChild(wordEl);
+    row.appendChild(countEl);
+    fragment.appendChild(row);
+  }
+
+  vectorList.appendChild(fragment);
+  if (activeHighlightedWord) {
+    const weight = activeTextWordWeights.get(activeHighlightedWord) ?? 0;
+    setVectorHighlight(activeHighlightedWord, weight);
+  }
+}
+
 function renderDebug(current: AppState) {
   debugStatus.textContent = current.status;
   debugEndpoint.textContent = DATASET_SAMPLES_ENDPOINT;
   debugSource.textContent = current.meta?.source ?? '--';
   debugSplit.textContent = current.meta?.split ?? '--';
   debugSize.textContent = current.meta
-    ? `${current.meta.imageWidth}x${current.meta.imageHeight}`
+    ? current.meta.modality === 'text'
+      ? String(current.meta.vectorLength)
+      : `${current.meta.imageWidth}x${current.meta.imageHeight}`
     : '--';
   debugTotal.textContent = current.meta ? String(current.meta.totalCount) : '--';
   debugSamples.textContent = String(current.samples.length);
@@ -925,6 +1339,15 @@ function renderDebug(current: AppState) {
 function render(current: AppState) {
   const requestedDatasetLabel = getDatasetLabel(current.dataset, current.datasetOptions);
   const activeDatasetLabel = current.meta?.displayName ?? requestedDatasetLabel;
+  const modality = getActiveModality(current);
+  const textMode = modality === 'text';
+  if (modality !== lastModality) {
+    lastModality = modality;
+    const { width } = gridEl.getBoundingClientRect();
+    updateLayoutFromGridSize(width, getGridTargetHeight(), {
+      syncSamples: current.meta !== null,
+    });
+  }
 
   renderDatasetOptions(current.datasetOptions, current.dataset);
   datasetNameEl.textContent = activeDatasetLabel;
@@ -932,12 +1355,28 @@ function render(current: AppState) {
   resampleBtn.disabled = !current.meta || current.status === 'loading';
   datasetSelect.disabled = current.status === 'loading' || current.datasetOptions.length === 0;
 
+  gridEl.classList.toggle('is-text-grid', textMode);
+  vectorPanel.classList.toggle('is-text-mode', textMode);
+  gridTitle.textContent = textMode ? 'Document table' : 'Image table';
+  gridSubtitle.textContent = textMode ? 'Select a document' : 'Select an image';
+  vectorTitle.textContent = textMode ? 'Vector components window' : 'Vector window';
+  vectorSubtitleLeading.textContent = '10 components at a time';
+  gridEl.setAttribute('aria-label', textMode ? 'Document grid' : 'Sample grid');
+  debugSizeLabel.textContent = textMode ? 'Vocab size' : 'Image size';
+  updateVectorTextWordWidth(current.meta);
+  if (!textMode) {
+    clearTextHighlight();
+    activeTextWordSpans = new Map<string, HTMLSpanElement[]>();
+    activeTextWordWeights = new Map<string, number>();
+    lastTextSignature = '';
+  }
+
   if (current.status === 'loading' && !current.meta) {
     statusPill.hidden = false;
     statusPill.textContent = `Loading ${requestedDatasetLabel} data...`;
   } else if (current.status === 'loading') {
     statusPill.hidden = false;
-    statusPill.textContent = 'Sampling images...';
+    statusPill.textContent = textMode ? 'Sampling documents...' : 'Sampling images...';
   } else if (current.status === 'error') {
     statusPill.hidden = false;
     statusPill.textContent = current.error ?? `Failed to load ${requestedDatasetLabel}.`;
@@ -948,21 +1387,27 @@ function render(current: AppState) {
 
   const imageWidth = current.meta?.imageWidth ?? DEFAULT_IMAGE_WIDTH;
   const imageHeight = current.meta?.imageHeight ?? DEFAULT_IMAGE_HEIGHT;
-  const vectorLength = imageWidth * imageHeight;
+  const vectorLength = current.meta?.vectorLength ?? imageWidth * imageHeight;
   vectorLengthEl.textContent = current.meta ? String(vectorLength) : '--';
 
   gridEl.classList.toggle('is-loading', current.status === 'loading' && !current.samples.length);
 
   if (current.samples !== lastSamples) {
-    renderGrid(current.samples, current.selectedId, imageWidth, imageHeight, activeDatasetLabel);
+    renderGrid(current.samples, current.selectedId, current.meta, activeDatasetLabel);
     lastSamples = current.samples;
   } else {
     updateGridSelection(current.selectedId);
   }
 
   const selectedSample = getSelectedSample(current);
-  renderSelected(selectedSample, imageWidth, imageHeight, current.vectorOffset, activeDatasetLabel);
-  renderVector(selectedSample, current.vectorOffset);
+  renderSelected(
+    selectedSample,
+    current.meta,
+    current.vectorOffset,
+    activeDatasetLabel,
+    modality
+  );
+  renderVector(selectedSample, current.vectorOffset, current.meta);
   renderDebug(current);
 }
 
@@ -996,10 +1441,11 @@ gridEl.addEventListener('click', (event) => {
 
 vectorSlider.addEventListener('input', (event) => {
   const selected = getSelectedSample(state);
-  if (!selected) return;
+  const vectorLength = getSelectedVectorLength(state, selected);
+  if (!selected || vectorLength <= 0) return;
   const rawValue = Number((event.target as HTMLInputElement).value);
   const sliderMax = Number(vectorSlider.max) || 0;
-  const nextOffset = clampOffset(sliderValueToOffset(rawValue, sliderMax), selected.vector.length);
+  const nextOffset = clampOffset(sliderValueToOffset(rawValue, sliderMax), vectorLength);
   dispatch({ type: 'set-offset', offset: nextOffset });
 });
 
@@ -1034,12 +1480,86 @@ vectorList.addEventListener('keydown', (event) => {
   } else if (event.key === 'End') {
     event.preventDefault();
     const selected = getSelectedSample(state);
-    if (!selected) return;
+    const vectorLength = getSelectedVectorLength(state, selected);
+    if (!selected || vectorLength <= 0) return;
     dispatch({
       type: 'set-offset',
-      offset: Math.max(0, selected.vector.length - VECTOR_WINDOW),
+      offset: Math.max(0, vectorLength - VECTOR_WINDOW),
     });
   }
+});
+
+vectorList.addEventListener('pointerover', (event) => {
+  if (getActiveModality(state) !== 'text') return;
+  const target = event.target as HTMLElement | null;
+  const row = target?.closest<HTMLElement>('.vector-row.is-text');
+  if (!row) return;
+  const count = Number(row.dataset.count) || 0;
+  if (count <= 0) {
+    clearTextHighlight();
+    clearVectorHighlight();
+    return;
+  }
+  const word = row.dataset.word;
+  const weight = Number(row.dataset.weight) || 0;
+  if (word) {
+    setTextHighlight(word, weight);
+  }
+});
+
+vectorList.addEventListener('pointerleave', () => {
+  if (getActiveModality(state) !== 'text') return;
+  clearTextHighlight();
+  clearVectorHighlight();
+});
+
+vectorList.addEventListener('click', (event) => {
+  if (getActiveModality(state) !== 'text') return;
+  const target = event.target as HTMLElement | null;
+  const row = target?.closest<HTMLElement>('.vector-row.is-text');
+  if (!row) return;
+  const word = row.dataset.word;
+  if (!word) return;
+  const spans = activeTextWordSpans.get(word);
+  const firstSpan = spans?.[0];
+  if (firstSpan) {
+    firstSpan.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+});
+
+selectedTextContent.addEventListener('click', (event) => {
+  if (getActiveModality(state) !== 'text') return;
+  const target = event.target as HTMLElement | null;
+  const wordEl = target?.closest<HTMLSpanElement>('.text-word');
+  if (!wordEl) return;
+  const word = wordEl.dataset.word;
+  if (!word) return;
+  const index = Number(wordEl.dataset.index);
+  if (!Number.isFinite(index)) return;
+  const vectorLength = state.meta?.vectorLength ?? 0;
+  if (vectorLength <= 0) return;
+  dispatch({ type: 'set-offset', offset: clampOffset(index, vectorLength) });
+  const weight = activeTextWordWeights.get(word) ?? 0;
+  if (weight > 0) {
+    setTextHighlight(word, weight);
+  }
+});
+
+selectedTextContent.addEventListener('pointerover', (event) => {
+  if (getActiveModality(state) !== 'text') return;
+  const target = event.target as HTMLElement | null;
+  const wordEl = target?.closest<HTMLSpanElement>('.text-word');
+  if (!wordEl) return;
+  const word = wordEl.dataset.word;
+  if (!word) return;
+  const weight = activeTextWordWeights.get(word) ?? 0;
+  setTextHighlight(word, weight);
+});
+
+selectedTextContent.addEventListener('pointerleave', () => {
+  if (getActiveModality(state) !== 'text') return;
+  clearTextHighlight();
+  clearVectorHighlight();
 });
 
 datasetSelect.addEventListener('change', (event) => {
@@ -1077,6 +1597,7 @@ function init() {
     const datasetOptions: DatasetOption[] = catalog.value.datasets.map((dataset) => ({
       id: dataset.id,
       label: dataset.displayName || dataset.id,
+      modality: dataset.modality,
     }));
     if (!datasetOptions.length) {
       dispatch({ type: 'load-error', message: 'No datasets available from backend.' });

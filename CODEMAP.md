@@ -6,7 +6,7 @@
 
 - `backend/` - FastAPI backend for shared API endpoints and dataset sampling.
 - `backend/main.py` - API entry module with routing and CORS middleware.
-- `backend/mnist_data.py` - Dataset loading, caching, split handling, and sampling.
+- `backend/datasets.py` - Dataset loading, caching, split handling, and sampling.
 - `backend/requirements.in` - Direct Python dependencies (source of truth).
 - `backend/requirements.txt` - Compiled/pinned Python dependency lockfile.
 - `demos/linalg-vectors/frontend/` - Vite + TypeScript vectors demo.
@@ -15,6 +15,7 @@
 - `demos/shared/src/ui/` - Shared demo shell CSS.
 - `demos/shared/config/` - Shared Vite and TypeScript base configs for demo frontends.
 - `.agent/` - Local agent rules, workflows, and skills.
+- `.agent/skills/update-scan/scripts/update-dep-scanner.ps1` - Dependency update scan script that generates consolidated Node/Python upgrade reports, runtime/dev discrepancy checks, heuristic code-change impact guidance, and step-by-step upgrade commands.
 - `.nvmrc` - Local Node version pin (`25.6.0`).
 - `render.yaml` - Render deployment configuration (backend + static demos).
 - `AGENT.md` - Repo-specific coding/operation instructions.
@@ -47,12 +48,13 @@
 
 - Run-local workflow doc: `.agent/workflows/run-local.md`
 - Dependency update scan skill doc: `.agent/skills/update-scan/SKILL.md`
+- Dependency update scan script: `.agent/skills/update-scan/scripts/update-dep-scanner.ps1`
 - Restart demos skill doc: `.agent/skills/restart-demos/SKILL.md`
 
 ## Key Modules And Responsibilities
 
 - `backend/main.py` - FastAPI app setup, CORS policy, dataset/info/health routes, request validation limits.
-- `backend/mnist_data.py` - Dataset registry, OpenML/LFW loaders, in-process caches, split slicing, sample serialization.
+- `backend/datasets.py` - Dataset registry, image/text loaders (OpenML/LFW/20 Newsgroups), vectorization, caches, split slicing, sample serialization.
 - `demos/shared/src/lib/api.ts` - Shared API client creation, URL normalization, fetch wrapper, response validators for shared endpoints.
 - `demos/shared/src/lib/result.ts` - Standard `Result<T>` error/success wrappers.
 - `demos/shared/src/lib/types.ts` - Shared vector/matrix/request types and runtime validators.
@@ -98,7 +100,7 @@
 - `dataset_samples(dataset, count, split, seed) -> dict`
   - Inputs: dataset id, bounded sample count, optional split/seed.
   - Outputs: serialized sample payload from `sample_dataset`.
-  - Side effects: may trigger dataset loads/caching via `mnist_data.py`.
+  - Side effects: may trigger dataset loads/caching via `datasets.py`.
   - Errors: converts `ValueError` to HTTP 400.
 - `mnist_samples(count, split, seed) -> dict`
   - Inputs: count/split/seed for MNIST.
@@ -116,7 +118,7 @@
   - Side effects: none.
   - Errors: HTTP 400 on malformed input, unsupported complex outputs, or eigendecomposition failures.
 
-### Backend Dataset Engine (`backend/mnist_data.py`)
+### Backend Dataset Engine (`backend/datasets.py`)
 
 - `available_datasets() -> list[dict[str, str]]`
   - Inputs: none.
@@ -125,7 +127,7 @@
   - Errors: none.
 - `sample_dataset(count, dataset, seed, split) -> dict`
   - Inputs: sample count, dataset id, optional seed/split.
-  - Outputs: JSON-ready sample payload with grayscale `pixels`.
+  - Outputs: JSON-ready sample payload with grayscale `pixels` (image) or word counts + text (text).
   - Side effects: random sampling, cache usage, lazy dataset load.
   - Errors: raises `ValueError` on invalid dataset/split or invalid prepared data.
 - `get_dataset(dataset, split) -> DatasetView`
@@ -143,6 +145,11 @@
   - Outputs: normalized LFW dataset.
   - Side effects: network/disk IO via `fetch_lfw_people`.
   - Errors: raises on malformed source data.
+- `_load_20newsgroups_dataset() -> RawDataset`
+  - Inputs: none.
+  - Outputs: normalized 20 Newsgroups text dataset with sparse word-count vectors.
+  - Side effects: network/disk IO via `fetch_20newsgroups`, vectorization via `CountVectorizer`.
+  - Errors: raises on malformed source data or vectorization failures.
 
 ### Shared Frontend Library (`demos/shared/src/lib`)
 
@@ -238,10 +245,10 @@
   - Used in: `backend/main.py` query validators.
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME` (backend constants)
   - Affects: on-disk dataset cache locations.
-  - Used in: `backend/mnist_data.py`.
+  - Used in: `backend/datasets.py`.
 - `OPENML_TRAIN_COUNT` (backend constant, `60000`)
   - Affects: train/test split boundary for OpenML datasets.
-  - Used in: `backend/mnist_data.py::_slice_for_split`.
+  - Used in: `backend/datasets.py::_slice_for_split`.
 - `VITE_API_BASE_URL` (frontend env)
   - Affects: backend URL selection for demo API clients.
   - Used in: `demos/shared/src/lib/api.ts::getApiBaseUrl`.
@@ -264,7 +271,7 @@
   - Contains: middleware and route registrations.
   - Owner/lifetime: module-global, process lifetime.
   - Invariants: CORS middleware initialized before request handling.
-- `_raw_dataset_cache` / `_split_dataset_cache` (`backend/mnist_data.py`)
+- `_raw_dataset_cache` / `_split_dataset_cache` (`backend/datasets.py`)
   - Contains: loaded raw datasets and split-specific dataset views.
   - Owner/lifetime: module-global, process lifetime.
   - Invariants: cache keys map to normalized dataset views by source + split.
@@ -282,12 +289,14 @@
   - Response: `{"service": string, "version": string}`
   - Errors: non-2xx surfaced as `Result.ok=false`.
 - `GET /api/v1/datasets`
-  - Response: `{"defaultDataset": string, "datasets": [{"id": string, "displayName": string, "defaultSplit": string}]}`
+  - Response: `{"defaultDataset": string, "datasets": [{"id": string, "displayName": string, "defaultSplit": string, "modality": "image"|"text"}]}`
   - Errors: non-2xx surfaced as client error results.
 - `GET /api/v1/datasets/samples`
   - Query: `dataset`, `count`, optional `split`, optional `seed`.
-  - Response: `{"source","displayName","split","imageWidth","imageHeight","totalCount","samples":[{index,label,labelName?,pixels}]}`
-  - Notes: `pixels` are grayscale bytes (`0..255`); vectors are derived in the frontend.
+  - Response: `{"source","displayName","split","modality","imageWidth","imageHeight","vectorLength","totalCount","vocab?","samples":[...]}`
+  - Notes:
+    - Image modality samples include `pixels` (grayscale bytes `0..255`).
+    - Text modality samples include `rawText`, `snippet`, `wordCounts` (`index`,`count`,`weight`) and top-level `vocab` (feature list).
   - Errors: HTTP 400 for invalid dataset/split; 5xx for loader/IO failures.
 - `GET /api/v1/mnist/samples` (legacy alias)
   - Query: `count`, `split`, optional `seed`.
@@ -307,7 +316,7 @@
 - Backend:
   - `fastapi`, `uvicorn`
   - `numpy`, `scipy`
-  - `scikit-learn` dataset fetchers (`fetch_openml`, `fetch_lfw_people`)
+- `scikit-learn` dataset fetchers (`fetch_openml`, `fetch_lfw_people`, `fetch_20newsgroups`)
   - `pillow`
 - Frontend:
   - Vite + TypeScript

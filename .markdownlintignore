@@ -1,0 +1,14 @@
+# Ignore dependencies
+node_modules/
+
+# Ignore generated reports
+reports/dependency-updates.md
+
+# Exclude pnpm store
+.pnpm-store
+.pnpm-store/**
+**/.pnpm-store/**
+
+# Exclude reports
+reports
+reports/**
