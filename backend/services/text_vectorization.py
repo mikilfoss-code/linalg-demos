@@ -13,6 +13,12 @@ HAS_CONSONANT_RE = re.compile(r"[b-df-hj-np-tv-z]")
 def strip_email_addresses(text: str) -> str:
     """
     Remove email addresses and normalize casing for downstream tokenization.
+
+    Args:
+        text: Raw document text that may contain email addresses.
+
+    Returns:
+        Lowercased text with email address substrings removed.
     """
     if not text:
         return ""
@@ -23,6 +29,13 @@ def strip_email_addresses(text: str) -> str:
 def is_valid_vocab_token(token: str) -> bool:
     """
     Validate newsgroup tokens against project filtering rules.
+
+    Args:
+        token: Candidate token extracted from document text.
+
+    Returns:
+        `True` when token is alphabetic (length >= 2) and contains at least one
+        vowel and one consonant.
     """
     normalized = token.lower()
     if VALID_VOCAB_TOKEN_RE.fullmatch(normalized) is None:
@@ -37,6 +50,12 @@ def is_valid_vocab_token(token: str) -> bool:
 def tokenize_newsgroup_text(text: str) -> list[str]:
     """
     Tokenize text using letters-only tokens and project-specific filtering rules.
+
+    Args:
+        text: Raw document text.
+
+    Returns:
+        Filtered tokens suitable for CountVectorizer vocabulary construction.
     """
     normalized_text = strip_email_addresses(text)
     tokens = LETTER_TOKEN_RE.findall(normalized_text)
@@ -48,6 +67,12 @@ def tokenize_newsgroup_text(text: str) -> list[str]:
 def create_20newsgroups_vectorizer(max_features: int = 9999) -> CountVectorizer:
     """
     Create a CountVectorizer configured for 20 Newsgroups preprocessing rules.
+
+    Args:
+        max_features: Maximum vocabulary size retained by the vectorizer.
+
+    Returns:
+        A configured `CountVectorizer` using the project tokenizer rules.
     """
     return CountVectorizer(
         max_features=max_features,
@@ -55,4 +80,3 @@ def create_20newsgroups_vectorizer(max_features: int = 9999) -> CountVectorizer:
         tokenizer=tokenize_newsgroup_text,
         token_pattern=None,
     )
-

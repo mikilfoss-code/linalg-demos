@@ -12,6 +12,17 @@ type BootstrapDeps = {
   getGridTargetHeight: () => number;
 };
 
+/**
+ * Bootstrap the vectors demo.
+ *
+ * @param gridEl - Grid container used for initial layout measurement.
+ * @param dispatch - State reducer dispatcher.
+ * @param replaceSamples - Function that replaces the current sample set.
+ * @param getTargetSampleCount - Function that returns the current sample target.
+ * @param updateLayoutFromGridSize - Function that recomputes responsive layout.
+ * @param getGridTargetHeight - Function that returns desired grid height.
+ * @returns A promise that resolves after catalog load and initial sampling complete.
+ */
 export async function initializeVectorsApp({
   gridEl,
   dispatch,

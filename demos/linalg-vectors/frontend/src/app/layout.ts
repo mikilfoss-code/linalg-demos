@@ -5,6 +5,13 @@ import {
   GRID_TILE_MIN_FALLBACK,
 } from './layout-config';
 
+/**
+ * Clamp a requested grid layout to valid positive dimensions and sample caps.
+ *
+ * @param layout - Requested grid columns/rows.
+ * @param maxSamples - Maximum number of sample cells allowed.
+ * @returns Normalized grid layout that fits within sample limits.
+ */
 export function clampGridLayout(layout: GridLayout, maxSamples: number): GridLayout {
   let columns = Math.max(1, Math.floor(layout.columns));
   let rows = Math.max(1, Math.floor(layout.rows));
@@ -20,16 +27,40 @@ export function clampGridLayout(layout: GridLayout, maxSamples: number): GridLay
   return { columns, rows };
 }
 
+/**
+ * Estimate how many columns fit in available width for a target tile size.
+ *
+ * @param width - Available grid width in CSS pixels.
+ * @param tileSize - Desired tile size in CSS pixels.
+ * @param columnGap - Gap between columns in CSS pixels.
+ * @returns Column count floor-clamped to at least `1`.
+ */
 function computeColumnCount(width: number, tileSize: number, columnGap: number): number {
   if (tileSize <= 0 || width <= 0) return 1;
   return Math.max(1, Math.floor((width + columnGap) / (tileSize + columnGap)));
 }
 
+/**
+ * Estimate minimum column count required to keep tiles at or below a max size.
+ *
+ * @param width - Available grid width in CSS pixels.
+ * @param tileSize - Maximum tile size in CSS pixels.
+ * @param columnGap - Gap between columns in CSS pixels.
+ * @returns Column count ceil-clamped to at least `1`.
+ */
 function computeColumnCountForMax(width: number, tileSize: number, columnGap: number): number {
   if (tileSize <= 0 || width <= 0) return 1;
   return Math.max(1, Math.ceil((width + columnGap) / (tileSize + columnGap)));
 }
 
+/**
+ * Compute row size from total width, columns, and inter-column gaps.
+ *
+ * @param width - Available grid width in CSS pixels.
+ * @param columns - Number of grid columns.
+ * @param columnGap - Gap between columns in CSS pixels.
+ * @returns Row size in CSS pixels.
+ */
 export function computeRowSize(width: number, columns: number, columnGap: number): number {
   if (columns <= 0 || width <= 0) return 1;
   const totalGaps = columnGap * (columns - 1);
@@ -37,11 +68,25 @@ export function computeRowSize(width: number, columns: number, columnGap: number
   return Math.max(1, available / columns);
 }
 
+/**
+ * Compute how many rows fit in the available height.
+ *
+ * @param height - Available grid height in CSS pixels.
+ * @param rowSize - Height of each row in CSS pixels.
+ * @param rowGap - Gap between rows in CSS pixels.
+ * @returns Row count floor-clamped to at least `1`.
+ */
 export function computeRowCount(height: number, rowSize: number, rowGap: number): number {
   if (rowSize <= 0 || height <= 0) return 1;
   return Math.max(1, Math.floor((height + rowGap) / (rowSize + rowGap)));
 }
 
+/**
+ * Compute responsive grid layout and row size from viewport and dataset geometry.
+ *
+ * @param params - Layout inputs including available size, gaps, image ratio, and caps.
+ * @returns Object with clamped `layout` and computed `rowSize`.
+ */
 export function computeGridLayout(params: {
   width: number;
   height: number;

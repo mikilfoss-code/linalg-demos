@@ -62,6 +62,7 @@ export const DATASET_SAMPLES_ENDPOINT = "/api/v1/datasets/samples";
  * @param dataset - Dataset id to sample from.
  * @param count - Number of samples to request.
  * @param seed - Optional RNG seed for reproducible sampling.
+ * @param signal - Optional AbortSignal used to cancel an in-flight request.
  * @returns Result containing metadata and converted sample payloads.
  */
 export async function loadDatasetSamples(
@@ -108,6 +109,13 @@ export function toImageData(
   return new ImageData(sample.bytes, imageWidth, imageHeight);
 }
 
+/**
+ * Normalize API sample shape into image/text discriminated union.
+ *
+ * @param sample - API sample payload.
+ * @param modality - Active modality from metadata.
+ * @returns Normalized image or text sample.
+ */
 function normalizeSample(sample: DatasetSampleApi, modality: DatasetModality): DatasetSample {
   if (modality === "image") {
     return normalizeImageSample(sample as DatasetImageSampleApi);
@@ -115,6 +123,12 @@ function normalizeSample(sample: DatasetSampleApi, modality: DatasetModality): D
   return normalizeTextSample(sample as DatasetTextSampleApi);
 }
 
+/**
+ * Normalize image sample payload and precompute pixel/vector buffers.
+ *
+ * @param sample - Image sample payload from API.
+ * @returns Normalized image sample for renderer usage.
+ */
 function normalizeImageSample(sample: DatasetImageSampleApi): ImageSample {
   const { bytes, vector } = convertPixels(sample.pixels);
   return {
@@ -127,6 +141,12 @@ function normalizeImageSample(sample: DatasetImageSampleApi): ImageSample {
   };
 }
 
+/**
+ * Normalize text sample payload.
+ *
+ * @param sample - Text sample payload from API.
+ * @returns Normalized text sample for renderer usage.
+ */
 function normalizeTextSample(sample: DatasetTextSampleApi): TextSample {
   const normalized = normalizeWordCounts(sample.wordCounts);
   return {
@@ -140,6 +160,12 @@ function normalizeTextSample(sample: DatasetTextSampleApi): TextSample {
   };
 }
 
+/**
+ * Normalize optional word-count weights from backend payload.
+ *
+ * @param entries - Word-count entries from API.
+ * @returns Word-count list with guaranteed weight values.
+ */
 function normalizeWordCounts(entries: WordCountApi[]): WordCount[] {
   if (!entries.length) return [];
   const maxCount = entries.reduce((max, entry) => Math.max(max, entry.count), 0);
@@ -155,6 +181,12 @@ function normalizeWordCounts(entries: WordCountApi[]): WordCount[] {
   }));
 }
 
+/**
+ * Convert grayscale pixel bytes into renderable RGBA bytes and normalized vector values.
+ *
+ * @param pixels - Flattened grayscale bytes from backend payload.
+ * @returns RGBA byte buffer and normalized float vector.
+ */
 function convertPixels(pixels: number[]): {
   bytes: Uint8ClampedArray<ArrayBuffer>;
   vector: Float32Array<ArrayBuffer>;

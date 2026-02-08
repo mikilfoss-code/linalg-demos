@@ -11,10 +11,14 @@ except ImportError:
 
 def _cors_origins() -> list[str]:
     """
-    Comma-separated list of origins, e.g.
-      CORS_ALLOW_ORIGINS=http://localhost:5173,https://your-site.onrender.com
+    Resolve the CORS allowlist from the environment.
 
-    If unset or "*", allow all (fine for public, no-auth demo APIs).
+    Reads `CORS_ALLOW_ORIGINS` as a comma-separated list and normalizes each
+    entry by trimming whitespace.
+
+    Returns:
+        A list of allowed origins. Returns `["*"]` when unset or explicitly
+        configured as `"*"`.
     """
     raw = os.getenv("CORS_ALLOW_ORIGINS", "*").strip()
     if not raw or raw == "*":
@@ -37,11 +41,23 @@ app.include_router(datasets_router)
 
 @app.get("/health")
 def health() -> dict:
+    """
+    Return a liveness response for container/service health checks.
+
+    Returns:
+        A JSON object with a stable `"ok"` status.
+    """
     return {"status": "ok"}
 
 
 @app.get("/api/v1/info")
 def info() -> dict:
+    """
+    Return basic service metadata for frontend diagnostics.
+
+    Returns:
+        A JSON object containing the service identifier and backend version.
+    """
     return {
         "service": "linalg-demos-backend",
         "version": app.version,
@@ -51,6 +67,16 @@ def info() -> dict:
 def _validate_matrix(raw_matrix: object) -> np.ndarray:
     """
     Validate and coerce a request matrix into a finite float64 ndarray.
+
+    Args:
+        raw_matrix: Untrusted request payload expected to be a non-empty
+            two-dimensional numeric array.
+
+    Returns:
+        A finite `numpy.ndarray` with dtype `float64`.
+
+    Raises:
+        ValueError: If structure, shape, or numeric constraints are invalid.
     """
     if not isinstance(raw_matrix, list) or not raw_matrix:
         raise ValueError("matrix must be a non-empty 2D array")
@@ -78,6 +104,17 @@ def _validate_matrix(raw_matrix: object) -> np.ndarray:
 def _validate_vector(raw_vector: object, expected_length: int) -> np.ndarray:
     """
     Validate and coerce a request vector into a finite float64 ndarray.
+
+    Args:
+        raw_vector: Untrusted request payload expected to be a non-empty
+            one-dimensional numeric array.
+        expected_length: Required vector length, usually matrix column count.
+
+    Returns:
+        A finite one-dimensional `numpy.ndarray` with dtype `float64`.
+
+    Raises:
+        ValueError: If shape, length, or numeric constraints are invalid.
     """
     if not isinstance(raw_vector, list) or not raw_vector:
         raise ValueError("vector must be a non-empty array")
@@ -101,6 +138,15 @@ def _validate_vector(raw_vector: object, expected_length: int) -> np.ndarray:
 def matrix_apply(payload: dict) -> dict:
     """
     Apply a matrix to a vector and return the resulting vector.
+
+    Args:
+        payload: Request JSON expected to include `"matrix"` and `"vector"`.
+
+    Returns:
+        A JSON object containing the transformed vector in `"result"`.
+
+    Raises:
+        HTTPException: With status 400 when payload validation fails.
     """
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="request body must be a JSON object")
@@ -119,6 +165,17 @@ def matrix_apply(payload: dict) -> dict:
 def matrix_eig(payload: dict) -> dict:
     """
     Compute eigenvalues and eigenvectors for a real-valued square matrix.
+
+    Args:
+        payload: Request JSON expected to include `"matrix"`.
+
+    Returns:
+        A JSON object containing real-valued `"eigenvalues"` and
+        `"eigenvectors"`.
+
+    Raises:
+        HTTPException: With status 400 when validation fails, the matrix is not
+            square, eigendecomposition fails, or results are complex-valued.
     """
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="request body must be a JSON object")

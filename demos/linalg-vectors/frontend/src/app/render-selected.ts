@@ -21,16 +21,31 @@ type SelectedRenderer = {
     meta: DatasetMeta | null,
     offset: number,
     sourceLabel: string,
-    fallbackModality: DatasetModality | null
+    fallbackModality: DatasetModality | null,
+    highlightedPixelIndex: number | null
   ) => void;
   resetTextSignature: () => void;
 };
 
+/**
+ * Parse a CSS length string into a finite numeric value.
+ *
+ * @param value - Raw CSS length string.
+ * @returns Parsed number or `0` when parsing fails.
+ */
 function parsePixelValue(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * Measure drawable canvas content area, excluding CSS padding.
+ *
+ * @param canvas - Target canvas element.
+ * @param fallbackWidth - Width used when DOM measurements are unavailable.
+ * @param fallbackHeight - Height used when DOM measurements are unavailable.
+ * @returns Canvas content width/height in CSS pixels.
+ */
 function getCanvasContentSize(
   canvas: HTMLCanvasElement,
   fallbackWidth: number,
@@ -49,6 +64,14 @@ function getCanvasContentSize(
   };
 }
 
+/**
+ * Resize canvas backing store to match CSS display size and pixel ratio.
+ *
+ * @param canvas - Target canvas element.
+ * @param fallbackWidth - Width used when DOM measurements are unavailable.
+ * @param fallbackHeight - Height used when DOM measurements are unavailable.
+ * @returns Display-space width/height and applied device-pixel-ratio scale.
+ */
 function syncCanvasToDisplay(
   canvas: HTMLCanvasElement,
   fallbackWidth: number,
@@ -72,6 +95,20 @@ function syncCanvasToDisplay(
   };
 }
 
+/**
+ * Draw an outline showing the currently visible vector window on the image.
+ *
+ * @param ctx - 2D rendering context.
+ * @param imageWidth - Source image width in pixels.
+ * @param imageHeight - Source image height in pixels.
+ * @param displayWidth - Canvas draw width in CSS pixels.
+ * @param displayHeight - Canvas draw height in CSS pixels.
+ * @param offset - Requested vector window offset.
+ * @param windowSize - Number of vector components shown in the window.
+ * @param vectorLength - Total vector length.
+ * @param outlineColor - Stroke color used for the window outline.
+ * @returns Nothing. Draws directly on the provided context.
+ */
 function drawVectorWindowOutline(
   ctx: CanvasRenderingContext2D,
   imageWidth: number,
@@ -135,14 +172,84 @@ function drawVectorWindowOutline(
   ctx.restore();
 }
 
+/**
+ * Draw translucent highlight for a single active pixel in image mode.
+ *
+ * @param ctx - 2D rendering context.
+ * @param imageWidth - Source image width in pixels.
+ * @param imageHeight - Source image height in pixels.
+ * @param displayWidth - Canvas draw width in CSS pixels.
+ * @param displayHeight - Canvas draw height in CSS pixels.
+ * @param highlightedPixelIndex - Active pixel index, or `null` for none.
+ * @param vectorLength - Total vector length.
+ * @returns Nothing. Draws directly on the provided context.
+ */
+function drawPixelHighlight(
+  ctx: CanvasRenderingContext2D,
+  imageWidth: number,
+  imageHeight: number,
+  displayWidth: number,
+  displayHeight: number,
+  highlightedPixelIndex: number | null,
+  vectorLength: number
+) {
+  if (highlightedPixelIndex === null) return;
+  if (highlightedPixelIndex < 0 || highlightedPixelIndex >= vectorLength) return;
+
+  const cellWidth = displayWidth / imageWidth;
+  const cellHeight = displayHeight / imageHeight;
+  if (
+    !Number.isFinite(cellWidth) ||
+    !Number.isFinite(cellHeight) ||
+    cellWidth <= 0 ||
+    cellHeight <= 0
+  ) {
+    return;
+  }
+
+  const row = Math.floor(highlightedPixelIndex / imageWidth);
+  const col = highlightedPixelIndex % imageWidth;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(240, 100, 73, 0.35)';
+  ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+  ctx.restore();
+}
+
+/**
+ * Type guard for text samples.
+ *
+ * @param sample - Candidate dataset sample.
+ * @returns `true` when sample is a text sample.
+ */
 function isTextSample(sample: DatasetSample | null): sample is TextSample {
   return sample?.kind === 'text';
 }
 
+/**
+ * Type guard for image samples.
+ *
+ * @param sample - Candidate dataset sample.
+ * @returns `true` when sample is an image sample.
+ */
 function isImageSample(sample: DatasetSample | null): sample is ImageSample {
   return sample?.kind === 'image';
 }
 
+/**
+ * Create renderer for the selected-card panel in both image and text modes.
+ *
+ * @param selectedStatus - Status element that shows selected item metadata.
+ * @param selectedCard - Selected-card root element.
+ * @param selectedCanvas - Canvas used for image previews.
+ * @param selectedText - Wrapper used for text-mode content.
+ * @param selectedTextContent - Scrollable text content container.
+ * @param selectedBuffer - Offscreen buffer canvas for image blitting.
+ * @param selectedBufferCtx - Offscreen buffer context.
+ * @param getOutlineColor - Function returning the active outline color token.
+ * @param renderSelectedTextContent - Function that tokenizes/renders selected text.
+ * @returns Renderer with `renderSelected(...)` and `resetTextSignature()`.
+ */
 export function createSelectedRenderer({
   selectedStatus,
   selectedCard,
@@ -156,12 +263,24 @@ export function createSelectedRenderer({
 }: SelectedRendererDeps): SelectedRenderer {
   let lastTextSignature = '';
 
+  /**
+   * Render selected-card content for the active dataset modality.
+   *
+   * @param sample - Selected sample or `null` when there is no selection.
+   * @param meta - Dataset metadata used to resolve modality.
+   * @param offset - Vector window offset for image overlay rendering.
+   * @param sourceLabel - Dataset label shown in selected status text.
+   * @param fallbackModality - Catalog modality used when metadata is not loaded.
+   * @param highlightedPixelIndex - Active pixel index to overlay, or `null`.
+   * @returns Nothing. Mutates selected-card DOM state.
+   */
   function renderSelected(
     sample: DatasetSample | null,
     meta: DatasetMeta | null,
     offset: number,
     sourceLabel: string,
-    fallbackModality: DatasetModality | null
+    fallbackModality: DatasetModality | null,
+    highlightedPixelIndex: number | null
   ) {
     if (!meta) {
       selectedStatus.textContent = 'No selection';
@@ -182,15 +301,32 @@ export function createSelectedRenderer({
     if (meta.modality === 'text') {
       renderTextCard(isTextSample(sample) ? sample : null, meta, sourceLabel);
     } else {
-      renderImageCard(isImageSample(sample) ? sample : null, meta, offset, sourceLabel);
+      renderImageCard(
+        isImageSample(sample) ? sample : null,
+        meta,
+        offset,
+        sourceLabel,
+        highlightedPixelIndex
+      );
     }
   }
 
+  /**
+   * Render image-mode selected card and vector-window overlays.
+   *
+   * @param sample - Selected image sample or `null`.
+   * @param meta - Image dataset metadata.
+   * @param offset - Vector window offset.
+   * @param sourceLabel - Dataset label shown in selected status text.
+   * @param highlightedPixelIndex - Active pixel index to overlay, or `null`.
+   * @returns Nothing. Draws into selected canvas and updates status text.
+   */
   function renderImageCard(
     sample: ImageSample | null,
     meta: DatasetMeta,
     offset: number,
-    sourceLabel: string
+    sourceLabel: string,
+    highlightedPixelIndex: number | null
   ) {
     selectedCard.classList.remove('is-text-mode');
     selectedCanvas.hidden = false;
@@ -223,6 +359,16 @@ export function createSelectedRenderer({
       ctx.putImageData(toImageData(sample, meta.imageWidth, meta.imageHeight), 0, 0);
     }
 
+    drawPixelHighlight(
+      ctx,
+      meta.imageWidth,
+      meta.imageHeight,
+      displayWidth,
+      displayHeight,
+      highlightedPixelIndex,
+      sample.vector.length
+    );
+
     drawVectorWindowOutline(
       ctx,
       meta.imageWidth,
@@ -238,6 +384,14 @@ export function createSelectedRenderer({
     selectedStatus.textContent = `${sourceLabel} #${sample.index} (${label})`;
   }
 
+  /**
+   * Render text-mode selected card content.
+   *
+   * @param sample - Selected text sample or `null`.
+   * @param meta - Text dataset metadata.
+   * @param sourceLabel - Dataset label shown in selected status text.
+   * @returns Nothing. Updates selected text container and status text.
+   */
   function renderTextCard(sample: TextSample | null, meta: DatasetMeta, sourceLabel: string) {
     selectedCard.classList.add('is-text-mode');
     selectedCanvas.hidden = true;
@@ -259,6 +413,11 @@ export function createSelectedRenderer({
     }
   }
 
+  /**
+   * Clear memoized text signature so text content can be force-rendered again.
+   *
+   * @returns Nothing.
+   */
   function resetTextSignature() {
     lastTextSignature = '';
   }

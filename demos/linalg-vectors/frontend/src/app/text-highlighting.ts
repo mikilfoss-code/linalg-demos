@@ -22,6 +22,12 @@ export type TextHighlightingController = {
   getActiveHighlightedWord: () => string | null;
 };
 
+/**
+ * Find ranges occupied by email addresses in source text.
+ *
+ * @param text - Raw text content.
+ * @returns Array of `[start, end)` ranges for email matches.
+ */
 function getEmailRanges(text: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = [];
   EMAIL_REGEX.lastIndex = 0;
@@ -32,6 +38,13 @@ function getEmailRanges(text: string): Array<{ start: number; end: number }> {
   return ranges;
 }
 
+/**
+ * Check whether a text index falls inside any excluded ranges.
+ *
+ * @param index - Character index to test.
+ * @param ranges - `[start, end)` ranges to check.
+ * @returns `true` when the index is inside a range.
+ */
 function isInsideRanges(index: number, ranges: Array<{ start: number; end: number }>): boolean {
   for (const range of ranges) {
     if (index >= range.start && index < range.end) {
@@ -41,6 +54,14 @@ function isInsideRanges(index: number, ranges: Array<{ start: number; end: numbe
   return false;
 }
 
+/**
+ * Create text/vector highlighting controller for text datasets.
+ *
+ * @param vectorList - Vector row container used for row highlighting.
+ * @param vectorPanel - Vector panel root used for runtime CSS variable updates.
+ * @param selectedTextContent - Selected text container used for token rendering.
+ * @returns Highlighting controller API used by renderers and event handlers.
+ */
 export function createTextHighlightingController({
   vectorList,
   vectorPanel,
@@ -53,6 +74,12 @@ export function createTextHighlightingController({
   let vocabSignature = '';
   let textWordWidthSignature = '';
 
+  /**
+   * Build or reuse a vocabulary index map for fast token lookups.
+   *
+   * @param meta - Active dataset metadata.
+   * @returns Vocabulary map, or `null` when no vocabulary exists.
+   */
   function ensureVocabIndexMap(meta: DatasetMeta | null): Map<string, number> | null {
     const vocab = meta?.vocab ?? null;
     if (!vocab || vocab.length === 0) {
@@ -72,6 +99,11 @@ export function createTextHighlightingController({
     return vocabIndexMap;
   }
 
+  /**
+   * Clear active highlights from selected text tokens.
+   *
+   * @returns Nothing.
+   */
   function clearTextHighlight() {
     if (!activeHighlightedWord) return;
     const spans = activeTextWordSpans.get(activeHighlightedWord);
@@ -82,6 +114,11 @@ export function createTextHighlightingController({
     activeHighlightedWord = null;
   }
 
+  /**
+   * Clear active highlights from text-mode vector rows.
+   *
+   * @returns Nothing.
+   */
   function clearVectorHighlight() {
     const rows = vectorList.querySelectorAll<HTMLElement>('.vector-row.is-text.is-highlighted');
     rows.forEach((row) => {
@@ -90,6 +127,13 @@ export function createTextHighlightingController({
     });
   }
 
+  /**
+   * Highlight matching vector row(s) for a word.
+   *
+   * @param word - Word to highlight, or `null` to clear.
+   * @param weight - Highlight intensity in `[0, 1]`.
+   * @returns Nothing.
+   */
   function setVectorHighlight(word: string | null, weight: number) {
     clearVectorHighlight();
     if (!word || weight <= 0) return;
@@ -105,6 +149,13 @@ export function createTextHighlightingController({
     });
   }
 
+  /**
+   * Highlight matching words in raw text and synchronize vector row highlight.
+   *
+   * @param word - Word to highlight, or `null` to clear.
+   * @param weight - Highlight intensity in `[0, 1]`.
+   * @returns Nothing.
+   */
   function setTextHighlight(word: string | null, weight: number) {
     if (!word || weight <= 0) {
       clearTextHighlight();
@@ -124,6 +175,12 @@ export function createTextHighlightingController({
     activeHighlightedWord = word;
   }
 
+  /**
+   * Update CSS token controlling text vector word-column width.
+   *
+   * @param meta - Active dataset metadata.
+   * @returns Nothing. Sets/removes `--vector-text-word-width-dynamic`.
+   */
   function updateVectorTextWordWidth(meta: DatasetMeta | null) {
     if (!meta || meta.modality !== 'text' || !meta.vocab || meta.vocab.length === 0) {
       vectorPanel.style.removeProperty('--vector-text-word-width-dynamic');
@@ -141,6 +198,13 @@ export function createTextHighlightingController({
     textWordWidthSignature = signature;
   }
 
+  /**
+   * Render selected raw text with token spans for interactive highlighting.
+   *
+   * @param sample - Selected text sample.
+   * @param meta - Active dataset metadata with vocabulary.
+   * @returns Nothing. Rebuilds selected text DOM content.
+   */
   function renderSelectedTextContent(sample: TextSample, meta: DatasetMeta) {
     clearTextHighlight();
     activeTextWordSpans = new Map<string, HTMLSpanElement[]>();
@@ -205,6 +269,11 @@ export function createTextHighlightingController({
     selectedTextContent.appendChild(fragment);
   }
 
+  /**
+   * Reset all text-mode highlight state when switching modalities/datasets.
+   *
+   * @returns Nothing.
+   */
   function resetTextModeState() {
     clearTextHighlight();
     clearVectorHighlight();
@@ -214,15 +283,32 @@ export function createTextHighlightingController({
     vocabSignature = '';
   }
 
+  /**
+   * Return normalized highlight weight for a word in current sample.
+   *
+   * @param word - Vocabulary token.
+   * @returns Weight in `[0, 1]`, or `0` when absent.
+   */
   function getWordWeight(word: string): number {
     return activeTextWordWeights.get(word) ?? 0;
   }
 
+  /**
+   * Return first rendered text span for a given word.
+   *
+   * @param word - Vocabulary token.
+   * @returns First span element, or `null` when not rendered.
+   */
   function getFirstTextSpan(word: string): HTMLSpanElement | null {
     const spans = activeTextWordSpans.get(word);
     return spans?.[0] ?? null;
   }
 
+  /**
+   * Return the currently highlighted word in selected text.
+   *
+   * @returns Highlighted token, or `null` when none is active.
+   */
   function getActiveHighlightedWord(): string | null {
     return activeHighlightedWord;
   }

@@ -11,7 +11,7 @@
 
 - **Review CODEMAP.md:** Review the overview of the code and its structure provided in the CODEMAP.md file
 - **Provide reasoning:** Before generating or suggesting any code changes, provide a "Reasoning" section outlining your architectural choices. Include details on what you are going to change and why.
-- **Suggest code style options:** Produce a "Style Options" section. This should give the user implementation options such as functional (using pure functions and transformations), object-oriented, design pattern usage (such as factories and observers), and declarative. When possible suggest at least one option using functional programming and one option using design patterns and reusable solutions. If multiple tasks are to be performed, organize the options under headers identifying the task to be performed.
+- **Suggest code style options:** Produce a "Style Options" section. This should give the user implementation options such as functional (using pure functions and transformations), object-oriented, design pattern usage (such as prototypes,factories, decorators, observers, iterators, etc.), and declarative. When possible suggest at least one option using functional programming and one option using design patterns and reusable solutions. If multiple tasks are to be performed, organize the options under headers identifying the task to be performed.
 - **Explain trade-offs:** Produce a "Trade-Offs" section explaining the trade-offs (eg., performance vs. readability) for every non-trivial change proposed. If multiple tasks are to be performed, organize the trade-offs under headers identifying the task to be performed.
 - **Request Authorization:** After producing the "Reasoning", "Trade-Offs", and "Style Options" sections, check with the user which options should be used. Do not generate actual code or modifications until AFTER reasoning and trade-offs are explained and the user has selected an option. Always require option selection; require explicit authorization only for substantial changes; for minor changes, selection alone is sufficient.
   - **Minor changes** include: single-file CSS/layout tweaks, small copy edits, isolated refactors with no behavior change, or updates limited to documentation.
@@ -29,6 +29,7 @@
 
 ### After authorization is given
 
+- As code is generated and files are edited, provide the reasoning for the changes and an explanation of how the changes will contribute to the task at hand.
 - After generating code and making changes, provide a summary of the changes made and any additional notes.
 - After completing a task, suggest additional changes that could be made to improve the code, reduce redundancy, or improve performance and user experience.
 - Include comments within the code to explain its purpose and logic. Explain "the why" behind a non-obvious piece of logic and the reason the code is necessary.
@@ -42,6 +43,7 @@
 
 - Provide clear, concise, and helpful comments for non-obvious logic or public interfaces.
 - Use JSDoc strictly for intent and behavior: document @param logic, @returns context, expected @throws conditions, and any side effects.
+- Comment on the purpose for defined functions, expected arguments, return values, and any side effects. If a function missing this comment is encountered, add it.
 - Never redeclare TypeScript types inside JSDoc tags.
 - Use Python docstrings for Python code.
 

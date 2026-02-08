@@ -1,39 +1,21 @@
+@import "./tokens.css";
+@import "./primitives.css";
+
 .demo-shell {
-  --demo-font-sans: "Space Grotesk", sans-serif;
-  --demo-font-mono: "IBM Plex Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
-
-  --demo-space-0: 0;
-  --demo-space-1: 0.25rem;
-  --demo-space-2: 0.5rem;
-  --demo-space-3: 0.75rem;
-  --demo-space-4: 1rem;
-  --demo-space-5: 1.25rem;
-  --demo-space-6: 1.5rem;
-  --demo-space-7: 2rem;
-  --demo-space-8: 2.5rem;
-  --demo-space-9: 3.5rem;
-
-  --demo-ink: #1d2433;
-  --demo-ink-soft: #3c4761;
-  --demo-paper: #f4f0e6;
-  --demo-surface: #fffaf1;
-  --demo-surface-2: #f6efe1;
-  --demo-accent: #f06449;
-  --demo-accent-2: #2a9d8f;
-  --demo-accent-contrast: #fff8f0;
-
-  --demo-border: rgba(29, 36, 51, 0.12);
-  --demo-shadow: rgba(18, 24, 33, 0.12);
-  --demo-shadow-soft: rgba(24, 30, 40, 0.14);
-
-  --demo-radius: 16px;
-  --demo-panel-radius: 20px;
-  --demo-gap: var(--demo-space-4);
-
-  --demo-bg-radial-1: #fde4c9;
-  --demo-bg-radial-2: #cfe9e2;
-  --demo-bg-linear-top: #f9f3ea;
-  --demo-bg-linear-bottom: #efe8dc;
+  /* Primitive alias tokens.
+   * Affects: shared panel and button behavior from `primitives.css`. */
+  --ui-panel-bg: var(--demo-surface);
+  --ui-panel-border: var(--demo-border);
+  --ui-panel-radius: var(--demo-panel-radius);
+  --ui-panel-padding: var(--demo-space-6);
+  --ui-panel-shadow: 0 24px 48px var(--demo-shadow);
+  --ui-button-bg: var(--demo-accent);
+  --ui-button-fg: var(--demo-accent-contrast);
+  --ui-button-padding: var(--demo-space-3) var(--demo-space-5);
+  --ui-button-radius: 999px;
+  --ui-button-font-weight: 600;
+  --ui-button-hover-shadow: 0 12px 24px var(--demo-shadow-accent-soft);
+  --ui-button-focus-ring: var(--demo-focus-accent);
 
   color: var(--demo-ink);
   background-color: var(--demo-paper);
@@ -45,10 +27,10 @@
   line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  max-width: 1200px;
+  max-width: var(--demo-shell-max-width);
   margin: 0 auto;
-  padding: var(--demo-space-8) var(--demo-space-6) var(--demo-space-9);
-  min-height: 100vh;
+  padding: var(--demo-shell-padding);
+  min-height: var(--demo-shell-min-height);
 }
 
 .demo-header {
@@ -70,40 +52,11 @@
   color: var(--demo-ink-soft);
 }
 
-.demo-panel {
-  background: var(--demo-surface);
-  border: 1px solid var(--demo-border);
-  border-radius: var(--demo-panel-radius);
-  padding: var(--demo-space-6);
-  box-shadow: 0 24px 48px var(--demo-shadow);
-}
-
 .demo-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--demo-space-3);
   margin-top: var(--demo-space-4);
-}
-
-.demo-button {
-  border: none;
-  border-radius: 999px;
-  padding: var(--demo-space-3) var(--demo-space-5);
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--demo-accent);
-  color: var(--demo-accent-contrast);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.demo-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(240, 100, 73, 0.25);
-}
-
-.demo-button:focus-visible {
-  outline: 3px solid rgba(240, 100, 73, 0.35);
-  outline-offset: 2px;
 }
 
 .demo-output {

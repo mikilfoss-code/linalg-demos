@@ -13,30 +13,95 @@ import { type TextHighlightingController } from './text-highlighting';
 
 type LayoutUpdateOptions = { syncSamples?: boolean };
 
+/**
+ * Parse a CSS length string into a finite numeric value.
+ *
+ * @param value - Raw CSS length string.
+ * @returns Parsed number or `0` when parsing fails.
+ */
+function parsePixelValue(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Map pointer coordinates on the selected canvas to a flattened pixel index.
+ *
+ * @param event - Pointer or mouse event carrying client coordinates.
+ * @param canvas - Selected-image canvas element.
+ * @param imageWidth - Source image width in pixels.
+ * @param imageHeight - Source image height in pixels.
+ * @returns Flattened pixel index, or `null` when pointer is outside image bounds.
+ */
+function getCanvasPixelIndex(
+  event: MouseEvent | PointerEvent,
+  canvas: HTMLCanvasElement,
+  imageWidth: number,
+  imageHeight: number
+): number | null {
+  if (imageWidth <= 0 || imageHeight <= 0) return null;
+
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const styles = getComputedStyle(canvas);
+  const paddingLeft = parsePixelValue(styles.paddingLeft);
+  const paddingRight = parsePixelValue(styles.paddingRight);
+  const paddingTop = parsePixelValue(styles.paddingTop);
+  const paddingBottom = parsePixelValue(styles.paddingBottom);
+
+  const contentLeft = rect.left + paddingLeft;
+  const contentTop = rect.top + paddingTop;
+  const contentWidth = Math.max(1, rect.width - paddingLeft - paddingRight);
+  const contentHeight = Math.max(1, rect.height - paddingTop - paddingBottom);
+
+  const x = event.clientX - contentLeft;
+  const y = event.clientY - contentTop;
+  if (x < 0 || y < 0 || x >= contentWidth || y >= contentHeight) {
+    return null;
+  }
+
+  const col = Math.min(imageWidth - 1, Math.floor((x / contentWidth) * imageWidth));
+  const row = Math.min(imageHeight - 1, Math.floor((y / contentHeight) * imageHeight));
+  return row * imageWidth + col;
+}
+
 type AppEventDeps = {
   gridEl: HTMLDivElement;
   vectorSlider: HTMLInputElement;
   vectorList: HTMLDivElement;
+  selectedCanvas: HTMLCanvasElement;
   selectedTextContent: HTMLDivElement;
   datasetSelect: HTMLSelectElement;
   resampleBtn: HTMLButtonElement;
   getState: () => AppState;
   dispatch: (action: Action) => void;
+  setImageHoverPixelIndex: (index: number | null) => void;
+  setImagePinnedPixelIndex: (index: number | null) => void;
   replaceSamples: (count: number) => Promise<void>;
   updateLayoutFromGridSize: (width: number, height: number, options?: LayoutUpdateOptions) => void;
   getGridTargetHeight: () => number;
   textHighlighting: TextHighlightingController;
 };
 
+/**
+ * Attach all UI event handlers and observers used by the vectors demo.
+ *
+ * @param deps - DOM references, state accessors, dispatch callbacks, and helpers.
+ * @returns Cleanup function that removes every listener/observer added here.
+ */
 export function attachAppEventHandlers({
   gridEl,
   vectorSlider,
   vectorList,
+  selectedCanvas,
   selectedTextContent,
   datasetSelect,
   resampleBtn,
   getState,
   dispatch,
+  setImageHoverPixelIndex,
+  setImagePinnedPixelIndex,
   replaceSamples,
   updateLayoutFromGridSize,
   getGridTargetHeight,
@@ -128,7 +193,17 @@ export function attachAppEventHandlers({
 
   const onVectorPointerOver = (event: PointerEvent) => {
     const state = getState();
-    if (getActiveModality(state) !== 'text') return;
+    const modality = getActiveModality(state);
+    if (modality === 'image') {
+      const target = event.target as HTMLElement | null;
+      const row = target?.closest<HTMLElement>('.vector-row.is-image');
+      if (!row) return;
+      const index = Number(row.dataset.index);
+      if (!Number.isFinite(index)) return;
+      setImageHoverPixelIndex(index);
+      return;
+    }
+    if (modality !== 'text') return;
     const target = event.target as HTMLElement | null;
     const row = target?.closest<HTMLElement>('.vector-row.is-text');
     if (!row) return;
@@ -148,9 +223,15 @@ export function attachAppEventHandlers({
 
   const onVectorPointerLeave = () => {
     const state = getState();
-    if (getActiveModality(state) !== 'text') return;
-    textHighlighting.clearTextHighlight();
-    textHighlighting.clearVectorHighlight();
+    const modality = getActiveModality(state);
+    if (modality === 'image') {
+      setImageHoverPixelIndex(null);
+      return;
+    }
+    if (modality === 'text') {
+      textHighlighting.clearTextHighlight();
+      textHighlighting.clearVectorHighlight();
+    }
   };
   vectorList.addEventListener('pointerleave', onVectorPointerLeave);
 
@@ -210,6 +291,44 @@ export function attachAppEventHandlers({
   };
   selectedTextContent.addEventListener('pointerleave', onTextPointerLeave);
 
+  const onSelectedCanvasPointerMove = (event: PointerEvent) => {
+    const state = getState();
+    if (getActiveModality(state) !== 'image' || !state.meta) return;
+    const pixelIndex = getCanvasPixelIndex(
+      event,
+      selectedCanvas,
+      state.meta.imageWidth,
+      state.meta.imageHeight
+    );
+    setImageHoverPixelIndex(pixelIndex);
+  };
+  selectedCanvas.addEventListener('pointermove', onSelectedCanvasPointerMove);
+
+  const onSelectedCanvasPointerLeave = () => {
+    const state = getState();
+    if (getActiveModality(state) !== 'image') return;
+    setImageHoverPixelIndex(null);
+  };
+  selectedCanvas.addEventListener('pointerleave', onSelectedCanvasPointerLeave);
+
+  const onSelectedCanvasClick = (event: MouseEvent) => {
+    const state = getState();
+    if (getActiveModality(state) !== 'image' || !state.meta) return;
+    const selected = getSelectedSample(state);
+    const vectorLength = getSelectedVectorLength(state, selected);
+    if (!selected || vectorLength <= 0) return;
+    const pixelIndex = getCanvasPixelIndex(
+      event,
+      selectedCanvas,
+      state.meta.imageWidth,
+      state.meta.imageHeight
+    );
+    if (pixelIndex === null) return;
+    setImagePinnedPixelIndex(pixelIndex);
+    dispatch({ type: 'set-offset', offset: clampOffset(pixelIndex, vectorLength) });
+  };
+  selectedCanvas.addEventListener('click', onSelectedCanvasClick);
+
   const onDatasetChange = (event: Event) => {
     const state = getState();
     const nextDataset = (event.target as HTMLSelectElement).value;
@@ -242,6 +361,9 @@ export function attachAppEventHandlers({
     selectedTextContent.removeEventListener('click', onTextClick);
     selectedTextContent.removeEventListener('pointerover', onTextPointerOver);
     selectedTextContent.removeEventListener('pointerleave', onTextPointerLeave);
+    selectedCanvas.removeEventListener('pointermove', onSelectedCanvasPointerMove);
+    selectedCanvas.removeEventListener('pointerleave', onSelectedCanvasPointerLeave);
+    selectedCanvas.removeEventListener('click', onSelectedCanvasClick);
     datasetSelect.removeEventListener('change', onDatasetChange);
     resampleBtn.removeEventListener('click', onResampleClick);
   };

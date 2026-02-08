@@ -80,7 +80,7 @@ The script writes:
 - explicit `current` / `compatible` / `wanted` / `latest` values sourced from `pnpm outdated` output
 - heuristic code-change impact assessment for upgrade candidates
 - file-level review suggestions for upgrades flagged as `review_recommended` or `likely_changes_required`
-- step-by-step upgrade instructions at the end of the report
+- step-by-step upgrade and .json files, requirements.in and requirements.txt update instructions at the end of the report. The instructions should ensure backend updates are perfermed in the virtual environment and frontend updates are performed in the local workspace.
 
 ## How to run (PowerShell)
 

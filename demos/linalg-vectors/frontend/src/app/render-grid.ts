@@ -1,6 +1,16 @@
 import { toImageData, type DatasetMeta, type DatasetSample, type ImageSample, type TextSample } from '../lib/dataset';
 import { isImageSample, isTextSample } from './state';
 
+/**
+ * Render the sample grid for the active modality.
+ *
+ * @param gridEl - Grid container element.
+ * @param samples - Mixed list of sampled items from app state.
+ * @param selectedId - Selected sample index in the current grid.
+ * @param meta - Dataset metadata that indicates modality and geometry.
+ * @param sourceLabel - Human-readable dataset label for accessibility text.
+ * @returns Nothing. Mutates `gridEl` contents.
+ */
 export function renderGrid(
   gridEl: HTMLDivElement,
   samples: DatasetSample[],
@@ -24,6 +34,17 @@ export function renderGrid(
   }
 }
 
+/**
+ * Render image dataset tiles into the sample grid.
+ *
+ * @param gridEl - Grid container element.
+ * @param samples - Image samples to display.
+ * @param selectedId - Currently selected sample id.
+ * @param imageWidth - Pixel width of each image sample.
+ * @param imageHeight - Pixel height of each image sample.
+ * @param sourceLabel - Dataset label used for aria text.
+ * @returns Nothing. Appends buttons and canvases to `gridEl`.
+ */
 function renderImageGrid(
   gridEl: HTMLDivElement,
   samples: ImageSample[],
@@ -59,6 +80,15 @@ function renderImageGrid(
   gridEl.appendChild(fragment);
 }
 
+/**
+ * Render text dataset tiles into the sample grid.
+ *
+ * @param gridEl - Grid container element.
+ * @param samples - Text samples to display.
+ * @param selectedId - Currently selected sample id.
+ * @param sourceLabel - Dataset label used for aria text.
+ * @returns Nothing. Appends buttons with text snippets to `gridEl`.
+ */
 function renderTextGrid(
   gridEl: HTMLDivElement,
   samples: TextSample[],
@@ -86,6 +116,13 @@ function renderTextGrid(
   gridEl.appendChild(fragment);
 }
 
+/**
+ * Update selected-state styling and ARIA flags without rebuilding the grid.
+ *
+ * @param gridEl - Grid container element.
+ * @param selectedId - Newly selected sample id.
+ * @returns Nothing. Mutates existing button attributes/classes.
+ */
 export function updateGridSelection(gridEl: HTMLDivElement, selectedId: number | null) {
   const buttons = gridEl.querySelectorAll<HTMLButtonElement>('[data-sample-id]');
   buttons.forEach((button) => {
@@ -94,4 +131,3 @@ export function updateGridSelection(gridEl: HTMLDivElement, selectedId: number |
     button.classList.toggle('is-selected', id === selectedId);
   });
 }
-

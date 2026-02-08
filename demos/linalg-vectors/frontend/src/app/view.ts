@@ -185,6 +185,14 @@ const APP_TEMPLATE = `
   </main>
 `;
 
+/**
+ * Query a required element and throw early if missing.
+ *
+ * @param root - Root node used for query selection.
+ * @param selector - CSS selector for required element.
+ * @returns Matching element typed as `T`.
+ * @throws Error when selector does not match an element.
+ */
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (!element) {
@@ -193,6 +201,13 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
   return element;
 }
 
+/**
+ * Build and bind the vectors app view template.
+ *
+ * @param rootSelector - Selector for root mount element.
+ * @returns Typed object containing required DOM references for the app.
+ * @throws Error when root mount element is missing.
+ */
 export function createAppView(rootSelector = '#app'): AppView {
   const app = document.querySelector<HTMLDivElement>(rootSelector);
   if (!app) {

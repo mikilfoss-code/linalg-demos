@@ -1,4 +1,5 @@
 @import './theme.css';
+@import '../../../shared/src/ui/primitives.css';
 
 /* Use border-box sizing so padding/borders don't change layout widths. */
 *,
@@ -123,32 +124,6 @@ h1 {
   outline-offset: 2px;
 }
 
-/* Primary call-to-action button styling. */
-.primary {
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  padding: var(--space-3) var(--space-5);
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-/* Hover lift and glow for primary button. */
-.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px var(--shadow-accent);
-}
-
-/* Keyboard focus ring for primary button. */
-.primary:focus-visible {
-  outline: 3px solid var(--focus-accent);
-  outline-offset: 2px;
-}
-
 /* Two-column main layout: grid panel + vector panel. */
 .layout {
   display: grid;
@@ -158,11 +133,6 @@ h1 {
 
 /* Shared panel card styling. */
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--grid-line);
-  border-radius: var(--panel-radius);
-  padding: var(--panel-padding);
-  box-shadow: 0 24px 48px var(--shadow-panel);
   animation: rise 0.7s ease both;
 }
 
@@ -334,6 +304,10 @@ h1 {
   display: none;
 }
 
+.selected-card.is-text-mode {
+  width: var(--selected-text-card-width);
+}
+
 .selected-card:not(.is-text-mode) .selected-text {
   display: none;
 }
@@ -430,24 +404,36 @@ h1 {
   --vector-list-width: var(--vector-text-list-width);
 }
 
+.vector-panel.is-text-mode .vector-shell {
+  justify-content: flex-start;
+  padding-left: var(--vector-text-shell-padding-left);
+}
+
 /* Header row for vector controls and range text. */
 .vector-controls {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-0);
   margin-bottom: var(--space-4);
   width: 100%;
   justify-self: stretch;
   /* Center header over bracketed components only (ignore slider column). */
-  padding-left: calc(var(--vector-index-width) + var(--vector-index-bracket-gap));
+  padding-left: calc(
+    var(--vector-index-width) + var(--vector-index-bracket-gap) +
+      var(--vector-header-horizontal-offset)
+  );
+  min-width: 0;
 }
 
 /* Mono range text (indices shown). */
 .vector-range {
   font-family: var(--font-mono);
   color: var(--ink);
-  width: calc(var(--vector-list-width) - var(--vector-index-width) - var(--vector-index-bracket-gap));
+  width: calc(
+    var(--vector-list-width) - var(--vector-index-width) - var(--vector-index-bracket-gap)
+  );
+  min-width: 0;
   text-align: center;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -534,6 +520,15 @@ h1 {
     var(--vector-text-count-width)
     var(--vector-value-bracket-gap);
   cursor: pointer;
+}
+
+.vector-row.is-image {
+  cursor: pointer;
+}
+
+.vector-row.is-image.is-highlighted {
+  background-color: rgba(var(--word-highlight), 0.22);
+  border-radius: 4px;
 }
 
 .vector-row.is-text.is-highlighted .vector-word {

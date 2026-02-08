@@ -19,6 +19,9 @@ MAX_DATASET_SAMPLES = 64
 def datasets() -> dict:
     """
     Return dataset metadata for frontend selection controls.
+
+    Returns:
+        Catalog response containing available dataset options.
     """
     return list_dataset_catalog()
 
@@ -33,11 +36,13 @@ def dataset_samples(
     """
     Return random dataset samples (image or text).
 
-    @param dataset: Dataset id.
-    @param count: Number of samples to return (1..MAX_DATASET_SAMPLES).
-    @param split: Optional split ("train"|"test"|"all"), validated by dataset.
-    @param seed: Optional RNG seed for reproducible sampling.
-    @returns: JSON payload containing sampled rows and metadata.
+    Args:
+        dataset: Dataset id.
+        count: Number of samples to return (1..MAX_DATASET_SAMPLES).
+        split: Optional split (`train`, `test`, or `all`), validated by dataset.
+        seed: Optional RNG seed for reproducible sampling.
+
+    Returns:
+        JSON payload containing sampled rows and metadata.
     """
     return sample_dataset_response(dataset=dataset, count=count, split=split, seed=seed)
-

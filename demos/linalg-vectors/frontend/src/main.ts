@@ -73,6 +73,11 @@ const FALLBACK_GRID_LAYOUT = getFallbackGridLayout();
 gridEl.style.setProperty('--grid-columns', String(FALLBACK_GRID_LAYOUT.columns));
 gridEl.style.setProperty('--grid-rows', String(FALLBACK_GRID_LAYOUT.rows));
 
+/**
+ * Read vector outline color from CSS tokens.
+ *
+ * @returns Outline color value used for selected-image vector overlays.
+ */
 function getOutlineColor() {
   return (
     getComputedStyle(document.documentElement).getPropertyValue('--vector-outline').trim() ||
@@ -94,8 +99,61 @@ let state: AppState = {
 
 let lastSamples: DatasetSample[] | null = null;
 let lastModality: DatasetModality | null = null;
+let imageHoverPixelIndex: number | null = null;
+let imagePinnedPixelIndex: number | null = null;
 
+/**
+ * Resolve active image pixel highlight, preferring hover over pinned state.
+ *
+ * @returns Active pixel index, or `null` when no highlight is active.
+ */
+function getActiveImagePixelIndex(): number | null {
+  return imageHoverPixelIndex ?? imagePinnedPixelIndex;
+}
+
+/**
+ * Update hover-driven image pixel highlight and trigger rerender.
+ *
+ * @param index - Hovered pixel index, or `null` to clear.
+ * @returns Nothing.
+ */
+function setImageHoverPixelIndex(index: number | null) {
+  if (imageHoverPixelIndex === index) return;
+  imageHoverPixelIndex = index;
+  render(state);
+}
+
+/**
+ * Update click-pinned image pixel highlight and trigger rerender.
+ *
+ * @param index - Pinned pixel index, or `null` to clear.
+ * @returns Nothing.
+ */
+function setImagePinnedPixelIndex(index: number | null) {
+  if (imagePinnedPixelIndex === index) return;
+  imagePinnedPixelIndex = index;
+  render(state);
+}
+
+/**
+ * Dispatch an action through reducer and rerender the app.
+ *
+ * @param action - State transition action.
+ * @returns Nothing.
+ */
 function dispatch(action: Action) {
+  if (
+    action.type === 'catalog-success' ||
+    action.type === 'load-success' ||
+    action.type === 'dataset-change' ||
+    action.type === 'samples-success' ||
+    action.type === 'samples-append' ||
+    action.type === 'samples-trim' ||
+    action.type === 'select'
+  ) {
+    imageHoverPixelIndex = null;
+    imagePinnedPixelIndex = null;
+  }
   state = reducer(state, action);
   render(state);
 }
@@ -105,14 +163,33 @@ const sampling = createSamplingController({
   dispatch,
 });
 
+/**
+ * Ensure current sample list matches target count by appending as needed.
+ *
+ * @param targetCount - Desired sample count.
+ * @returns Promise that resolves when reconciliation completes.
+ */
 async function syncSamplesToTarget(targetCount: number) {
   await sampling.syncSamplesToTarget(targetCount);
 }
 
+/**
+ * Replace current sample list with a fresh request.
+ *
+ * @param count - Number of samples to request.
+ * @returns Promise that resolves when replacement completes.
+ */
 async function replaceSamples(count: number) {
   await sampling.replaceSamples(count);
 }
 
+/**
+ * Apply and persist grid layout changes, then reconcile sample count.
+ *
+ * @param nextLayout - Requested grid columns/rows.
+ * @param options - Controls whether sample reconciliation should run.
+ * @returns Nothing.
+ */
 function updateGridLayout(nextLayout: GridLayout, options: { syncSamples?: boolean } = {}) {
   const { syncSamples = true } = options;
   const normalized = clampGridLayout(nextLayout, getGridMaxSamples());
@@ -138,12 +215,26 @@ function updateGridLayout(nextLayout: GridLayout, options: { syncSamples?: boole
   }
 }
 
+/**
+ * Update CSS row-size variable used by the sample grid.
+ *
+ * @param rowSize - Row size in CSS pixels.
+ * @returns Nothing.
+ */
 function setGridRowSize(rowSize: number) {
   if (!Number.isFinite(rowSize) || rowSize <= 0) return;
   // Keep a stable row height so sample count stays tied to measured grid space.
   gridEl.style.setProperty('--grid-row-size', `${rowSize}px`);
 }
 
+/**
+ * Compute and apply responsive layout using measured grid dimensions.
+ *
+ * @param width - Available grid width in CSS pixels.
+ * @param height - Available grid height in CSS pixels.
+ * @param options - Controls whether sample reconciliation should run.
+ * @returns Nothing.
+ */
 function updateLayoutFromGridSize(
   width: number,
   height: number,
@@ -200,10 +291,17 @@ const vectorRenderer = createVectorRenderer({
   vectorSlider,
   vectorList,
   getActiveHighlightedWord: textHighlighting.getActiveHighlightedWord,
+  getActiveImagePixelIndex,
   getWordWeight: textHighlighting.getWordWeight,
   setVectorHighlight: textHighlighting.setVectorHighlight,
 });
 
+/**
+ * Render diagnostics panel values from current app state.
+ *
+ * @param current - Current app state snapshot.
+ * @returns Nothing.
+ */
 function renderDebug(current: AppState) {
   debugStatus.textContent = current.status;
   debugEndpoint.textContent = DATASET_SAMPLES_ENDPOINT;
@@ -221,6 +319,12 @@ function renderDebug(current: AppState) {
   debugError.textContent = current.error ?? '--';
 }
 
+/**
+ * Top-level render pass for all vectors app UI regions.
+ *
+ * @param current - Current app state snapshot.
+ * @returns Nothing. Mutates DOM to reflect state.
+ */
 function render(current: AppState) {
   const requestedDatasetLabel = getDatasetLabel(current.dataset, current.datasetOptions);
   const activeDatasetLabel = current.meta?.displayName ?? requestedDatasetLabel;
@@ -283,12 +387,14 @@ function render(current: AppState) {
   }
 
   const selectedSample = getSelectedSample(current);
+  const activeImagePixelIndex = textMode ? null : getActiveImagePixelIndex();
   selectedRenderer.renderSelected(
     selectedSample,
     current.meta,
     current.vectorOffset,
     activeDatasetLabel,
-    modality
+    modality,
+    activeImagePixelIndex
   );
   vectorRenderer.renderVector(selectedSample, current.vectorOffset, current.meta);
   renderDebug(current);
@@ -298,11 +404,14 @@ attachAppEventHandlers({
   gridEl,
   vectorSlider,
   vectorList,
+  selectedCanvas,
   selectedTextContent,
   datasetSelect,
   resampleBtn,
   getState: () => state,
   dispatch,
+  setImageHoverPixelIndex,
+  setImagePinnedPixelIndex,
   replaceSamples,
   updateLayoutFromGridSize,
   getGridTargetHeight,

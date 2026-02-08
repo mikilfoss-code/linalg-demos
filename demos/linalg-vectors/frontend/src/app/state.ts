@@ -40,10 +40,24 @@ export type Action =
   | { type: 'set-offset'; offset: number }
   | { type: 'shift-offset'; delta: number };
 
+/**
+ * Resolve display label for the given dataset id.
+ *
+ * @param dataset - Dataset id.
+ * @param options - Available dataset options from catalog.
+ * @returns Matching label, or fallback id when label is unavailable.
+ */
 export function getDatasetLabel(dataset: DatasetId, options: DatasetOption[]): string {
   return options.find((option) => option.id === dataset)?.label ?? dataset;
 }
 
+/**
+ * Resolve modality from a dataset id.
+ *
+ * @param dataset - Dataset id.
+ * @param options - Available dataset options from catalog.
+ * @returns Dataset modality, or `null` when dataset is unknown.
+ */
 export function getDatasetModality(
   dataset: DatasetId,
   options: DatasetOption[]
@@ -51,45 +65,110 @@ export function getDatasetModality(
   return options.find((option) => option.id === dataset)?.modality ?? null;
 }
 
+/**
+ * Type guard for validating dataset ids against catalog options.
+ *
+ * @param value - Candidate dataset id.
+ * @param options - Available dataset options from catalog.
+ * @returns `true` when `value` exists in `options`.
+ */
 export function isDatasetOption(value: string, options: DatasetOption[]): value is DatasetId {
   return options.some((option) => option.id === value);
 }
 
+/**
+ * Type guard for image samples.
+ *
+ * @param sample - Candidate dataset sample.
+ * @returns `true` when sample is image modality.
+ */
 export function isImageSample(sample: DatasetSample | null): sample is ImageSample {
   return sample?.kind === 'image';
 }
 
+/**
+ * Type guard for text samples.
+ *
+ * @param sample - Candidate dataset sample.
+ * @returns `true` when sample is text modality.
+ */
 export function isTextSample(sample: DatasetSample | null): sample is TextSample {
   return sample?.kind === 'text';
 }
 
+/**
+ * Resolve active modality from loaded metadata or catalog fallback.
+ *
+ * @param current - Current app state.
+ * @returns Active modality, or `null` if unknown.
+ */
 export function getActiveModality(current: AppState): DatasetModality | null {
   return current.meta?.modality ?? getDatasetModality(current.dataset, current.datasetOptions);
 }
 
+/**
+ * Clamp vector offset to valid bounds for a fixed visible window size.
+ *
+ * @param offset - Requested offset.
+ * @param vectorLength - Total vector length.
+ * @returns Offset clamped to `[0, vectorLength - VECTOR_WINDOW]`.
+ */
 export function clampOffset(offset: number, vectorLength: number): number {
   const maxOffset = Math.max(0, vectorLength - VECTOR_WINDOW);
   return Math.min(Math.max(offset, 0), maxOffset);
 }
 
+/**
+ * Compute slider maximum value for a vector length.
+ *
+ * @param vectorLength - Total vector length.
+ * @returns Maximum slider position.
+ */
 export function getSliderMax(vectorLength: number): number {
   return Math.max(0, vectorLength - VECTOR_WINDOW);
 }
 
 // Invert slider values so the top position maps to offset 0.
+/**
+ * Convert offset into inverted slider value.
+ *
+ * @param offset - Current offset.
+ * @param sliderMax - Maximum slider value.
+ * @returns Inverted slider value.
+ */
 export function offsetToSliderValue(offset: number, sliderMax: number): number {
   return sliderMax - offset;
 }
 
+/**
+ * Convert inverted slider value back into offset.
+ *
+ * @param value - Slider value.
+ * @param sliderMax - Maximum slider value.
+ * @returns Corresponding vector offset.
+ */
 export function sliderValueToOffset(value: number, sliderMax: number): number {
   return sliderMax - value;
 }
 
+/**
+ * Resolve selected sample from current state.
+ *
+ * @param current - Current app state.
+ * @returns Selected sample, or `null` when nothing is selected.
+ */
 export function getSelectedSample(current: AppState): DatasetSample | null {
   if (current.selectedId === null) return null;
   return current.samples[current.selectedId] ?? null;
 }
 
+/**
+ * Resolve effective vector length for the selected sample.
+ *
+ * @param current - Current app state.
+ * @param selected - Selected sample.
+ * @returns Vector length for slider/range calculations.
+ */
 export function getSelectedVectorLength(current: AppState, selected: DatasetSample | null): number {
   if (!selected || !current.meta) return 0;
   if (current.meta.modality === 'text') {
@@ -101,6 +180,13 @@ export function getSelectedVectorLength(current: AppState, selected: DatasetSamp
   return current.meta.vectorLength;
 }
 
+/**
+ * Remove duplicate incoming samples by backend sample index.
+ *
+ * @param existing - Existing samples in state.
+ * @param incoming - Newly fetched samples to append.
+ * @returns Incoming samples filtered to unique sample indices.
+ */
 function dedupeSamples(existing: DatasetSample[], incoming: DatasetSample[]): DatasetSample[] {
   if (!incoming.length) return [];
   const existingIds = new Set(existing.map((sample) => sample.index));
@@ -114,6 +200,13 @@ function dedupeSamples(existing: DatasetSample[], incoming: DatasetSample[]): Da
   return unique;
 }
 
+/**
+ * Main reducer for all vectors demo state transitions.
+ *
+ * @param current - Current state.
+ * @param action - Action to apply.
+ * @returns Next immutable app state.
+ */
 export function reducer(current: AppState, action: Action): AppState {
   switch (action.type) {
     case 'load-start':
@@ -225,4 +318,3 @@ export function reducer(current: AppState, action: Action): AppState {
       return current;
   }
 }
-

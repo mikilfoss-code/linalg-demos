@@ -3,6 +3,13 @@ import { type DatasetOption } from './state';
 
 let lastDatasetSelectSignature = '';
 
+/**
+ * Build a stable signature for select options and active dataset.
+ *
+ * @param options - Available dataset options rendered in the select.
+ * @param selectedDataset - Currently selected dataset id.
+ * @returns Deterministic signature string used to skip redundant rerenders.
+ */
 function buildSignature(options: DatasetOption[], selectedDataset: DatasetId): string {
   const optionsSig = options
     .map((option) => `${option.id}|${option.label}|${option.modality}`)
@@ -10,6 +17,14 @@ function buildSignature(options: DatasetOption[], selectedDataset: DatasetId): s
   return `${selectedDataset}::${optionsSig}`;
 }
 
+/**
+ * Render dataset options only when the source catalog actually changes.
+ *
+ * @param selectEl - Dataset `<select>` element.
+ * @param options - Catalog options returned by the backend.
+ * @param selectedDataset - Dataset id that should be selected after render.
+ * @returns Nothing. Mutates `selectEl` options and selected value.
+ */
 export function renderDatasetOptions(
   selectEl: HTMLSelectElement,
   options: DatasetOption[],
@@ -35,4 +50,3 @@ export function renderDatasetOptions(
   selectEl.value = selectedDataset;
   lastDatasetSelectSignature = signature;
 }
-

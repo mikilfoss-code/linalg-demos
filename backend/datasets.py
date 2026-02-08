@@ -84,10 +84,13 @@ def _load_openml_square_dataset(
     """
     Fetch and normalize an OpenML grayscale image dataset.
 
-    @param source: Public dataset id used by this API.
-    @param display_name: Human-readable dataset name.
-    @param openml_name: Dataset name in OpenML.
-    @returns: Prepared dataset with uint8 image grids and int labels.
+    Args:
+        source: Public dataset id used by this API.
+        display_name: Human-readable dataset name.
+        openml_name: Dataset name in OpenML.
+
+    Returns:
+        Prepared dataset with uint8 image grids and integer labels.
     """
     bunch = fetch_openml(
         name=openml_name,
@@ -226,7 +229,8 @@ def available_datasets() -> list[dict[str, str]]:
     """
     List dataset options exposed by the API.
 
-    @returns: Dataset metadata for UI selection controls.
+    Returns:
+        Dataset metadata for UI selection controls.
     """
     return [
         {
@@ -248,11 +252,14 @@ def sample_dataset(
     """
     Return JSON-ready samples for image or text datasets.
 
-    @param count: Number of samples to return.
-    @param dataset: Dataset id.
-    @param seed: Optional RNG seed for reproducible sampling.
-    @param split: Optional split ("train"|"test"|"all"), validated per dataset.
-    @returns: Serializable dict with metadata and sampled rows.
+    Args:
+        count: Number of samples to return.
+        dataset: Dataset id.
+        seed: Optional RNG seed for reproducible sampling.
+        split: Optional split (`train`, `test`, or `all`), validated per dataset.
+
+    Returns:
+        Serializable dict with metadata and sampled rows.
     """
     selected = get_dataset(dataset=dataset, split=split)
     total = selected.total_count
@@ -329,9 +336,12 @@ def get_dataset(dataset: str = "mnist", split: str | None = None) -> DatasetView
     """
     Load and cache the requested dataset + split.
 
-    @param dataset: Dataset id.
-    @param split: Optional split selector.
-    @returns: Cached dataset view.
+    Args:
+        dataset: Dataset id.
+        split: Optional split selector.
+
+    Returns:
+        Cached dataset view.
     """
     spec = _get_dataset_spec(dataset)
     resolved_split = _resolve_split(spec, split)
@@ -357,6 +367,18 @@ def get_dataset(dataset: str = "mnist", split: str | None = None) -> DatasetView
 
 
 def _get_dataset_spec(dataset: str) -> DatasetSpec:
+    """
+    Resolve and validate a dataset id against the registered catalog.
+
+    Args:
+        dataset: Dataset id provided by API callers.
+
+    Returns:
+        The matching dataset specification.
+
+    Raises:
+        ValueError: If `dataset` is not one of the supported ids.
+    """
     normalized = dataset.strip().lower()
     spec = DATASET_SPECS.get(normalized)
     if spec is None:
@@ -366,6 +388,19 @@ def _get_dataset_spec(dataset: str) -> DatasetSpec:
 
 
 def _resolve_split(spec: DatasetSpec, split: str | None) -> DatasetSplit:
+    """
+    Resolve and validate a requested split for a specific dataset.
+
+    Args:
+        spec: Dataset specification describing supported split behavior.
+        split: Optional split request from the API layer.
+
+    Returns:
+        A validated split value (`train`, `test`, or `all`).
+
+    Raises:
+        ValueError: If the split is malformed or not supported by `spec`.
+    """
     if split is None:
         return spec.default_split
 
@@ -380,6 +415,19 @@ def _resolve_split(spec: DatasetSpec, split: str | None) -> DatasetSplit:
 
 
 def _prepare_dataset_view(raw_dataset: RawDataset, split: DatasetSplit) -> DatasetView:
+    """
+    Create a split-specific view over a cached raw dataset.
+
+    Args:
+        raw_dataset: Cached raw dataset containing full modality data.
+        split: Dataset split to materialize.
+
+    Returns:
+        A `DatasetView` containing only the rows for `split`.
+
+    Raises:
+        ValueError: If the requested split produces zero rows.
+    """
     if raw_dataset.modality == "image":
         sliced_images, sliced_labels = _slice_images_for_split(raw_dataset, split)
         if sliced_images.shape[0] == 0:
@@ -430,6 +478,19 @@ def _prepare_dataset_view(raw_dataset: RawDataset, split: DatasetSplit) -> Datas
 def _slice_images_for_split(
     raw_dataset: RawDataset, split: DatasetSplit
 ) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Slice image tensors and labels for the requested split.
+
+    Args:
+        raw_dataset: Raw image dataset.
+        split: Requested split selector.
+
+    Returns:
+        Tuple of `(images, labels)` scoped to `split`.
+
+    Raises:
+        ValueError: If image data is missing or split is invalid for dataset.
+    """
     if raw_dataset.images is None:
         raise ValueError(f"dataset '{raw_dataset.source}' has no image data")
     if not raw_dataset.supports_train_test:
@@ -449,6 +510,19 @@ def _slice_images_for_split(
 def _slice_texts_for_split(
     raw_dataset: RawDataset, split: DatasetSplit
 ) -> tuple[tuple[str, ...], np.ndarray, sparse.csr_matrix]:
+    """
+    Slice text rows, labels, and sparse counts for the requested split.
+
+    Args:
+        raw_dataset: Raw text dataset.
+        split: Requested split selector.
+
+    Returns:
+        Tuple of `(texts, labels, counts)` scoped to `split`.
+
+    Raises:
+        ValueError: If text/count data is missing or split is invalid.
+    """
     if raw_dataset.texts is None or raw_dataset.counts is None:
         raise ValueError(f"dataset '{raw_dataset.source}' has no text data")
     if not raw_dataset.supports_train_test:
@@ -481,6 +555,23 @@ def _prepare_image_dataset(
     label_names: tuple[str, ...] | None,
     supports_train_test: bool,
 ) -> RawDataset:
+    """
+    Validate and normalize raw image arrays into a cached `RawDataset`.
+
+    Args:
+        source: Stable dataset id.
+        display_name: Human-readable dataset name.
+        images: Image tensor expected in `(n, h, w)` format.
+        labels: Label vector aligned to `images`.
+        label_names: Optional label-name lookup by id.
+        supports_train_test: Whether train/test slicing is supported.
+
+    Returns:
+        A normalized `RawDataset` for image modality.
+
+    Raises:
+        ValueError: If dimensionality, counts, or shapes are invalid.
+    """
     if images.ndim != 3:
         raise ValueError(f"{display_name} images must be shape (n, h, w), got {images.shape!r}")
     if labels.ndim != 1:
@@ -521,6 +612,25 @@ def _prepare_text_dataset(
     vocab: tuple[str, ...],
     supports_train_test: bool,
 ) -> RawDataset:
+    """
+    Validate and normalize raw text/count data into a cached `RawDataset`.
+
+    Args:
+        source: Stable dataset id.
+        display_name: Human-readable dataset name.
+        texts: Raw text rows.
+        labels: Label vector aligned to `texts`.
+        label_names: Optional label-name lookup by id.
+        counts: Sparse document-term matrix.
+        vocab: Vocabulary terms aligned to `counts` columns.
+        supports_train_test: Whether train/test slicing is supported.
+
+    Returns:
+        A normalized `RawDataset` for text modality.
+
+    Raises:
+        ValueError: If text, label, count, or vocabulary shapes are invalid.
+    """
     if labels.ndim != 1:
         raise ValueError(f"{display_name} labels must be shape (n,), got {labels.shape!r}")
     if len(texts) != labels.shape[0]:
@@ -552,6 +662,16 @@ def _prepare_text_dataset(
 
 
 def _first_sentence(text: str, max_length: int = 200) -> str:
+    """
+    Build a display snippet from the first sentence of raw text.
+
+    Args:
+        text: Source document text.
+        max_length: Maximum snippet length.
+
+    Returns:
+        First sentence (or trimmed text fallback), ellipsized when necessary.
+    """
     if not text:
         return ""
     trimmed = text.strip()
@@ -565,6 +685,15 @@ def _first_sentence(text: str, max_length: int = 200) -> str:
 
 
 def _to_label_ids(raw_labels: np.ndarray) -> np.ndarray:
+    """
+    Convert heterogeneous label arrays into contiguous integer ids.
+
+    Args:
+        raw_labels: Raw labels from source datasets.
+
+    Returns:
+        `int64` label ids preserving original row order.
+    """
     if raw_labels.dtype.kind in {"i", "u"}:
         return raw_labels.astype(np.int64, copy=False)
     if raw_labels.dtype.kind == "f":
@@ -577,6 +706,16 @@ def _to_label_ids(raw_labels: np.ndarray) -> np.ndarray:
 
 
 def _resolve_label_name(label_names: tuple[str, ...] | None, label_id: int) -> str | None:
+    """
+    Resolve a human-readable label name when lookup data is available.
+
+    Args:
+        label_names: Optional tuple indexed by label id.
+        label_id: Integer class id.
+
+    Returns:
+        Matching label name, or `None` when unavailable/out of range.
+    """
     if label_names is None:
         return None
     if label_id < 0 or label_id >= len(label_names):
