@@ -96,13 +96,59 @@ function syncCanvasToDisplay(
 }
 
 /**
+ * Compute a contain-fit rectangle for drawing an image inside a canvas area.
+ *
+ * @param containerWidth - Available draw width in CSS pixels.
+ * @param containerHeight - Available draw height in CSS pixels.
+ * @param imageWidth - Source image width in pixels.
+ * @param imageHeight - Source image height in pixels.
+ * @returns Rect where the image should be drawn to preserve aspect ratio.
+ */
+function getContainedImageRect(
+  containerWidth: number,
+  containerHeight: number,
+  imageWidth: number,
+  imageHeight: number
+): { x: number; y: number; width: number; height: number } {
+  if (
+    containerWidth <= 0 ||
+    containerHeight <= 0 ||
+    imageWidth <= 0 ||
+    imageHeight <= 0
+  ) {
+    return { x: 0, y: 0, width: Math.max(1, containerWidth), height: Math.max(1, containerHeight) };
+  }
+
+  const containerRatio = containerWidth / containerHeight;
+  const imageRatio = imageWidth / imageHeight;
+  if (imageRatio >= containerRatio) {
+    const width = containerWidth;
+    const height = width / imageRatio;
+    return {
+      x: 0,
+      y: (containerHeight - height) / 2,
+      width,
+      height,
+    };
+  }
+
+  const height = containerHeight;
+  const width = height * imageRatio;
+  return {
+    x: (containerWidth - width) / 2,
+    y: 0,
+    width,
+    height,
+  };
+}
+
+/**
  * Draw an outline showing the currently visible vector window on the image.
  *
  * @param ctx - 2D rendering context.
  * @param imageWidth - Source image width in pixels.
  * @param imageHeight - Source image height in pixels.
- * @param displayWidth - Canvas draw width in CSS pixels.
- * @param displayHeight - Canvas draw height in CSS pixels.
+ * @param imageRect - Draw rectangle where the image is rendered in the canvas.
  * @param offset - Requested vector window offset.
  * @param windowSize - Number of vector components shown in the window.
  * @param vectorLength - Total vector length.
@@ -113,8 +159,7 @@ function drawVectorWindowOutline(
   ctx: CanvasRenderingContext2D,
   imageWidth: number,
   imageHeight: number,
-  displayWidth: number,
-  displayHeight: number,
+  imageRect: { x: number; y: number; width: number; height: number },
   offset: number,
   windowSize: number,
   vectorLength: number,
@@ -131,8 +176,8 @@ function drawVectorWindowOutline(
   ctx.lineJoin = 'miter';
   ctx.lineCap = 'square';
 
-  const cellWidth = displayWidth / imageWidth;
-  const cellHeight = displayHeight / imageHeight;
+  const cellWidth = imageRect.width / imageWidth;
+  const cellHeight = imageRect.height / imageHeight;
   if (
     !Number.isFinite(cellWidth) ||
     !Number.isFinite(cellHeight) ||
@@ -153,8 +198,8 @@ function drawVectorWindowOutline(
     if (colEnd < colStart) return;
     const width = (colEnd - colStart + 1) * cellWidth;
     const height = cellHeight;
-    const x = colStart * cellWidth;
-    const y = row * cellHeight;
+    const x = imageRect.x + colStart * cellWidth;
+    const y = imageRect.y + row * cellHeight;
     // Keep the 1px stroke inside the row bounds for a crisp outline.
     ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
   };
@@ -178,8 +223,7 @@ function drawVectorWindowOutline(
  * @param ctx - 2D rendering context.
  * @param imageWidth - Source image width in pixels.
  * @param imageHeight - Source image height in pixels.
- * @param displayWidth - Canvas draw width in CSS pixels.
- * @param displayHeight - Canvas draw height in CSS pixels.
+ * @param imageRect - Draw rectangle where the image is rendered in the canvas.
  * @param highlightedPixelIndex - Active pixel index, or `null` for none.
  * @param vectorLength - Total vector length.
  * @returns Nothing. Draws directly on the provided context.
@@ -188,16 +232,15 @@ function drawPixelHighlight(
   ctx: CanvasRenderingContext2D,
   imageWidth: number,
   imageHeight: number,
-  displayWidth: number,
-  displayHeight: number,
+  imageRect: { x: number; y: number; width: number; height: number },
   highlightedPixelIndex: number | null,
   vectorLength: number
 ) {
   if (highlightedPixelIndex === null) return;
   if (highlightedPixelIndex < 0 || highlightedPixelIndex >= vectorLength) return;
 
-  const cellWidth = displayWidth / imageWidth;
-  const cellHeight = displayHeight / imageHeight;
+  const cellWidth = imageRect.width / imageWidth;
+  const cellHeight = imageRect.height / imageHeight;
   if (
     !Number.isFinite(cellWidth) ||
     !Number.isFinite(cellHeight) ||
@@ -212,7 +255,12 @@ function drawPixelHighlight(
 
   ctx.save();
   ctx.fillStyle = 'rgba(240, 100, 73, 0.35)';
-  ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+  ctx.fillRect(
+    imageRect.x + col * cellWidth,
+    imageRect.y + row * cellHeight,
+    cellWidth,
+    cellHeight
+  );
   ctx.restore();
 }
 
@@ -342,6 +390,12 @@ export function createSelectedRenderer({
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, displayWidth, displayHeight);
+    const imageRect = getContainedImageRect(
+      displayWidth,
+      displayHeight,
+      meta.imageWidth,
+      meta.imageHeight
+    );
 
     if (!sample) {
       selectedStatus.textContent = 'No selection';
@@ -354,17 +408,26 @@ export function createSelectedRenderer({
         selectedBuffer.height = meta.imageHeight;
       }
       selectedBufferCtx.putImageData(toImageData(sample, meta.imageWidth, meta.imageHeight), 0, 0);
-      ctx.drawImage(selectedBuffer, 0, 0, displayWidth, displayHeight);
+      ctx.drawImage(
+        selectedBuffer,
+        imageRect.x,
+        imageRect.y,
+        imageRect.width,
+        imageRect.height
+      );
     } else {
-      ctx.putImageData(toImageData(sample, meta.imageWidth, meta.imageHeight), 0, 0);
+      ctx.putImageData(
+        toImageData(sample, meta.imageWidth, meta.imageHeight),
+        Math.round(imageRect.x),
+        Math.round(imageRect.y)
+      );
     }
 
     drawPixelHighlight(
       ctx,
       meta.imageWidth,
       meta.imageHeight,
-      displayWidth,
-      displayHeight,
+      imageRect,
       highlightedPixelIndex,
       sample.vector.length
     );
@@ -373,8 +436,7 @@ export function createSelectedRenderer({
       ctx,
       meta.imageWidth,
       meta.imageHeight,
-      displayWidth,
-      displayHeight,
+      imageRect,
       offset,
       VECTOR_WINDOW,
       sample.vector.length,

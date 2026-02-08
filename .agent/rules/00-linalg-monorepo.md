@@ -4,6 +4,45 @@ trigger: always_on
 
 # Linear Algebra Demos Monorepo Rules (Windows)
 
+---
+
+## trigger: always_on
+
+# Mandatory Pre-Edit Gate
+
+These steps are required before any file edit or file-modifying command.
+
+1. Read `AGENT.md` in the repo root.
+2. Read `CODEMAP.md` in the repo root.
+3. Post a response containing all three sections:
+   - `Reasoning`
+   - `Style Options`
+   - `Trade-Offs`
+4. Ask the user to select an option.
+5. If the change is substantial, ask for explicit authorization to proceed.
+6. Only after steps 4 and 5 are satisfied may code edits begin.
+
+## Substantial change definition
+
+A substantial change includes any of the following:
+
+- new dependency
+- new route/endpoint
+- schema/contract change
+- multi-module refactor
+- user-visible behavior change
+
+## Completion requirement
+
+After edits are complete:
+
+1. State either `No CODEMAP update needed.` or update `CODEMAP.md` in the same change set.
+2. Summarize what changed and why.
+
+## Exception
+
+If the user asks for analysis only (no edits/commands that modify files), steps 3 to 6 can be skipped.
+
 ## Scope / Safety
 
 - Unless the user authorizes it, never create, move, or delete files outside this repository root.

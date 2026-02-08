@@ -1,6 +1,7 @@
 import "@shared/ui/demo-shell.css";
 import "./style.css";
 import { getApiBaseUrl, health } from "./lib/api";
+import { ACTIVE_MATRIX_LAYOUT_PROFILE } from "./layout-options";
 
 const API_BASE = getApiBaseUrl() || "(same origin)";
 
@@ -17,14 +18,26 @@ el.innerHTML = `
         </p>
       </div>
     </header>
-    <section class="demo-panel">
-      <p class="demo-subtitle">
-        API base: <code>${API_BASE}</code>
-      </p>
-      <div class="demo-actions">
-        <button class="demo-button" id="btn">Check backend /health</button>
-      </div>
-      <pre class="demo-output" id="out" aria-live="polite"></pre>
+    <section class="demo-layout ${ACTIVE_MATRIX_LAYOUT_PROFILE.containerModeClassName}">
+      <section
+        class="demo-panel demo-layout-panel demo-layout-panel-controls"
+        style="order: ${ACTIVE_MATRIX_LAYOUT_PROFILE.orderOf("controls")}"
+      >
+        <h2 class="demo-panel-title">Controls</h2>
+        <p class="demo-subtitle">
+          API base: <code>${API_BASE}</code>
+        </p>
+        <div class="demo-actions">
+          <button class="demo-button" id="btn">Check backend /health</button>
+        </div>
+      </section>
+      <section
+        class="demo-panel demo-layout-panel demo-layout-panel-output"
+        style="order: ${ACTIVE_MATRIX_LAYOUT_PROFILE.orderOf("output")}"
+      >
+        <h2 class="demo-panel-title">Health response</h2>
+        <pre class="demo-output" id="out" aria-live="polite"></pre>
+      </section>
     </section>
   </div>
 `;

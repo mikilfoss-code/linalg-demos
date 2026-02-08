@@ -93,7 +93,9 @@
   /* Hard cap to avoid requesting too many samples from the backend. */
   --grid-max-samples: 32;
   /* Viewport height percentage used to estimate grid rows. */
-  --grid-height-vh: 70;
+  --grid-height-vh: 40;
+  /* Number of columns to use for document table mode. */
+  --text-grid-columns: 3;
   /* Minimum pixel height for a text thumbnail row. */
   --text-tile-min-height: 110;
 
@@ -146,7 +148,7 @@
   --vector-bracket-content-gap: var(--space-2);
   --vector-value-bracket-gap: var(--space-2);
   --vector-range-width: 24ch;
-  --vector-panel-min-height: 600px;
+  --vector-panel-min-height: 520px;
   --vector-panel-min-width: calc(
     var(--selected-card-width) + var(--vector-info-min-width) + var(--vector-shell-gap)
   );

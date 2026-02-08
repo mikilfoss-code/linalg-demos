@@ -11,6 +11,7 @@ import {
   getGridTargetHeight,
   getGridTileMax,
   getGridTileMin,
+  getTextGridColumns,
   getTextTileHeight,
 } from './app/layout-config';
 import { renderGrid, updateGridSelection } from './app/render-grid';
@@ -31,6 +32,7 @@ import { createAppView } from './app/view';
 import { DATASET_SAMPLES_ENDPOINT, type DatasetSample } from './lib/dataset';
 import { type DatasetModality } from './lib/types';
 
+const appView = createAppView();
 const {
   statusPill,
   gridTitle,
@@ -54,18 +56,8 @@ const {
   vectorRangeEl,
   vectorSlider,
   vectorList,
-  debugStatus,
-  debugEndpoint,
-  debugSource,
-  debugSplit,
-  debugSizeLabel,
-  debugSize,
-  debugTotal,
-  debugSamples,
-  debugSelected,
-  debugOffset,
-  debugError,
-} = createAppView();
+  debug,
+} = appView;
 
 const FALLBACK_GRID_LAYOUT = getFallbackGridLayout();
 
@@ -241,11 +233,16 @@ function updateLayoutFromGridSize(
   options: { syncSamples?: boolean } = {}
 ) {
   if (width <= 0 || height <= 0) return;
+  const measuredHeight = gridEl.getBoundingClientRect().height;
+  const effectiveHeight =
+    Number.isFinite(measuredHeight) && measuredHeight > 0 ? Math.min(height, measuredHeight) : height;
+  if (effectiveHeight <= 0) return;
   const { columnGap, rowGap } = getGridGaps(gridEl);
   if (getActiveModality(state) === 'text') {
+    const columns = getTextGridColumns();
     const rowSize = getTextTileHeight();
-    const rows = computeRowCount(height, rowSize, rowGap);
-    const layout = clampGridLayout({ columns: 1, rows }, getGridMaxSamples());
+    const rows = computeRowCount(effectiveHeight, rowSize, rowGap);
+    const layout = clampGridLayout({ columns, rows }, getGridMaxSamples());
     setGridRowSize(rowSize);
     updateGridLayout(layout, options);
     return;
@@ -255,7 +252,7 @@ function updateLayoutFromGridSize(
   const tileMin = getGridTileMin();
   const { layout, rowSize } = computeGridLayout({
     width,
-    height,
+    height: effectiveHeight,
     columnGap,
     rowGap,
     imageWidth,
@@ -303,20 +300,22 @@ const vectorRenderer = createVectorRenderer({
  * @returns Nothing.
  */
 function renderDebug(current: AppState) {
-  debugStatus.textContent = current.status;
-  debugEndpoint.textContent = DATASET_SAMPLES_ENDPOINT;
-  debugSource.textContent = current.meta?.source ?? '--';
-  debugSplit.textContent = current.meta?.split ?? '--';
-  debugSize.textContent = current.meta
+  if (!debug) return;
+
+  debug.debugStatus.textContent = current.status;
+  debug.debugEndpoint.textContent = DATASET_SAMPLES_ENDPOINT;
+  debug.debugSource.textContent = current.meta?.source ?? '--';
+  debug.debugSplit.textContent = current.meta?.split ?? '--';
+  debug.debugSize.textContent = current.meta
     ? current.meta.modality === 'text'
       ? String(current.meta.vectorLength)
       : `${current.meta.imageWidth}x${current.meta.imageHeight}`
     : '--';
-  debugTotal.textContent = current.meta ? String(current.meta.totalCount) : '--';
-  debugSamples.textContent = String(current.samples.length);
-  debugSelected.textContent = current.selectedId !== null ? String(current.selectedId) : '--';
-  debugOffset.textContent = String(current.vectorOffset);
-  debugError.textContent = current.error ?? '--';
+  debug.debugTotal.textContent = current.meta ? String(current.meta.totalCount) : '--';
+  debug.debugSamples.textContent = String(current.samples.length);
+  debug.debugSelected.textContent = current.selectedId !== null ? String(current.selectedId) : '--';
+  debug.debugOffset.textContent = String(current.vectorOffset);
+  debug.debugError.textContent = current.error ?? '--';
 }
 
 /**
@@ -351,7 +350,9 @@ function render(current: AppState) {
   vectorTitle.textContent = textMode ? 'Vector components window' : 'Vector window';
   vectorSubtitleLeading.textContent = '10 components at a time';
   gridEl.setAttribute('aria-label', textMode ? 'Document grid' : 'Sample grid');
-  debugSizeLabel.textContent = textMode ? 'Vocab size' : 'Image size';
+  if (debug) {
+    debug.debugSizeLabel.textContent = textMode ? 'Vocab size' : 'Image size';
+  }
   textHighlighting.updateVectorTextWordWidth(current.meta);
   if (!textMode) {
     textHighlighting.resetTextModeState();

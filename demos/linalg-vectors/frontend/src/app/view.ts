@@ -1,3 +1,24 @@
+import { type LayoutProfileStrategy } from '@shared/lib/layout-profiles';
+import {
+  ACTIVE_VECTORS_LAYOUT_PROFILE,
+  INCLUDE_DEBUG_PANEL,
+  type VectorsPanelId,
+} from './layout-options';
+
+export type DebugView = {
+  debugStatus: HTMLDivElement;
+  debugEndpoint: HTMLDivElement;
+  debugSource: HTMLDivElement;
+  debugSplit: HTMLDivElement;
+  debugSizeLabel: HTMLDivElement;
+  debugSize: HTMLDivElement;
+  debugTotal: HTMLDivElement;
+  debugSamples: HTMLDivElement;
+  debugSelected: HTMLDivElement;
+  debugOffset: HTMLDivElement;
+  debugError: HTMLPreElement;
+};
+
 export type AppView = {
   app: HTMLDivElement;
   statusPill: HTMLDivElement;
@@ -22,20 +43,30 @@ export type AppView = {
   vectorRangeEl: HTMLDivElement;
   vectorSlider: HTMLInputElement;
   vectorList: HTMLDivElement;
-  debugStatus: HTMLDivElement;
-  debugEndpoint: HTMLDivElement;
-  debugSource: HTMLDivElement;
-  debugSplit: HTMLDivElement;
-  debugSizeLabel: HTMLDivElement;
-  debugSize: HTMLDivElement;
-  debugTotal: HTMLDivElement;
-  debugSamples: HTMLDivElement;
-  debugSelected: HTMLDivElement;
-  debugOffset: HTMLDivElement;
-  debugError: HTMLPreElement;
+  debug?: DebugView;
+  includeDebugPanel: boolean;
 };
 
-const APP_TEMPLATE = `
+/**
+ * Build vectors app markup with profile-driven panel ordering.
+ *
+ * @param layoutProfile - Selected layout profile strategy.
+ * @param includeDebugPanel - Whether debug panel should be rendered.
+ * @returns App HTML template string.
+ */
+function createAppTemplate(
+  layoutProfile: LayoutProfileStrategy<VectorsPanelId>,
+  includeDebugPanel: boolean
+) {
+  const panels = [
+    createVectorPanel(layoutProfile),
+    createGridPanel(layoutProfile),
+    includeDebugPanel ? createDebugPanel(layoutProfile) : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return `
   <main class="app-shell">
     <header class="hero">
       <div class="hero-copy">
@@ -56,8 +87,22 @@ const APP_TEMPLATE = `
       </div>
     </header>
 
-    <section class="layout">
-      <div class="panel panel-grid">
+    <section class="layout ${layoutProfile.containerModeClassName}">
+${panels}
+    </section>
+  </main>
+`;
+}
+
+/**
+ * Render grid/table panel markup.
+ *
+ * @param layoutProfile - Selected layout profile strategy.
+ * @returns Grid panel HTML.
+ */
+function createGridPanel(layoutProfile: LayoutProfileStrategy<VectorsPanelId>): string {
+  return `
+      <div class="layout-panel layout-panel-grid panel panel-grid" style="order: ${layoutProfile.orderOf('grid')}">
         <div class="panel-header">
           <div>
             <h2 id="grid-title">Image table</h2>
@@ -75,15 +120,25 @@ const APP_TEMPLATE = `
           <button class="primary" id="resample" type="button">Draw new sample</button>
         </div>
       </div>
+`;
+}
 
-      <div class="panel panel-vector">
+/**
+ * Render vector window panel markup.
+ *
+ * @param layoutProfile - Selected layout profile strategy.
+ * @returns Vector panel HTML.
+ */
+function createVectorPanel(layoutProfile: LayoutProfileStrategy<VectorsPanelId>): string {
+  return `
+      <div class="layout-panel layout-panel-vector panel panel-vector" style="order: ${layoutProfile.orderOf('vector')}">
         <div class="panel-header">
           <div>
             <h2 id="vector-title">Vector window</h2>
             <p class="panel-subtitle" id="vector-subtitle">
-            <span id="vector-subtitle-leading">10 components at a time</span>
-            <span aria-hidden="true">&middot;</span>
-            dimension: <span id="vector-length">--</span>
+              <span id="vector-subtitle-leading">10 components at a time</span>
+              <span aria-hidden="true">&middot;</span>
+              dimension: <span id="vector-length">--</span>
             </p>
           </div>
           <div class="status-pill" id="selected-status">No selection</div>
@@ -133,57 +188,70 @@ const APP_TEMPLATE = `
           <p class="hint hint-vector">Scroll or drag the slider to move through vector components.</p>
         </div>
       </div>
-    </section>
-
-    <section class="panel panel-debug" aria-live="polite">
-      <div class="panel-header">
-        <div>
-          <h2>Debug panel</h2>
-          <p class="panel-subtitle">Backend diagnostics and sampling state.</p>
-        </div>
-        <div class="status-pill" id="debug-status">--</div>
-      </div>
-      <div class="debug-grid">
-        <div class="debug-item">
-          <div class="debug-label">Endpoint</div>
-          <div class="debug-value" id="debug-endpoint">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label">Source</div>
-          <div class="debug-value" id="debug-source">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label">Split</div>
-          <div class="debug-value" id="debug-split">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label" id="debug-size-label">Image size</div>
-          <div class="debug-value" id="debug-size">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label">Total count</div>
-          <div class="debug-value" id="debug-total">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label">Sample count</div>
-          <div class="debug-value" id="debug-samples">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label">Selected id</div>
-          <div class="debug-value" id="debug-selected">--</div>
-        </div>
-        <div class="debug-item">
-          <div class="debug-label">Vector offset</div>
-          <div class="debug-value" id="debug-offset">--</div>
-        </div>
-      </div>
-      <div class="debug-log">
-        <div class="debug-label">Last error</div>
-        <pre class="debug-value" id="debug-error">--</pre>
-      </div>
-    </section>
-  </main>
 `;
+}
+
+/**
+ * Render debug panel markup.
+ *
+ * @param layoutProfile - Selected layout profile strategy.
+ * @returns Debug panel HTML.
+ */
+function createDebugPanel(layoutProfile: LayoutProfileStrategy<VectorsPanelId>): string {
+  return `
+      <section
+        class="layout-panel layout-panel-debug panel panel-debug"
+        style="order: ${layoutProfile.orderOf('debug')}"
+        aria-live="polite"
+      >
+        <div class="panel-header">
+          <div>
+            <h2>Debug panel</h2>
+            <p class="panel-subtitle">Backend diagnostics and sampling state.</p>
+          </div>
+          <div class="status-pill" id="debug-status">--</div>
+        </div>
+        <div class="debug-grid">
+          <div class="debug-item">
+            <div class="debug-label">Endpoint</div>
+            <div class="debug-value" id="debug-endpoint">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label">Source</div>
+            <div class="debug-value" id="debug-source">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label">Split</div>
+            <div class="debug-value" id="debug-split">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label" id="debug-size-label">Image size</div>
+            <div class="debug-value" id="debug-size">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label">Total count</div>
+            <div class="debug-value" id="debug-total">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label">Sample count</div>
+            <div class="debug-value" id="debug-samples">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label">Selected id</div>
+            <div class="debug-value" id="debug-selected">--</div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-label">Vector offset</div>
+            <div class="debug-value" id="debug-offset">--</div>
+          </div>
+        </div>
+        <div class="debug-log">
+          <div class="debug-label">Last error</div>
+          <pre class="debug-value" id="debug-error">--</pre>
+        </div>
+      </section>
+`;
+}
 
 /**
  * Query a required element and throw early if missing.
@@ -213,12 +281,13 @@ export function createAppView(rootSelector = '#app'): AppView {
   if (!app) {
     throw new Error(`Missing ${rootSelector} element`);
   }
-  app.innerHTML = APP_TEMPLATE;
+  app.innerHTML = createAppTemplate(ACTIVE_VECTORS_LAYOUT_PROFILE, INCLUDE_DEBUG_PANEL);
 
   const selectedBuffer = document.createElement('canvas');
   const selectedBufferCtx = selectedBuffer.getContext('2d');
+  const debugRoot = app.querySelector<HTMLElement>('.layout-panel-debug');
 
-  return {
+  const view: AppView = {
     app,
     statusPill: requireElement<HTMLDivElement>(app, '#status-pill'),
     gridTitle: requireElement<HTMLHeadingElement>(app, '#grid-title'),
@@ -242,16 +311,24 @@ export function createAppView(rootSelector = '#app'): AppView {
     vectorRangeEl: requireElement<HTMLDivElement>(app, '#vector-range'),
     vectorSlider: requireElement<HTMLInputElement>(app, '#vector-slider'),
     vectorList: requireElement<HTMLDivElement>(app, '#vector-list'),
-    debugStatus: requireElement<HTMLDivElement>(app, '#debug-status'),
-    debugEndpoint: requireElement<HTMLDivElement>(app, '#debug-endpoint'),
-    debugSource: requireElement<HTMLDivElement>(app, '#debug-source'),
-    debugSplit: requireElement<HTMLDivElement>(app, '#debug-split'),
-    debugSizeLabel: requireElement<HTMLDivElement>(app, '#debug-size-label'),
-    debugSize: requireElement<HTMLDivElement>(app, '#debug-size'),
-    debugTotal: requireElement<HTMLDivElement>(app, '#debug-total'),
-    debugSamples: requireElement<HTMLDivElement>(app, '#debug-samples'),
-    debugSelected: requireElement<HTMLDivElement>(app, '#debug-selected'),
-    debugOffset: requireElement<HTMLDivElement>(app, '#debug-offset'),
-    debugError: requireElement<HTMLPreElement>(app, '#debug-error'),
+    includeDebugPanel: INCLUDE_DEBUG_PANEL,
   };
+
+  if (debugRoot) {
+    view.debug = {
+      debugStatus: requireElement<HTMLDivElement>(debugRoot, '#debug-status'),
+      debugEndpoint: requireElement<HTMLDivElement>(debugRoot, '#debug-endpoint'),
+      debugSource: requireElement<HTMLDivElement>(debugRoot, '#debug-source'),
+      debugSplit: requireElement<HTMLDivElement>(debugRoot, '#debug-split'),
+      debugSizeLabel: requireElement<HTMLDivElement>(debugRoot, '#debug-size-label'),
+      debugSize: requireElement<HTMLDivElement>(debugRoot, '#debug-size'),
+      debugTotal: requireElement<HTMLDivElement>(debugRoot, '#debug-total'),
+      debugSamples: requireElement<HTMLDivElement>(debugRoot, '#debug-samples'),
+      debugSelected: requireElement<HTMLDivElement>(debugRoot, '#debug-selected'),
+      debugOffset: requireElement<HTMLDivElement>(debugRoot, '#debug-offset'),
+      debugError: requireElement<HTMLPreElement>(debugRoot, '#debug-error'),
+    };
+  }
+
+  return view;
 }

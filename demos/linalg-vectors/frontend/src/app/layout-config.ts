@@ -3,6 +3,7 @@ import { type GridLayout } from './state';
 export const GRID_TILE_MIN_FALLBACK = 100;
 export const GRID_TILE_MAX_FALLBACK = 180;
 export const TEXT_TILE_HEIGHT_FALLBACK = 96;
+export const TEXT_GRID_COLUMNS_FALLBACK = 3;
 export const GRID_MAX_SAMPLES_FALLBACK = 64;
 export const GRID_HEIGHT_VH_FALLBACK = 55;
 export const GRID_FALLBACK_COLUMNS = 2;
@@ -70,6 +71,15 @@ export function getGridTileMax(min: number): number {
  */
 export function getTextTileHeight(): number {
   return getCssNumber('--text-tile-min-height', TEXT_TILE_HEIGHT_FALLBACK);
+}
+
+/**
+ * Resolve document-table column count from CSS tokens.
+ *
+ * @returns Positive integer text-grid column count.
+ */
+export function getTextGridColumns(): number {
+  return getCssInt('--text-grid-columns', TEXT_GRID_COLUMNS_FALLBACK);
 }
 
 /**

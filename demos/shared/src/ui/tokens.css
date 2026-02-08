@@ -7,8 +7,8 @@
 :root {
   /* Typography tokens.
    * Affects: body copy, headings, monospace debug/output text. */
-  --demo-font-sans: "Space Grotesk", sans-serif;
-  --demo-font-mono: "IBM Plex Mono", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+  --demo-font-sans: 'Space Grotesk', sans-serif;
+  --demo-font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
 
   /* Spacing scale.
    * Affects: gaps, paddings, margins across panels and controls. */
@@ -50,7 +50,7 @@
   --demo-panel-radius: 20px;
   --demo-gap: var(--demo-space-4);
   --demo-shell-max-width: 1200px;
-  --demo-shell-padding: var(--demo-space-8) var(--demo-space-6) var(--demo-space-9);
+  --demo-shell-padding: var(--demo-space-6) var(--demo-space-6) var(--demo-space-6);
   --demo-shell-min-height: 100vh;
 
   /* Background gradient palette.

@@ -124,11 +124,31 @@ h1 {
   outline-offset: 2px;
 }
 
-/* Two-column main layout: grid panel + vector panel. */
+/* Main layout shell for demo panels. */
 .layout {
   display: grid;
-  grid-template-columns: var(--layout-split);
   gap: var(--layout-gap);
+  align-items: start;
+}
+
+/* Side-by-side profile: grid panel left, vector panel right. */
+.layout.layout--side-by-side {
+  grid-template-columns: var(--layout-split);
+}
+
+/* Stacked profile: panels arranged in a single vertical column. */
+.layout.layout--stacked-vertical {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Shared wrapper class for strategy-ordered panels. */
+.layout-panel {
+  min-width: 0;
+}
+
+/* Debug panel spans full width in side-by-side layout mode. */
+.layout.layout--side-by-side .layout-panel-debug {
+  grid-column: 1 / -1;
 }
 
 /* Shared panel card styling. */
@@ -191,11 +211,12 @@ h1 {
   flex: 1;
   align-content: center;
   min-height: 0;
+  overflow: auto;
 }
 
-/* Single-column grid layout for text datasets. */
+/* Text dataset grid layout driven by configurable column token. */
 .mnist-grid.is-text-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(var(--text-grid-columns, 3), minmax(0, 1fr));
   align-content: start;
 }
 
@@ -696,6 +717,11 @@ input[type='range'] {
 
 /* Responsive single-column layout for smaller screens. */
 @media (max-width: 980px) {
+  /* Collapse side-by-side profile to one column on smaller screens. */
+  .layout.layout--side-by-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   /* Keep selected card content stacked on small screens. */
   .selected-card {
     grid-template-columns: 1fr;

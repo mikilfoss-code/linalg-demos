@@ -1,5 +1,16 @@
 # linalg-demos (monorepo)
 
+## Enforcement Contract (Required)
+
+Before any code modification:
+
+1. Review `CODEMAP.md`.
+2. Provide `Reasoning`, `Style Options`, and `Trade-Offs`.
+3. Wait for user option selection.
+4. For substantial changes, wait for explicit user authorization.
+
+If this sequence is skipped, stop immediately, disclose the miss, and offer to revert.
+
 ## Repo description
 
 - Teaching-oriented interactive linear algebra demos with a shared Python API backend. Frontend may be built using three.js or similar libraries.

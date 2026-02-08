@@ -1,13 +1,13 @@
 # Dependency update report
 
-Generated: 2026-02-07 09:56:59
+Generated: 2026-02-08 13:39:36
 
 ## Toolchain
 
 | Tool   | Version                          |
 | ------ | -------------------------------- |
 | git    | git version 2.52.0.windows.1     |
-| node   | v25.5.0                          |
+| node   | v25.6.0                          |
 | pnpm   | 10.28.2                          |
 | uv     | uv 0.9.26 (ee4f00362 2026-01-15) |
 | python | Python 3.14.2                    |
@@ -22,7 +22,7 @@ Scopes scanned: **3**
 
 - Note: @types/node is a TypeScript package and is separate from the Node runtime.
 - Node runtime target from .nvmrc: **25.6.0**
-- Node runtime upgrade available (current -> target): **yes**
+- Node runtime upgrade available (current -> target): **no**
 
 | Scope                | Dir                  | Outdated (latest) | Outdated (compati... |
 | -------------------- | -------------------- | ----------------- | -------------------- |
@@ -46,7 +46,7 @@ _No outdated dev dependencies found._
 
 ### Runtime/Dev discrepancies
 
-- Detected Node runtime: `v25.5.0`
+- Detected Node runtime: `v25.6.0`
 
 _No runtime/dev discrepancies detected._
 

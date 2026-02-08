@@ -81,6 +81,35 @@ function Get-RelPath([string]$Root, [string]$Path) {
   }
 }
 
+function Get-ToolErrorText {
+  param([string]$Path)
+  if (-not (Test-Path $Path)) { return "" }
+  try { return (Get-Content -Path $Path -Raw -ErrorAction Stop) } catch { return "" }
+}
+
+function Test-ErrorLooksBlocked {
+  param([string]$ErrorText)
+  if ([string]::IsNullOrWhiteSpace($ErrorText)) { return $false }
+  return ($ErrorText -match '(?i)\b(EPERM|EACCES|permission denied|operation not permitted|spawn EPERM|sandbox|blocked)\b')
+}
+
+function Get-RegistryUnreachableReason {
+  param([string]$ErrorText)
+  if ([string]::IsNullOrWhiteSpace($ErrorText)) { return "" }
+
+  $service = ""
+  if ($ErrorText -match 'https?://([^/\s`"]+)') {
+    $service = $Matches[1]
+  }
+
+  if ($ErrorText -match '(?i)(Failed to fetch|error sending request|connection refused|No connection could be made|tunnel error|Could not resolve host|timed out|name or service not known|dns|proxy)') {
+    if ([string]::IsNullOrWhiteSpace($service)) { return "registry unreachable" }
+    return "registry unreachable ($service)"
+  }
+
+  return ""
+}
+
 function Invoke-ToolCapture {
   param(
     [Parameter(Mandatory=$true)][string]$Exe,
@@ -88,11 +117,21 @@ function Invoke-ToolCapture {
     [Parameter(Mandatory=$true)][string]$WorkingDir,
     [Parameter(Mandatory=$true)][string]$StdoutPath,
     [Parameter(Mandatory=$true)][string]$StderrPath
-  )
+)
 
-  $p = Start-Process -FilePath $Exe -ArgumentList $Args -WorkingDirectory $WorkingDir -NoNewWindow `
-    -PassThru -Wait -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
-  return $p.ExitCode
+  # Always reset outputs to avoid carrying stale logs between scan runs.
+  Set-Content -Path $StdoutPath -Value "" -Encoding UTF8 -NoNewline
+  Set-Content -Path $StderrPath -Value "" -Encoding UTF8 -NoNewline
+
+  try {
+    $p = Start-Process -FilePath $Exe -ArgumentList $Args -WorkingDirectory $WorkingDir -NoNewWindow `
+      -PassThru -Wait -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
+    return $p.ExitCode
+  } catch {
+    # Preserve launch failures in stderr artifact and return a non-zero code.
+    Add-Content -Path $StderrPath -Value ("Start-Process failed: {0}" -f $_.Exception.Message)
+    return 126
+  }
 }
 
 function ConvertFrom-PnpmOutdatedJson {
@@ -493,6 +532,7 @@ function Find-OtherPythonManifests {
 # ---------------- Main ----------------
 
 $RepoRoot = Get-RepoRoot
+Set-Location $RepoRoot
 $ReportsPath = Join-Path $RepoRoot $ReportsDir
 $OutdatedDir = Join-Path $ReportsPath "outdated"
 New-DirectoryIfMissing $ReportsPath
@@ -544,6 +584,33 @@ if ($nodeScopes.Count -eq 0) {
 
     $ec2 = Invoke-ToolCapture -Exe "pnpm" -Args @("outdated","--long","--format","json","--compatible") `
       -WorkingDir $dir -StdoutPath $compOut -StderrPath $compErr
+
+    if ($ec1 -ne 0) {
+      $latestErrText = Get-ToolErrorText -Path $latestErr
+      $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $latestErrText) {
+        "likely blocked by permissions/sandbox; continuing with partial report."
+      } else {
+        "continuing with partial report."
+      }
+      $registryHint = Get-RegistryUnreachableReason -ErrorText $latestErrText
+      if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
+        $blockedHint = "$blockedHint Detected: $registryHint."
+      }
+      $nodeErrors += "pnpm latest scan exited with code ${ec1} for $scope ($rel): $blockedHint See $latestErr."
+    }
+    if ($ec2 -ne 0) {
+      $compatErrText = Get-ToolErrorText -Path $compErr
+      $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $compatErrText) {
+        "likely blocked by permissions/sandbox; continuing with partial report."
+      } else {
+        "continuing with partial report."
+      }
+      $registryHint = Get-RegistryUnreachableReason -ErrorText $compatErrText
+      if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
+        $blockedHint = "$blockedHint Detected: $registryHint."
+      }
+      $nodeErrors += "pnpm compatible scan exited with code ${ec2} for $scope ($rel): $blockedHint See $compErr."
+    }
 
     $nodeResults += [pscustomobject]@{
       Scope          = $scope
@@ -656,8 +723,12 @@ foreach ($r in $nodeResults) {
     }
   }
 
-  if (-not $latestOk) { $nodeErrors += "Could not parse latest JSON for $scope. See $($r.LatestErrPath)." }
-  if (-not $compatOk) { $nodeErrors += "Could not parse compatible JSON for $scope. See $($r.CompatErrPath)." }
+  if (-not $latestOk) {
+    $nodeErrors += "Could not parse latest JSON for $scope (exit=$($r.LatestExitCode)); continuing with partial report. See $($r.LatestErrPath)."
+  }
+  if (-not $compatOk) {
+    $nodeErrors += "Could not parse compatible JSON for $scope (exit=$($r.CompatExitCode)); continuing with partial report. See $($r.CompatErrPath)."
+  }
 }
 
 $runtimeTypes = @("dependencies","optionalDependencies","peerDependencies")
@@ -741,6 +812,8 @@ $foundTxt = Test-Path $backendReqTxt
 $uvExit = $null
 $upgradedPath = Join-Path $ReportsPath "requirements.upgraded.txt"
 $uvErrPath    = Join-Path $ReportsPath "uv_compile.stderr.txt"
+$uvCacheDir   = Join-Path $ReportsPath ".uv-cache"
+New-DirectoryIfMissing $uvCacheDir
 
 $diffCount = 0
 $addCount  = 0
@@ -751,11 +824,21 @@ if (-not $foundIn) {
 } elseif ($null -eq (Get-Command uv -ErrorAction SilentlyContinue)) {
   $pyErrors += "uv not found on PATH; skipping Python upgrade preview."
 } else {
-  $uvExit = Invoke-ToolCapture -Exe "uv" -Args @("pip","compile",$backendReqIn,"--upgrade") `
+  $uvExit = Invoke-ToolCapture -Exe "uv" -Args @("pip","compile",$backendReqIn,"--upgrade","--cache-dir",$uvCacheDir) `
     -WorkingDir $RepoRoot -StdoutPath $upgradedPath -StderrPath $uvErrPath
 
   if ($uvExit -ne 0) {
-    $pyErrors += "uv pip compile --upgrade exited with code $uvExit. See $uvErrPath."
+    $uvErrText = Get-ToolErrorText -Path $uvErrPath
+    $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $uvErrText) {
+      "likely blocked by permissions/sandbox; continuing with partial report."
+    } else {
+      "continuing with partial report."
+    }
+    $registryHint = Get-RegistryUnreachableReason -ErrorText $uvErrText
+    if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
+      $blockedHint = "$blockedHint Detected: $registryHint."
+    }
+    $pyErrors += "uv pip compile --upgrade exited with code ${uvExit}: $blockedHint See $uvErrPath."
   } elseif (-not $foundTxt) {
     $pyErrors += "backend/requirements.txt not found; cannot diff pinned versions."
   } else {

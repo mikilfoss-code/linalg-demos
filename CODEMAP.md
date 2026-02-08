@@ -36,6 +36,7 @@
 ### demos/shared/
 - `demos/shared/config/` - shared Vite + TypeScript configuration.
 - `demos/shared/src/lib/api.ts` - shared typed API client factory.
+- `demos/shared/src/lib/layout-profiles.ts` - shared layout-profile strategy factory for side-by-side vs stacked panel ordering.
 - `demos/shared/src/lib/result.ts` - shared `Result<T>` helpers.
 - `demos/shared/src/lib/types.ts` - shared matrix/vector runtime guards.
 - `demos/shared/src/ui/tokens.css` - shared design tokens (typography, spacing, palette, shell geometry).
@@ -53,6 +54,7 @@
 
 ### demos/linalg-matrix_transforms/frontend/
 - `demos/linalg-matrix_transforms/frontend/src/main.ts` - matrix demo shell and backend health check action.
+- `demos/linalg-matrix_transforms/frontend/src/layout-options.ts` - matrix demo internal layout toggle and profile selection.
 - `demos/linalg-matrix_transforms/frontend/src/lib/api.ts` - matrix demo API bindings.
 - `demos/linalg-matrix_transforms/frontend/src/style.css` - matrix demo-specific styles.
 
@@ -99,6 +101,7 @@
 
 ### demos/shared/src/lib/
 - `demos/shared/src/lib/api.ts` - reusable API client with runtime validation and `Result` responses.
+- `demos/shared/src/lib/layout-profiles.ts` - reusable strategy factory for profile-driven panel ordering.
 - `demos/shared/src/lib/result.ts` - helpers for `ok/fail` result construction.
 - `demos/shared/src/lib/types.ts` - reusable matrix/vector type guards and assertions.
 
@@ -113,6 +116,7 @@
 - `dataset-select.ts` - dataset selector option rendering with memoized signatures.
 - `events.ts` - centralized DOM event/observer registration.
 - `layout-config.ts` - CSS token readers and responsive layout config utilities.
+- `layout-options.ts` - vectors demo internal toggles and profile strategies for panel ordering/debug inclusion.
 - `layout.ts` - pure grid layout calculations.
 - `render-grid.ts` - sample grid rendering and selected-card updates.
 - `render-selected.ts` - selected sample card rendering for image/text modalities.
@@ -128,7 +132,8 @@
 - `types.ts` - dataset request/response runtime guards and shared type aliases.
 
 ### demos/linalg-matrix_transforms/frontend/src/
-- `main.ts` - demo shell rendering and `/health` check interaction.
+- `main.ts` - demo shell rendering, profile-driven panel layout, and `/health` check interaction.
+- `layout-options.ts` - internal layout mode toggle and active strategy selection.
 - `lib/api.ts` - matrix demo API exports.
 
 ## Key Functions/Methods (By Location)
@@ -167,6 +172,9 @@
 - `getApiBaseUrl() -> string` - resolves base URL from env with dev/prod fallback.
 - `createApiClient(baseUrl?) -> ApiClient` - creates low-level JSON request client.
 - `createApi(options?) -> ApiService` - feature-flagged typed API wrapper.
+
+### demos/shared/src/lib/layout-profiles.ts
+- `createLayoutProfileStrategies(config)` - builds side-by-side and stacked-vertical layout strategy objects and resolver.
 
 ### demos/shared/src/lib/result.ts
 - `ok(value)` - constructs success result.
@@ -216,6 +224,10 @@
 - `getGridTileMin()`, `getGridTileMax(min)` - tile-size configuration from CSS tokens.
 - `getGridGaps(gridEl)` - reads live CSS grid gaps.
 - `getGridTargetHeight()` - viewport-derived target grid height.
+- `getTextGridColumns()` - document-table column count from CSS tokens.
+
+### demos/linalg-vectors/frontend/src/app/view.ts
+- `createAppView(rootSelector?) -> AppView` - renders profile-driven panel ordering and conditionally binds debug elements.
 
 ### demos/linalg-vectors/frontend/src/lib/dataset.ts
 - `loadDatasetSamples(dataset, count, seed?, signal?)` - fetches and normalizes dataset sample payload.
@@ -258,6 +270,7 @@
 - `--grid-tile-min`, `--grid-tile-max` - responsive image tile sizing bounds.
 - `--grid-max-samples` - upper sampling target bound.
 - `--grid-height-vh` - viewport fraction used for target grid height.
+- `--text-grid-columns` - document-table column count used for text datasets.
 - `--text-tile-min-height` - minimum row height for text dataset cards.
 
 ### Selected Card Tokens (`theme.css`)
@@ -302,6 +315,9 @@
 - `MAX_DATASET_SAMPLES` (`backend/api/routes/datasets.py`) - dataset sample query upper bound.
 - `VITE_API_BASE_URL` - frontend API base URL override.
 - `VECTOR_WINDOW` (`demos/linalg-vectors/frontend/src/app/constants.ts`) - visible vector component window size.
+- `VECTORS_LAYOUT_MODE` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `INCLUDE_DEBUG_PANEL` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo debug panel include/exclude toggle.
+- `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
 
 ## Global Objects / Shared State

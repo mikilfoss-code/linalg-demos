@@ -68,6 +68,7 @@ The script writes:
 - `reports/outdated/<scope>-compatible.stderr.txt` (stderr)
 - `reports/requirements.upgraded.txt` (stdout of `uv pip compile ... --upgrade`)
 - `reports/uv_compile.stderr.txt` (stderr from uv compile)
+- `reports/.uv-cache/` (scan-local uv cache to avoid global cache permission conflicts)
 
 `dependency-updates.md` includes:
 
@@ -87,12 +88,14 @@ The script writes:
 From repo root:
 
 ```powershell
-$root = git rev-parse --show-toplevel
-Set-Location $root
-
-# Process-scope bypass (no admin required) in case execution policy blocks .ps1
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-
-$script = Join-Path $root ".agent/skills/update-scan/scripts/update-dep-scanner.ps1"
-pwsh -NoProfile -File $script
+Set-Location (git rev-parse --show-toplevel)
+pwsh -NoProfile -ExecutionPolicy Bypass -File .agent/skills/update-scan/scripts/update-dep-scanner.ps1
 ```
+
+## Escalation reliability guidance
+
+- Run escalated commands **one at a time** (avoid parallel escalations).
+- Prefer direct `pwsh -File <script>` execution; avoid nested `pwsh -Command "... pwsh ..."` wrappers that are fragile with quoting.
+- If a command is blocked (for example EPERM/EACCES/sandbox restrictions), record the failure and continue to produce a partial report.
+- Do not treat blocked build/registry checks as fatal for the full scan.
+- The scanner clears per-step stdout/stderr artifacts before each run so prior-run errors are not reported again.

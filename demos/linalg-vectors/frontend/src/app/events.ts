@@ -25,6 +25,53 @@ function parsePixelValue(value: string): number {
 }
 
 /**
+ * Compute a contain-fit rectangle for image rendering inside a canvas area.
+ *
+ * @param containerWidth - Available draw width in CSS pixels.
+ * @param containerHeight - Available draw height in CSS pixels.
+ * @param imageWidth - Source image width in pixels.
+ * @param imageHeight - Source image height in pixels.
+ * @returns Rect where the image is rendered.
+ */
+function getContainedImageRect(
+  containerWidth: number,
+  containerHeight: number,
+  imageWidth: number,
+  imageHeight: number
+): { x: number; y: number; width: number; height: number } {
+  if (
+    containerWidth <= 0 ||
+    containerHeight <= 0 ||
+    imageWidth <= 0 ||
+    imageHeight <= 0
+  ) {
+    return { x: 0, y: 0, width: Math.max(1, containerWidth), height: Math.max(1, containerHeight) };
+  }
+
+  const containerRatio = containerWidth / containerHeight;
+  const imageRatio = imageWidth / imageHeight;
+  if (imageRatio >= containerRatio) {
+    const width = containerWidth;
+    const height = width / imageRatio;
+    return {
+      x: 0,
+      y: (containerHeight - height) / 2,
+      width,
+      height,
+    };
+  }
+
+  const height = containerHeight;
+  const width = height * imageRatio;
+  return {
+    x: (containerWidth - width) / 2,
+    y: 0,
+    width,
+    height,
+  };
+}
+
+/**
  * Map pointer coordinates on the selected canvas to a flattened pixel index.
  *
  * @param event - Pointer or mouse event carrying client coordinates.
@@ -61,8 +108,20 @@ function getCanvasPixelIndex(
     return null;
   }
 
-  const col = Math.min(imageWidth - 1, Math.floor((x / contentWidth) * imageWidth));
-  const row = Math.min(imageHeight - 1, Math.floor((y / contentHeight) * imageHeight));
+  const imageRect = getContainedImageRect(contentWidth, contentHeight, imageWidth, imageHeight);
+  if (
+    x < imageRect.x ||
+    y < imageRect.y ||
+    x >= imageRect.x + imageRect.width ||
+    y >= imageRect.y + imageRect.height
+  ) {
+    return null;
+  }
+
+  const imageX = x - imageRect.x;
+  const imageY = y - imageRect.y;
+  const col = Math.min(imageWidth - 1, Math.floor((imageX / imageRect.width) * imageWidth));
+  const row = Math.min(imageHeight - 1, Math.floor((imageY / imageRect.height) * imageHeight));
   return row * imageWidth + col;
 }
 
