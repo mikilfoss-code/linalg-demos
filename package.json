@@ -1,16 +1,19 @@
 {
   "name": "linalg-monorepo",
   "private": true,
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@10.29.3",
   "scripts": {
     "build": "pnpm --recursive --filter \"@linalg/demo-*\" build",
     "build:vectors": "pnpm --filter @linalg/demo-vectors build",
     "build:matrix": "pnpm --filter @linalg/demo-matrix-transforms build",
+    "build:markov": "pnpm --filter @linalg/demo-markov-chains build",
     "dev:vectors": "pnpm --filter @linalg/demo-vectors dev",
     "dev:matrix": "pnpm --filter @linalg/demo-matrix-transforms dev",
+    "dev:markov": "pnpm --filter @linalg/demo-markov-chains dev",
     "typecheck": "pnpm --recursive --filter \"@linalg/demo-*\" exec tsc --noEmit"
   },
   "volta": {
-    "node": "25.6.0"
+    "node": "25.6.1",
+    "pnpm": "10.29.3"
   }
 }

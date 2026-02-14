@@ -31,17 +31,23 @@
 
 ### backend/tests/
 - `backend/tests/test_dataset_sampling_service.py` - service behavior tests.
+- `backend/tests/test_markov_analysis.py` - Markov analysis endpoint validation and error-path tests.
 - `backend/tests/test_text_vectorization.py` - token filtering/vectorization rule tests.
 
 ### demos/shared/
 - `demos/shared/config/` - shared Vite + TypeScript configuration.
+- `demos/shared/LAYOUT.md` - shared reference for layout modes, schema parameters, runtime behavior, and panel feature extensions.
 - `demos/shared/src/lib/api.ts` - shared typed API client factory.
-- `demos/shared/src/lib/layout-profiles.ts` - shared layout-profile strategy factory for side-by-side vs stacked panel ordering.
+- `demos/shared/src/lib/layout-plan.ts` - recursive render-plan contracts and tree helpers.
+- `demos/shared/src/lib/layout-renderer.ts` - shared recursive renderer with panel strategy registry support.
+- `demos/shared/src/lib/layout-runtime.ts` - schema-to-runtime profile resolver, fallback handling, and CSS token/placement helpers.
+- `demos/shared/src/lib/layout-schema.ts` - versioned layout schema contract for panel ids, parent hierarchy (`parentId`), and variant placements.
+- `demos/shared/src/lib/layout-validate.ts` - runtime layout schema validation checks.
 - `demos/shared/src/lib/result.ts` - shared `Result<T>` helpers.
 - `demos/shared/src/lib/types.ts` - shared matrix/vector runtime guards.
 - `demos/shared/src/ui/tokens.css` - shared design tokens (typography, spacing, palette, shell geometry).
 - `demos/shared/src/ui/primitives.css` - shared panel/button UI primitives that consume `--ui-*` aliases.
-- `demos/shared/src/ui/demo-shell.css` - shared shell styling used by demos.
+- `demos/shared/src/ui/base-shell.css` - shared shell styling used by demos.
 
 ### demos/linalg-vectors/frontend/
 - `demos/linalg-vectors/frontend/package.json` - vectors demo scripts and engine constraints.
@@ -53,10 +59,19 @@
 - `demos/linalg-vectors/frontend/src/lib/` - dataset API client and payload normalization.
 
 ### demos/linalg-matrix_transforms/frontend/
-- `demos/linalg-matrix_transforms/frontend/src/main.ts` - matrix demo shell and backend health check action.
-- `demos/linalg-matrix_transforms/frontend/src/layout-options.ts` - matrix demo internal layout toggle and profile selection.
+- `demos/linalg-matrix_transforms/frontend/src/main.ts` - matrix demo shell rendering and shared recursive panel rendering for `/health` checks.
+- `demos/linalg-matrix_transforms/frontend/src/layout-options.ts` - matrix demo internal layout toggle and schema-backed profile resolution.
 - `demos/linalg-matrix_transforms/frontend/src/lib/api.ts` - matrix demo API bindings.
 - `demos/linalg-matrix_transforms/frontend/src/style.css` - matrix demo-specific styles.
+
+### demos/linalg-markov_chains/frontend/
+- `demos/linalg-markov_chains/frontend/package.json` - Markov demo scripts and engine constraints.
+- `demos/linalg-markov_chains/frontend/index.html` - Vite HTML entry.
+- `demos/linalg-markov_chains/frontend/src/main.ts` - composition root, shared layout mounting, store wiring, and backend analysis orchestration.
+- `demos/linalg-markov_chains/frontend/src/layout-options.ts` - Markov demo schema-driven panel layout profile.
+- `demos/linalg-markov_chains/frontend/src/style.css` - Markov demo styles for graph, controls, matrix table, and analysis output.
+- `demos/linalg-markov_chains/frontend/src/app/` - reducer/store and panel renderers (graph/state/matrix).
+- `demos/linalg-markov_chains/frontend/src/lib/` - Markov math/validation helpers and API bindings.
 
 ### .agent/
 - `.agent/rules/` - repo-specific agent operating rules.
@@ -76,20 +91,23 @@
   - `GET /api/v1/datasets/samples`
   - `POST /api/v1/matrix/apply`
   - `POST /api/v1/matrix/eig`
+  - `POST /api/v1/markov/analyze`
 
 ### Frontend
 - Workspace commands (repo root):
   - `pnpm dev:vectors`
   - `pnpm dev:matrix`
+  - `pnpm dev:markov`
   - `pnpm build:vectors`
   - `pnpm build:matrix`
+  - `pnpm build:markov`
   - `pnpm typecheck`
 - Per-demo commands remain available in each demo folder (`pnpm dev`, `pnpm build`, `pnpm preview`).
 
 ## Key Modules And Responsibilities (By Location)
 
 ### backend/
-- `backend/main.py` - app configuration, CORS policy, health/info, matrix APIs.
+- `backend/main.py` - app configuration, CORS policy, health/info, matrix APIs, and Markov analysis endpoint.
 - `backend/datasets.py` - dataset loading/caching and modality-specific sample shaping.
 
 ### backend/api/routes/
@@ -101,7 +119,11 @@
 
 ### demos/shared/src/lib/
 - `demos/shared/src/lib/api.ts` - reusable API client with runtime validation and `Result` responses.
-- `demos/shared/src/lib/layout-profiles.ts` - reusable strategy factory for profile-driven panel ordering.
+- `demos/shared/src/lib/layout-plan.ts` - recursive plan types and depth-first flatten helper.
+- `demos/shared/src/lib/layout-renderer.ts` - shared recursive renderer with panel registry and optional visibility filters.
+- `demos/shared/src/lib/layout-runtime.ts` - shared schema resolver and runtime helpers for panel style/token application.
+- `demos/shared/src/lib/layout-schema.ts` - shared versioned schema types for panel hierarchy (`parentId`) and placement definitions.
+- `demos/shared/src/lib/layout-validate.ts` - shared runtime validation for schema integrity and cross-reference checks.
 - `demos/shared/src/lib/result.ts` - helpers for `ok/fail` result construction.
 - `demos/shared/src/lib/types.ts` - reusable matrix/vector type guards and assertions.
 
@@ -116,7 +138,7 @@
 - `dataset-select.ts` - dataset selector option rendering with memoized signatures.
 - `events.ts` - centralized DOM event/observer registration.
 - `layout-config.ts` - CSS token readers and responsive layout config utilities.
-- `layout-options.ts` - vectors demo internal toggles and profile strategies for panel ordering/debug inclusion.
+- `layout-options.ts` - vectors demo internal toggles and schema-backed profile resolution (with fallback/warnings).
 - `layout.ts` - pure grid layout calculations.
 - `render-grid.ts` - sample grid rendering and selected-card updates.
 - `render-selected.ts` - selected sample card rendering for image/text modalities.
@@ -124,7 +146,7 @@
 - `sampling.ts` - abortable replacement/append sampling controller.
 - `state.ts` - app state model, reducer, and modality/offset helpers.
 - `text-highlighting.ts` - text token rendering + text/vector cross-highlighting.
-- `view.ts` - app HTML template + required DOM reference binding.
+- `view.ts` - app shell template + recursive layout renderer integration + typed DOM reference binding.
 
 ### demos/linalg-vectors/frontend/src/lib/
 - `api.ts` - vectors demo API bindings for dataset endpoints.
@@ -132,9 +154,27 @@
 - `types.ts` - dataset request/response runtime guards and shared type aliases.
 
 ### demos/linalg-matrix_transforms/frontend/src/
-- `main.ts` - demo shell rendering, profile-driven panel layout, and `/health` check interaction.
+- `main.ts` - demo shell rendering, recursive layout-plan rendering, and `/health` check interaction.
 - `layout-options.ts` - internal layout mode toggle and active strategy selection.
 - `lib/api.ts` - matrix demo API exports.
+
+### demos/linalg-markov_chains/frontend/src/
+- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, and async backend analysis dispatch.
+- `layout-options.ts` - internal layout mode selection for top graph/state row and bottom matrix panel.
+- `style.css` - Markov graph visuals, flow particles, state controls, and matrix editor styling.
+
+### demos/linalg-markov_chains/frontend/src/app/
+- `types.ts` - canonical app state contracts for vectors, matrix, validation, and analysis lifecycle.
+- `actions.ts` - reducer action union for matrix/vector edits, stepping, normalization, and analysis events.
+- `reducer.ts` - pure state transitions including flow-animation metadata generation on each step.
+- `store.ts` - minimal reducer-driven store with subscribe/dispatch APIs.
+- `render-graph.ts` - SVG directed-graph rendering with arrowheads, self-loops, probability styling, and flow-particle animation.
+- `render-state-panel.ts` - right-side controls for node count, state vectors, stepping, and backend analysis output.
+- `render-matrix-panel.ts` - transition-matrix table rendering with row sums and normalization actions.
+
+### demos/linalg-markov_chains/frontend/src/lib/
+- `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning.
+- `api.ts` - typed `/api/v1/markov/analyze` frontend client and runtime response validation.
 
 ## Key Functions/Methods (By Location)
 
@@ -142,8 +182,14 @@
 - `_cors_origins() -> list[str]` - parses and normalizes `CORS_ALLOW_ORIGINS`.
 - `_validate_matrix(raw_matrix) -> np.ndarray` - validates finite numeric matrix payload.
 - `_validate_vector(raw_vector, expected_length) -> np.ndarray` - validates finite numeric vector payload.
+- `_validate_probability_vector(raw_vector, expected_length, vector_name) -> np.ndarray` - validates finite non-negative vectors that sum to 1.
+- `_validate_row_stochastic_matrix(matrix) -> np.ndarray` - validates square non-negative transition matrix rows sum to 1.
+- `_step_markov_vector(current_vector, transition_matrix) -> np.ndarray` - computes one Markov update using row-vector convention.
+- `_stationary_distribution(transition_matrix) -> tuple[np.ndarray, float]` - estimates stationary distribution and residual.
+- `_serialize_complex(value) -> dict` - serializes complex eigenvalues into real/imag/magnitude triplets.
 - `matrix_apply(payload) -> dict` - applies matrix-vector multiplication.
 - `matrix_eig(payload) -> dict` - computes real-valued eigendecomposition for square matrices.
+- `markov_analyze(payload) -> dict` - validates Markov payload, computes step/stationary diagnostics, eigenvalue magnitudes, and spectral gap.
 
 ### backend/api/routes/datasets.py
 - `datasets() -> dict` - returns dataset catalog response.
@@ -173,8 +219,24 @@
 - `createApiClient(baseUrl?) -> ApiClient` - creates low-level JSON request client.
 - `createApi(options?) -> ApiService` - feature-flagged typed API wrapper.
 
-### demos/shared/src/lib/layout-profiles.ts
-- `createLayoutProfileStrategies(config)` - builds side-by-side and stacked-vertical layout strategy objects and resolver.
+### demos/shared/src/lib/layout-runtime.ts
+- `resolveLayoutProfile(options)` - resolves requested schema variant, validates schema, and builds recursive render plans.
+- `applyLayoutTokens(root, tokens)` - applies layout token overrides as CSS custom properties.
+- `placementToInlineStyle(placement)` - serializes resolved placement constraints into inline style declarations.
+- `logLayoutWarnings(context, warnings)` - emits normalized runtime warning logs for invalid schema/fallback paths.
+
+### demos/shared/src/lib/layout-plan.ts
+- `flattenLayoutPlan(roots)` - flattens recursive render nodes into deterministic depth-first order.
+
+### demos/shared/src/lib/layout-renderer.ts
+- `renderLayoutPlan(options)` - recursively mounts panel nodes using renderer strategies and returns panel root lookup map.
+
+### demos/shared/src/lib/layout-schema.ts
+- `LAYOUT_SCHEMA_VERSION` - active layout schema version constant.
+- `LayoutSchema`, `LayoutPanelDef`, `LayoutVariant`, `LayoutPlacement` - type contracts for schema-driven layout configuration and recursive panel trees via `parentId`.
+
+### demos/shared/src/lib/layout-validate.ts
+- `validateLayoutSchema(schema)` - validates layout schema structure and panel/variant cross references.
 
 ### demos/shared/src/lib/result.ts
 - `ok(value)` - constructs success result.
@@ -232,6 +294,19 @@
 ### demos/linalg-vectors/frontend/src/lib/dataset.ts
 - `loadDatasetSamples(dataset, count, seed?, signal?)` - fetches and normalizes dataset sample payload.
 - `toImageData(sample, imageWidth, imageHeight)` - converts grayscale bytes to `ImageData`.
+
+### demos/linalg-markov_chains/frontend/src/main.ts
+- `runAnalysis()` - triggers backend Markov analysis and commits async success/error state.
+- `render()` - fan-out render pass for graph/state/matrix panels from canonical store state.
+
+### demos/linalg-markov_chains/frontend/src/app/reducer.ts
+- `createInitialState() -> AppState` - initializes default transition matrix/state vectors and validation.
+- `reducer(state, action) -> AppState` - handles all edits, normalization, stepping, and analysis lifecycle transitions.
+
+### demos/linalg-markov_chains/frontend/src/lib/markov.ts
+- `buildValidationSummary(...) -> ValidationSummary` - validates matrix/vector probability constraints and step/analyze gates.
+- `stepVector(currentVector, transitionMatrix) -> number[]` - computes `x_{t+1} = x_t P`.
+- `createFlowAnimation(...) -> FlowAnimationState` - computes per-edge mass transfer and particle timing for animated updates.
 
 ## Theme And Style Tokens (Vectors Frontend)
 
@@ -315,9 +390,13 @@
 - `MAX_DATASET_SAMPLES` (`backend/api/routes/datasets.py`) - dataset sample query upper bound.
 - `VITE_API_BASE_URL` - frontend API base URL override.
 - `VECTOR_WINDOW` (`demos/linalg-vectors/frontend/src/app/constants.ts`) - visible vector component window size.
+- `LAYOUT_SCHEMA_VERSION` (`demos/shared/src/lib/layout-schema.ts`) - active schema version used by layout config validation/resolution.
 - `VECTORS_LAYOUT_MODE` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `INCLUDE_DEBUG_PANEL` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo debug panel include/exclude toggle.
+- `USE_RECURSIVE_LAYOUT_ENGINE` (`demos/linalg-vectors/frontend/src/app/view.ts`) - temporary vectors internal migration toggle between recursive and legacy layout rendering paths.
 - `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor.
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
 
 ## Global Objects / Shared State
@@ -325,6 +404,7 @@
 - `backend/main.py::app` (`FastAPI`) - process-lifetime app instance with middleware/routes.
 - `backend/datasets.py::_raw_dataset_cache` and `_split_dataset_cache` - process-lifetime dataset caches.
 - `demos/linalg-vectors/frontend/src/main.ts::state` - browser-lifetime vectors app state.
+- `demos/linalg-markov_chains/frontend/src/main.ts::store` - browser-lifetime Markov app store.
 
 ## Data Contracts
 
@@ -344,6 +424,9 @@
 - `POST /api/v1/matrix/eig`
   - Request: `{"matrix": number[][]}`
   - Response: `{"eigenvalues": number[], "eigenvectors": number[][]}`
+- `POST /api/v1/markov/analyze`
+  - Request: `{"transitionMatrix": number[][], "initialVector": number[], "currentVector": number[]}`
+  - Response: `{"isRowStochastic": boolean, "rowSums": number[], "nextVector": number[], "stationaryDistribution": number[], "stationaryResidual": number, "spectralGap": number | null, "eigenvalues": [{"real": number, "imag": number, "magnitude": number}]}`
 
 ## External Dependencies
 
@@ -373,3 +456,9 @@
 - `rootDir: .`
 - build: `npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @linalg/demo-matrix-transforms build`
 - publish: `demos/linalg-matrix_transforms/frontend/dist`
+
+### `demo-linalg-markov-chains`
+- local build: `pnpm --filter @linalg/demo-markov-chains build`
+- publish (if deployed): `demos/linalg-markov_chains/frontend/dist`
+
+

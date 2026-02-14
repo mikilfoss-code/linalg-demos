@@ -92,6 +92,15 @@ Set-Location (git rev-parse --show-toplevel)
 pwsh -NoProfile -ExecutionPolicy Bypass -File .agent/skills/update-scan/scripts/update-dep-scanner.ps1
 ```
 
+## Default execution policy (agent runs)
+
+When this skill is run by an agent:
+
+1. First request authorization for unrestricted execution of:
+   - `pwsh -NoProfile -ExecutionPolicy Bypass -File .agent/skills/update-scan/scripts/update-dep-scanner.ps1`
+2. If authorization is granted, run unrestricted.
+3. If authorization is denied/unavailable, run in sandbox mode and explicitly report that backend update detection may be partial when index access is blocked.
+
 ## Escalation reliability guidance
 
 - Run escalated commands **one at a time** (avoid parallel escalations).

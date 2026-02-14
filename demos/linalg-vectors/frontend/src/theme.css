@@ -12,57 +12,57 @@
 
   /* Typography aliases.
    * Affects: headings, body text, monospaced vector/debug values. */
-  --font-sans: var(--demo-font-sans);
-  --font-mono: var(--demo-font-mono);
+  --font-sans: var(--base-font-sans);
+  --font-mono: var(--base-font-mono);
 
   /* Shared spacing scale aliases.
    * Affects: all padding/margin/gap tokens below. */
-  --space-0: var(--demo-space-0);
-  --space-1: var(--demo-space-1);
-  --space-2: var(--demo-space-2);
-  --space-3: var(--demo-space-3);
-  --space-4: var(--demo-space-4);
-  --space-5: var(--demo-space-5);
-  --space-6: var(--demo-space-6);
-  --space-7: var(--demo-space-7);
-  --space-8: var(--demo-space-8);
-  --space-9: var(--demo-space-9);
+  --space-0: var(--base-space-0);
+  --space-1: var(--base-space-1);
+  --space-2: var(--base-space-2);
+  --space-3: var(--base-space-3);
+  --space-4: var(--base-space-4);
+  --space-5: var(--base-space-5);
+  --space-6: var(--base-space-6);
+  --space-7: var(--base-space-7);
+  --space-8: var(--base-space-8);
+  --space-9: var(--base-space-9);
 
   /* Shared palette aliases.
    * Affects: text, panel backgrounds, buttons, and status accents. */
-  --ink: var(--demo-ink);
-  --ink-soft: var(--demo-ink-soft);
-  --paper: var(--demo-paper);
-  --surface: var(--demo-surface);
-  --surface-2: var(--demo-surface-2);
-  --accent: var(--demo-accent);
-  --accent-2: var(--demo-accent-2);
+  --ink: var(--base-ink);
+  --ink-soft: var(--base-ink-soft);
+  --paper: var(--base-paper);
+  --surface: var(--base-surface);
+  --surface-2: var(--base-surface-2);
+  --accent: var(--base-accent);
+  --accent-2: var(--base-accent-2);
   --accent-3: #f4b942;
-  --accent-contrast: var(--demo-accent-contrast);
+  --accent-contrast: var(--base-accent-contrast);
   /* Vector outline color used for the selected pixel window. */
-  --vector-outline: var(--demo-accent);
+  --vector-outline: var(--base-accent);
   /* RGB tuple for word highlight in text mode. */
   --word-highlight: 240, 100, 73;
 
   /* Borders, shadows, and focus rings.
    * Affects: card separation, tile elevation, keyboard focus visibility. */
-  --grid-line: var(--demo-border);
-  --shadow-soft: var(--demo-shadow-soft);
-  --shadow-panel: var(--demo-shadow);
+  --grid-line: var(--base-border);
+  --shadow-soft: var(--base-shadow-soft);
+  --shadow-panel: var(--base-shadow);
   --shadow-tile: rgba(20, 26, 34, 0.12);
-  --shadow-accent: var(--demo-shadow-accent);
-  --shadow-accent-soft: var(--demo-shadow-accent-soft);
-  --focus-accent: var(--demo-focus-accent);
-  --focus-teal: var(--demo-focus-teal);
+  --shadow-accent: var(--base-shadow-accent);
+  --shadow-accent-soft: var(--base-shadow-accent-soft);
+  --focus-accent: var(--base-focus-accent);
+  --focus-teal: var(--base-focus-teal);
   /* Border color for grayscale swatches in the vector list. */
   --swatch-border: rgba(29, 36, 51, 0.18);
 
   /* Background gradients + panel fills.
    * Affects: page atmosphere and selected/debug surface tones. */
-  --bg-radial-1: var(--demo-bg-radial-1);
-  --bg-radial-2: var(--demo-bg-radial-2);
-  --bg-linear-top: var(--demo-bg-linear-top);
-  --bg-linear-bottom: var(--demo-bg-linear-bottom);
+  --bg-radial-1: var(--base-bg-radial-1);
+  --bg-radial-2: var(--base-bg-radial-2);
+  --bg-linear-top: var(--base-bg-linear-top);
+  --bg-linear-bottom: var(--base-bg-linear-bottom);
   --selected-card-start: #fff8ef;
   --selected-card-end: #f5efe2;
   --debug-item-bg: #fff7ea;
@@ -101,13 +101,13 @@
 
   /* App shell sizing.
    * Affects: overall page width and outer whitespace around panels. */
-  --app-max-width: var(--demo-shell-max-width);
-  --app-padding: var(--demo-shell-padding);
+  --app-max-width: var(--base-shell-max-width);
+  --app-padding: var(--base-shell-padding);
   --section-gap: var(--space-7);
 
   /* Panel chrome.
    * Affects: card corner radius, internal panel spacing, header rhythm. */
-  --panel-radius: var(--demo-panel-radius);
+  --panel-radius: var(--base-panel-radius);
   --panel-padding: var(--space-6);
   --panel-header-gap: var(--space-4);
   --panel-header-margin-bottom: var(--space-5);
@@ -125,7 +125,7 @@
   --tile-padding: var(--space-2);
 
   /* Selected digit card + canvas sizing. */
-  --selected-card-radius: var(--demo-radius);
+  --selected-card-radius: var(--base-radius);
   --selected-card-padding: var(--space-4);
   --selected-card-gap: var(--space-4);
   --selected-card-width: clamp(260px, 50%, 420px);
@@ -153,7 +153,7 @@
     var(--selected-card-width) + var(--vector-info-min-width) + var(--vector-shell-gap)
   );
   --vector-panel-padding: var(--space-2);
-  --vector-panel-radius: var(--demo-radius);
+  --vector-panel-radius: var(--base-radius);
   --vector-list-min-height: 360px;
   --vector-list-width: calc(
     var(--vector-index-width) + var(--vector-index-bracket-gap) +
@@ -191,7 +191,7 @@
   /* Footer spacing for panel actions. */
   --panel-footer-margin: var(--space-4);
 
-  /* Primitive alias tokens for shared `demos/shared/src/ui/primitives.css`.
+  /* Primitive alias tokens for shared `shared/src/ui/primitives.css`.
    * Affects: shared panel/button chrome and interaction styling. */
   --ui-panel-bg: var(--surface);
   --ui-panel-border: var(--grid-line);
@@ -206,3 +206,5 @@
   --ui-button-hover-shadow: 0 12px 24px var(--shadow-accent);
   --ui-button-focus-ring: var(--focus-accent);
 }
+
+

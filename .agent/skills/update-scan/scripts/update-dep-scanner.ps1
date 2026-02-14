@@ -40,7 +40,9 @@ Default behavior: quiet (no output). Use -Verbose for progress messages.
 
 [CmdletBinding()]
 param(
-  [string]$ReportsDir = "reports"
+  [string]$ReportsDir = "reports",
+  [string]$BackendVenvActivate = "",
+  [string]$BackendVenvPython = ""
 )
 
 Set-StrictMode -Version Latest
@@ -108,6 +110,25 @@ function Get-RegistryUnreachableReason {
   }
 
   return ""
+}
+
+function Get-ErrorSnippet {
+  param(
+    [string]$ErrorText,
+    [int]$MaxLines = 2,
+    [int]$MaxChars = 220
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ErrorText)) { return "" }
+
+  $lines = @($ErrorText -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  if ($lines.Count -eq 0) { return "" }
+
+  $snippet = (@($lines | Select-Object -First $MaxLines) -join " | ").Trim()
+  if ($snippet.Length -gt $MaxChars) {
+    $snippet = $snippet.Substring(0, $MaxChars - 3) + "..."
+  }
+  return $snippet
 }
 
 function Invoke-ToolCapture {
@@ -244,6 +265,44 @@ function Compare-SemVer {
   return 0
 }
 
+function Get-VersionTokenFromText {
+  param([string]$Text)
+
+  if ([string]::IsNullOrWhiteSpace($Text)) { return "" }
+  if ($Text -match '(?i)\bv?(\d+\.\d+\.\d+)\b') { return $Matches[1] }
+  if ($Text -match '(?i)\bv?(\d+\.\d+)\b') { return $Matches[1] }
+  return ""
+}
+
+function Invoke-JsonRequest {
+  param(
+    [string]$Url,
+    [int]$TimeoutSec = 20
+  )
+
+  try {
+    return Invoke-RestMethod -Uri $Url -TimeoutSec $TimeoutSec -Headers @{ "User-Agent" = "update-scan-script" } -ErrorAction Stop
+  } catch {
+    return $null
+  }
+}
+
+function Get-ToolUpgradeStatus {
+  param(
+    [string]$Current,
+    [string]$Latest
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Current)) { return "current_unknown" }
+  if ([string]::IsNullOrWhiteSpace($Latest)) { return "latest_unknown" }
+
+  $cmp = Compare-SemVer -A $Current -B $Latest
+  if ($null -eq $cmp) { return "uncomparable" }
+  if ($cmp -lt 0) { return "upgrade_available" }
+  if ($cmp -eq 0) { return "up_to_date" }
+  return "newer_than_reference"
+}
+
 function Get-NodeRuntimeTargetVersion {
   param([string]$RepoRoot)
 
@@ -300,7 +359,10 @@ function Test-MarkdownSeparatorRow {
 function Format-MarkdownTables {
   param(
     [string]$Markdown,
-    [int]$MaxWidth = 90
+    [int]$MaxWidth = 160,
+    [int]$LongCellThreshold = 25,
+    [int]$AggressiveRowWidth = 80,
+    [int]$AggressiveLongCellThreshold = 20
   )
 
   $lines = @($Markdown -split "`r?`n")
@@ -348,6 +410,109 @@ function Format-MarkdownTables {
       $norm += ,$arr
     }
 
+    # Replace long data-cell values with short keys and emit a grouped legend after the table.
+    $columnTitles = @()
+    $columnPrefixes = @()
+    $usedPrefixes = New-Object 'System.Collections.Generic.HashSet[string]'
+    for ($c = 0; $c -lt $colCount; $c++) {
+      $headerTitle = "$($norm[0][$c])".Trim()
+      if ([string]::IsNullOrWhiteSpace($headerTitle)) { $headerTitle = "Column $($c + 1)" }
+      $columnTitles += $headerTitle
+
+      $prefix = "C$($c + 1)"
+      $firstLetter = [regex]::Match($headerTitle, '[A-Za-z]')
+      if ($firstLetter.Success) {
+        $base = $firstLetter.Value.ToUpperInvariant()
+        $candidate = $base
+        if (-not $usedPrefixes.Add($candidate)) {
+          $candidate = "$base$($c + 1)"
+          [void]$usedPrefixes.Add($candidate)
+        }
+        $prefix = $candidate
+      } else {
+        [void]$usedPrefixes.Add($prefix)
+      }
+      $columnPrefixes += $prefix
+    }
+
+    $normOriginal = @()
+    foreach ($row in $norm) {
+      $copy = @()
+      for ($c = 0; $c -lt $colCount; $c++) {
+        $copy += "$($row[$c])"
+      }
+      $normOriginal += ,$copy
+    }
+
+    $applyKeyingPass = {
+      param([int]$Threshold)
+
+      $workNorm = @()
+      foreach ($row in $normOriginal) {
+        $copy = @()
+        for ($c = 0; $c -lt $colCount; $c++) {
+          $copy += "$($row[$c])"
+        }
+        $workNorm += ,$copy
+      }
+
+      $longValueToKeyByColumn = @()
+      $legendRowsByColumnLocal = @()
+      $nextKeyByColumn = @()
+      for ($c = 0; $c -lt $colCount; $c++) {
+        $longValueToKeyByColumn += ,@{}
+        $legendRowsByColumnLocal += ,(New-Object 'System.Collections.Generic.List[object]')
+        $nextKeyByColumn += 1
+      }
+
+      for ($r = 0; $r -lt $workNorm.Count; $r++) {
+        # row 0 = header, row 1 = separator; keep as-is for readability
+        if ($r -lt 2) { continue }
+        if (Test-MarkdownSeparatorRow -Cells $workNorm[$r]) { continue }
+        for ($c = 0; $c -lt $colCount; $c++) {
+          $cellText = $workNorm[$r][$c]
+          if ([string]::IsNullOrWhiteSpace($cellText)) { continue }
+          if ($cellText.Length -le $Threshold) { continue }
+
+          $columnMap = $longValueToKeyByColumn[$c]
+          if (-not $columnMap.ContainsKey($cellText)) {
+            $key = ("{0}{1}" -f $columnPrefixes[$c], $nextKeyByColumn[$c])
+            $nextKeyByColumn[$c]++
+            $columnMap[$cellText] = $key
+            $legendRowsByColumnLocal[$c].Add([pscustomobject]@{
+              Key = $key
+              Value = $cellText
+            }) | Out-Null
+          }
+
+          $workNorm[$r][$c] = $columnMap[$cellText]
+        }
+      }
+
+      $maxDataRowWidth = 0
+      for ($r = 2; $r -lt $workNorm.Count; $r++) {
+        if (Test-MarkdownSeparatorRow -Cells $workNorm[$r]) { continue }
+        $rowWidth = 1
+        for ($c = 0; $c -lt $colCount; $c++) {
+          $rowWidth += ($workNorm[$r][$c].Length + 3)
+        }
+        if ($rowWidth -gt $maxDataRowWidth) { $maxDataRowWidth = $rowWidth }
+      }
+
+      return [pscustomobject]@{
+        Norm = $workNorm
+        LegendRowsByColumn = $legendRowsByColumnLocal
+        MaxDataRowWidth = $maxDataRowWidth
+      }
+    }
+
+    $keyPass = & $applyKeyingPass $LongCellThreshold
+    if ($keyPass.MaxDataRowWidth -gt $AggressiveRowWidth -and $AggressiveLongCellThreshold -lt $LongCellThreshold) {
+      $keyPass = & $applyKeyingPass $AggressiveLongCellThreshold
+    }
+    $norm = $keyPass.Norm
+    $legendRowsByColumn = $keyPass.LegendRowsByColumn
+
     $widths = New-Object int[] $colCount
     for ($r = 0; $r -lt $norm.Count; $r++) {
       if (Test-MarkdownSeparatorRow -Cells $norm[$r]) { continue }
@@ -390,6 +555,22 @@ function Format-MarkdownTables {
       }
       $out.Add("| " + ($pieces -join " | ") + " |")
     }
+
+    $hasLegend = $false
+    for ($c = 0; $c -lt $colCount; $c++) {
+      if ($legendRowsByColumn[$c].Count -gt 0) { $hasLegend = $true; break }
+    }
+    if ($hasLegend) {
+      $out.Add("")
+      $out.Add("Legend:")
+      for ($c = 0; $c -lt $colCount; $c++) {
+        if ($legendRowsByColumn[$c].Count -eq 0) { continue }
+        $out.Add("$($columnTitles[$c]) keys:")
+        foreach ($entry in $legendRowsByColumn[$c]) {
+          $out.Add("- $($entry.Key): $($entry.Value)")
+        }
+      }
+    }
   }
 
   return ($out -join "`r`n")
@@ -404,39 +585,39 @@ function Get-ImpactRecommendation {
   )
 
   if ($Delta -eq "none") {
-    return [pscustomobject]@{ Recommendation = "no_changes_expected"; Reason = "No version delta detected." }
+    return [pscustomobject]@{ Recommendation = "NCE"; Reason = "No version delta detected." }
   }
   if ($Delta -eq "unknown") {
-    return [pscustomobject]@{ Recommendation = "review_recommended"; Reason = "Could not classify semantic version delta." }
+    return [pscustomobject]@{ Recommendation = "RR"; Reason = "Could not classify semantic version delta." }
   }
   if ($Delta -eq "major") {
-    return [pscustomobject]@{ Recommendation = "likely_changes_required"; Reason = "Major version upgrade often includes breaking changes." }
+    return [pscustomobject]@{ Recommendation = "LCR"; Reason = "Major version upgrade often includes breaking changes." }
   }
 
   if ($Ecosystem -eq "node") {
     if ($DependencyType -eq "devDependencies") {
-      return [pscustomobject]@{ Recommendation = "likely_no_changes"; Reason = "Dev-dependency patch/minor upgrades are usually tooling/type updates." }
+      return [pscustomobject]@{ Recommendation = "LNC"; Reason = "Dev-dependency patch/minor upgrades are usually tooling/type updates." }
     }
     if ($Delta -eq "patch") {
-      return [pscustomobject]@{ Recommendation = "likely_no_changes"; Reason = "Runtime dependency patch upgrade is usually backward compatible." }
+      return [pscustomobject]@{ Recommendation = "LNC"; Reason = "Runtime dependency patch upgrade is usually backward compatible." }
     }
-    return [pscustomobject]@{ Recommendation = "review_recommended"; Reason = "Runtime dependency minor upgrade may change behavior." }
+    return [pscustomobject]@{ Recommendation = "RR"; Reason = "Runtime dependency minor upgrade may change behavior." }
   }
 
   if ($Ecosystem -eq "python") {
     if ($Package -in @("fastapi","starlette")) {
       if ($Delta -eq "patch") {
-        return [pscustomobject]@{ Recommendation = "likely_no_changes"; Reason = "Framework patch upgrade is typically backward compatible." }
+        return [pscustomobject]@{ Recommendation = "LNC"; Reason = "Framework patch upgrade is typically backward compatible." }
       }
-      return [pscustomobject]@{ Recommendation = "review_recommended"; Reason = "Framework minor upgrade can affect behavior/contracts." }
+      return [pscustomobject]@{ Recommendation = "RR"; Reason = "Framework minor upgrade can affect behavior/contracts." }
     }
     if ($Delta -eq "patch") {
-      return [pscustomobject]@{ Recommendation = "likely_no_changes"; Reason = "Package patch upgrade is typically backward compatible." }
+      return [pscustomobject]@{ Recommendation = "LNC"; Reason = "Package patch upgrade is typically backward compatible." }
     }
-    return [pscustomobject]@{ Recommendation = "review_recommended"; Reason = "Package minor upgrade may require validation." }
+    return [pscustomobject]@{ Recommendation = "RR"; Reason = "Package minor upgrade may require validation." }
   }
 
-  return [pscustomobject]@{ Recommendation = "review_recommended"; Reason = "No ecosystem-specific rule matched." }
+  return [pscustomobject]@{ Recommendation = "RR"; Reason = "No ecosystem-specific rule matched." }
 }
 
 function Test-NodeRuntimeAgainstRange {
@@ -537,10 +718,86 @@ $ReportsPath = Join-Path $RepoRoot $ReportsDir
 $OutdatedDir = Join-Path $ReportsPath "outdated"
 New-DirectoryIfMissing $ReportsPath
 New-DirectoryIfMissing $OutdatedDir
+if ([string]::IsNullOrWhiteSpace($BackendVenvActivate)) {
+  $BackendVenvActivate = '& "$env:USERPROFILE\.venvs\linalg-demos\Scripts\Activate.ps1"'
+}
+if ([string]::IsNullOrWhiteSpace($BackendVenvPython)) {
+  $BackendVenvPython = "$env:USERPROFILE\.venvs\linalg-demos\Scripts\python.exe"
+}
 
-# Tool versions
+# Toolchain upgrade checks (read-only)
+$toolchainUpgradeRows = @()
+
+# Keep toolchain definitions in one place so adding new checks is straightforward.
+$toolchainDefs = @(
+  [pscustomobject]@{
+    Tool = "git"
+    CurrentKind = "toolInfo"
+    LatestKind = "github_tag"
+    LatestUrl = "https://api.github.com/repos/git-for-windows/git/releases/latest"
+    FallbackLatestUrl = ""
+    MissingCurrentNote = "git not found on PATH"
+  },
+  [pscustomobject]@{
+    Tool = "pip-system"
+    CurrentKind = "python_pip_system"
+    LatestKind = "pypi_info_version"
+    LatestUrl = "https://pypi.org/pypi/pip/json"
+    FallbackLatestUrl = ""
+    MissingCurrentNote = "pip not available via py/python -m pip"
+  },
+  [pscustomobject]@{
+    Tool = "pip-venv"
+    CurrentKind = "python_pip_venv"
+    LatestKind = "pypi_info_version"
+    LatestUrl = "https://pypi.org/pypi/pip/json"
+    FallbackLatestUrl = ""
+    MissingCurrentNote = "pip not available via backend venv python"
+  },
+  [pscustomobject]@{
+    Tool = "pnpm"
+    CurrentKind = "toolInfo"
+    LatestKind = "json_version"
+    LatestUrl = "https://registry.npmjs.org/pnpm/latest"
+    FallbackLatestUrl = ""
+    MissingCurrentNote = "pnpm not found on PATH"
+  },
+  [pscustomobject]@{
+    Tool = "python"
+    CurrentKind = "toolInfo"
+    LatestKind = "python_release_or_tags"
+    LatestUrl = "https://api.github.com/repos/python/cpython/releases?per_page=100"
+    FallbackLatestUrl = "https://api.github.com/repos/python/cpython/tags?per_page=200"
+    MissingCurrentNote = "python not found on PATH"
+  },
+  [pscustomobject]@{
+    Tool = "uv"
+    CurrentKind = "toolInfo"
+    LatestKind = "github_tag"
+    LatestUrl = "https://api.github.com/repos/astral-sh/uv/releases/latest"
+    FallbackLatestUrl = ""
+    MissingCurrentNote = "uv not found on PATH"
+  },
+  [pscustomobject]@{
+    Tool = "volta"
+    CurrentKind = "toolInfo"
+    LatestKind = "github_tag"
+    LatestUrl = "https://api.github.com/repos/volta-cli/volta/releases/latest"
+    FallbackLatestUrl = ""
+    MissingCurrentNote = "volta not found on PATH"
+  }
+)
+
+# Tool versions (derived from toolchain defs, plus node for runtime checks).
 $toolInfo = [ordered]@{}
-foreach ($t in @("git","node","pnpm","uv","python")) {
+$toolVersionCommands = @("node")
+foreach ($d in $toolchainDefs) {
+  if ($d.CurrentKind -eq "toolInfo" -and -not [string]::IsNullOrWhiteSpace("$($d.Tool)")) {
+    $toolVersionCommands += "$($d.Tool)"
+  }
+}
+$toolVersionCommands = @($toolVersionCommands | Sort-Object -Unique)
+foreach ($t in $toolVersionCommands) {
   $cmd = Get-Command $t -ErrorAction SilentlyContinue
   if ($null -eq $cmd) { $toolInfo[$t] = "not found"; continue }
   try {
@@ -552,11 +809,140 @@ foreach ($t in @("git","node","pnpm","uv","python")) {
   }
 }
 
+function Get-ToolchainCurrentVersion {
+  param(
+    [pscustomobject]$Def,
+    [System.Collections.IDictionary]$ToolInfo
+  )
+
+  switch ($Def.CurrentKind) {
+    "toolInfo" {
+      if ($ToolInfo.Contains($Def.Tool)) {
+        return (Get-VersionTokenFromText -Text "$($ToolInfo[$Def.Tool])")
+      }
+      return ""
+    }
+    "python_pip_system" {
+      $pipRaw = ""
+      if ($null -ne (Get-Command py -ErrorAction SilentlyContinue)) {
+        try { $pipRaw = (& py -m pip --version 2>$null | Out-String).Trim() } catch {}
+      }
+      if ([string]::IsNullOrWhiteSpace($pipRaw) -and $null -ne (Get-Command python -ErrorAction SilentlyContinue)) {
+        try { $pipRaw = (& python -m pip --version 2>$null | Out-String).Trim() } catch {}
+      }
+      return (Get-VersionTokenFromText -Text $pipRaw)
+    }
+    "python_pip_venv" {
+      $pipRaw = ""
+      if (-not [string]::IsNullOrWhiteSpace($BackendVenvPython) -and (Test-Path $BackendVenvPython)) {
+        try { $pipRaw = (& $BackendVenvPython -m pip --version 2>$null | Out-String).Trim() } catch {}
+      }
+      return (Get-VersionTokenFromText -Text $pipRaw)
+    }
+    default {
+      return ""
+    }
+  }
+}
+
+function Get-ToolchainLatestInfo {
+  param([pscustomobject]$Def)
+
+  $latest = ""
+  $notes = ""
+  $sourceUsed = $Def.LatestUrl
+
+  switch ($Def.LatestKind) {
+    "github_tag" {
+      $json = Invoke-JsonRequest -Url $Def.LatestUrl
+      if ($null -ne $json -and -not [string]::IsNullOrWhiteSpace("$($json.tag_name)")) {
+        $latest = Get-VersionTokenFromText -Text "$($json.tag_name)"
+      }
+    }
+    "pypi_info_version" {
+      $json = Invoke-JsonRequest -Url $Def.LatestUrl
+      if ($null -ne $json -and $null -ne $json.info -and -not [string]::IsNullOrWhiteSpace("$($json.info.version)")) {
+        $latest = Get-VersionTokenFromText -Text "$($json.info.version)"
+      }
+    }
+    "json_version" {
+      $json = Invoke-JsonRequest -Url $Def.LatestUrl
+      if ($null -ne $json -and -not [string]::IsNullOrWhiteSpace("$($json.version)")) {
+        $latest = Get-VersionTokenFromText -Text "$($json.version)"
+      }
+    }
+    "python_release_or_tags" {
+      $rels = Invoke-JsonRequest -Url $Def.LatestUrl
+      if ($null -ne $rels) {
+        foreach ($rel in @($rels)) {
+          if ($null -eq $rel) { continue }
+          if ($rel.prerelease -or $rel.draft) { continue }
+          $candidate = Get-VersionTokenFromText -Text "$($rel.tag_name)"
+          if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            $latest = $candidate
+            break
+          }
+        }
+      }
+
+      if ([string]::IsNullOrWhiteSpace($latest) -and -not [string]::IsNullOrWhiteSpace($Def.FallbackLatestUrl)) {
+        $tags = Invoke-JsonRequest -Url $Def.FallbackLatestUrl
+        if ($null -ne $tags) {
+          foreach ($tag in @($tags)) {
+            if ($null -eq $tag) { continue }
+            $name = "$($tag.name)"
+            # Accept only stable X.Y.Z tags (for example: v3.14.3), skip rc/a/b/dev tags.
+            if ($name -match '^\s*v?(\d+)\.(\d+)\.(\d+)\s*$') {
+              $latest = ("{0}.{1}.{2}" -f $Matches[1], $Matches[2], $Matches[3])
+              break
+            }
+          }
+          if (-not [string]::IsNullOrWhiteSpace($latest)) {
+            $sourceUsed = ("{0}; {1}" -f $Def.LatestUrl, $Def.FallbackLatestUrl)
+            $notes = "used tags fallback"
+          }
+        }
+      }
+    }
+  }
+
+  if ([string]::IsNullOrWhiteSpace($latest) -and [string]::IsNullOrWhiteSpace($notes)) {
+    $notes = "latest lookup failed or blocked"
+  }
+
+  return [pscustomobject]@{
+    Latest = $latest
+    Notes  = $notes
+    Source = $sourceUsed
+  }
+}
+
+foreach ($def in $toolchainDefs) {
+  $current = Get-ToolchainCurrentVersion -Def $def -ToolInfo $toolInfo
+  $latestInfo = Get-ToolchainLatestInfo -Def $def
+  $notes = "$($latestInfo.Notes)"
+
+  if ([string]::IsNullOrWhiteSpace($current)) {
+    if ([string]::IsNullOrWhiteSpace($notes)) { $notes = $def.MissingCurrentNote }
+    else { $notes += "; $($def.MissingCurrentNote)" }
+  }
+
+  $toolchainUpgradeRows += [pscustomobject]@{
+    Tool = $def.Tool
+    Current = $current
+    Latest = $latestInfo.Latest
+    Status = Get-ToolUpgradeStatus -Current $current -Latest $latestInfo.Latest
+    Source = $latestInfo.Source
+    Notes = $notes
+  }
+}
+
 # Discover other python manifests (informational)
 $otherPy = @(Find-OtherPythonManifests -RepoRoot $RepoRoot)
 
 # ---------- Node scan ----------
 $nodeErrors  = @()
+$nodeNotes   = @()
 $nodeResults = @()
 $nodeRows    = @()
 $nodeSummary = @()
@@ -584,33 +970,6 @@ if ($nodeScopes.Count -eq 0) {
 
     $ec2 = Invoke-ToolCapture -Exe "pnpm" -Args @("outdated","--long","--format","json","--compatible") `
       -WorkingDir $dir -StdoutPath $compOut -StderrPath $compErr
-
-    if ($ec1 -ne 0) {
-      $latestErrText = Get-ToolErrorText -Path $latestErr
-      $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $latestErrText) {
-        "likely blocked by permissions/sandbox; continuing with partial report."
-      } else {
-        "continuing with partial report."
-      }
-      $registryHint = Get-RegistryUnreachableReason -ErrorText $latestErrText
-      if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
-        $blockedHint = "$blockedHint Detected: $registryHint."
-      }
-      $nodeErrors += "pnpm latest scan exited with code ${ec1} for $scope ($rel): $blockedHint See $latestErr."
-    }
-    if ($ec2 -ne 0) {
-      $compatErrText = Get-ToolErrorText -Path $compErr
-      $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $compatErrText) {
-        "likely blocked by permissions/sandbox; continuing with partial report."
-      } else {
-        "continuing with partial report."
-      }
-      $registryHint = Get-RegistryUnreachableReason -ErrorText $compatErrText
-      if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
-        $blockedHint = "$blockedHint Detected: $registryHint."
-      }
-      $nodeErrors += "pnpm compatible scan exited with code ${ec2} for $scope ($rel): $blockedHint See $compErr."
-    }
 
     $nodeResults += [pscustomobject]@{
       Scope          = $scope
@@ -723,11 +1082,30 @@ foreach ($r in $nodeResults) {
     }
   }
 
+  $latestErrText = Get-ToolErrorText -Path $r.LatestErrPath
+  $compatErrText = Get-ToolErrorText -Path $r.CompatErrPath
+
   if (-not $latestOk) {
-    $nodeErrors += "Could not parse latest JSON for $scope (exit=$($r.LatestExitCode)); continuing with partial report. See $($r.LatestErrPath)."
+    $latestSnippet = Get-ErrorSnippet -ErrorText $latestErrText
+    $msg = "Could not parse latest JSON for $scope (exit=$($r.LatestExitCode)); continuing with partial report. See $($r.LatestErrPath)."
+    if (-not [string]::IsNullOrWhiteSpace($latestSnippet)) { $msg += " stderr: $latestSnippet" }
+    $nodeErrors += $msg
+  } elseif ($r.LatestExitCode -ne 0) {
+    $latestSnippet = Get-ErrorSnippet -ErrorText $latestErrText
+    $msg = "pnpm latest scan for $scope returned non-zero exit code $($r.LatestExitCode), but JSON parsed successfully (informational)."
+    if (-not [string]::IsNullOrWhiteSpace($latestSnippet)) { $msg += " stderr: $latestSnippet" }
+    $nodeNotes += $msg
   }
   if (-not $compatOk) {
-    $nodeErrors += "Could not parse compatible JSON for $scope (exit=$($r.CompatExitCode)); continuing with partial report. See $($r.CompatErrPath)."
+    $compatSnippet = Get-ErrorSnippet -ErrorText $compatErrText
+    $msg = "Could not parse compatible JSON for $scope (exit=$($r.CompatExitCode)); continuing with partial report. See $($r.CompatErrPath)."
+    if (-not [string]::IsNullOrWhiteSpace($compatSnippet)) { $msg += " stderr: $compatSnippet" }
+    $nodeErrors += $msg
+  } elseif ($r.CompatExitCode -ne 0) {
+    $compatSnippet = Get-ErrorSnippet -ErrorText $compatErrText
+    $msg = "pnpm compatible scan for $scope returned non-zero exit code $($r.CompatExitCode), but JSON parsed successfully (informational)."
+    if (-not [string]::IsNullOrWhiteSpace($compatSnippet)) { $msg += " stderr: $compatSnippet" }
+    $nodeNotes += $msg
   }
 }
 
@@ -809,9 +1187,13 @@ $backendReqTxt = Join-Path $RepoRoot "backend\requirements.txt"
 $foundIn  = Test-Path $backendReqIn
 $foundTxt = Test-Path $backendReqTxt
 
-$uvExit = $null
+$uvUpgradeExit = $null
+$uvFallbackExit = $null
+$uvEffectiveExit = $null
+$uvCompileMode = "not_run"
 $upgradedPath = Join-Path $ReportsPath "requirements.upgraded.txt"
 $uvErrPath    = Join-Path $ReportsPath "uv_compile.stderr.txt"
+$uvFallbackErrPath = Join-Path $ReportsPath "uv_compile.fallback.stderr.txt"
 $uvCacheDir   = Join-Path $ReportsPath ".uv-cache"
 New-DirectoryIfMissing $uvCacheDir
 
@@ -824,24 +1206,65 @@ if (-not $foundIn) {
 } elseif ($null -eq (Get-Command uv -ErrorAction SilentlyContinue)) {
   $pyErrors += "uv not found on PATH; skipping Python upgrade preview."
 } else {
-  $uvExit = Invoke-ToolCapture -Exe "uv" -Args @("pip","compile",$backendReqIn,"--upgrade","--cache-dir",$uvCacheDir) `
+  $uvCompileMode = "upgrade"
+  $uvUpgradeExit = Invoke-ToolCapture -Exe "uv" -Args @("pip","compile",$backendReqIn,"--upgrade","--cache-dir",$uvCacheDir) `
     -WorkingDir $RepoRoot -StdoutPath $upgradedPath -StderrPath $uvErrPath
 
-  if ($uvExit -ne 0) {
-    $uvErrText = Get-ToolErrorText -Path $uvErrPath
-    $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $uvErrText) {
-      "likely blocked by permissions/sandbox; continuing with partial report."
-    } else {
-      "continuing with partial report."
-    }
-    $registryHint = Get-RegistryUnreachableReason -ErrorText $uvErrText
-    if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
-      $blockedHint = "$blockedHint Detected: $registryHint."
-    }
-    $pyErrors += "uv pip compile --upgrade exited with code ${uvExit}: $blockedHint See $uvErrPath."
-  } elseif (-not $foundTxt) {
-    $pyErrors += "backend/requirements.txt not found; cannot diff pinned versions."
+  if ($uvUpgradeExit -eq 0) {
+    $uvEffectiveExit = 0
   } else {
+    $uvErrText = Get-ToolErrorText -Path $uvErrPath
+    $uvFallbackExit = Invoke-ToolCapture -Exe "uv" -Args @("pip","compile",$backendReqIn,"--cache-dir",$uvCacheDir) `
+      -WorkingDir $RepoRoot -StdoutPath $upgradedPath -StderrPath $uvFallbackErrPath
+
+    if ($uvFallbackExit -eq 0) {
+      $uvCompileMode = "fallback_without_upgrade"
+      $uvEffectiveExit = 0
+
+      $registryHint = Get-RegistryUnreachableReason -ErrorText $uvErrText
+      $uvSnippet = Get-ErrorSnippet -ErrorText $uvErrText
+      $msg = "uv pip compile --upgrade exited with code ${uvUpgradeExit}; fallback compile without --upgrade succeeded. Upgrade detection may be incomplete for latest-available packages."
+      if (-not [string]::IsNullOrWhiteSpace($registryHint)) { $msg += " Detected during --upgrade: $registryHint." }
+      if (-not [string]::IsNullOrWhiteSpace($uvSnippet)) { $msg += " stderr: $uvSnippet" }
+      $pyErrors += $msg
+    } else {
+      $uvCompileMode = "failed"
+      $uvEffectiveExit = $uvFallbackExit
+
+      $blockedHint = if (Test-ErrorLooksBlocked -ErrorText $uvErrText) {
+        "likely blocked by permissions/sandbox; continuing with partial report."
+      } else {
+        "continuing with partial report."
+      }
+      $registryHint = Get-RegistryUnreachableReason -ErrorText $uvErrText
+      if (-not [string]::IsNullOrWhiteSpace($registryHint)) {
+        $blockedHint = "$blockedHint Detected: $registryHint."
+      }
+      $uvSnippet = Get-ErrorSnippet -ErrorText $uvErrText
+      $msg = "uv pip compile --upgrade exited with code ${uvUpgradeExit}: $blockedHint See $uvErrPath."
+      if (-not [string]::IsNullOrWhiteSpace($uvSnippet)) { $msg += " stderr: $uvSnippet" }
+      $pyErrors += $msg
+
+      $uvFallbackErrText = Get-ToolErrorText -Path $uvFallbackErrPath
+      $fallbackBlockedHint = if (Test-ErrorLooksBlocked -ErrorText $uvFallbackErrText) {
+        "likely blocked by permissions/sandbox; continuing with partial report."
+      } else {
+        "continuing with partial report."
+      }
+      $fallbackRegistryHint = Get-RegistryUnreachableReason -ErrorText $uvFallbackErrText
+      if (-not [string]::IsNullOrWhiteSpace($fallbackRegistryHint)) {
+        $fallbackBlockedHint = "$fallbackBlockedHint Detected: $fallbackRegistryHint."
+      }
+      $uvFallbackSnippet = Get-ErrorSnippet -ErrorText $uvFallbackErrText
+      $fallbackMsg = "uv pip compile fallback (without --upgrade) exited with code ${uvFallbackExit}: $fallbackBlockedHint See $uvFallbackErrPath."
+      if (-not [string]::IsNullOrWhiteSpace($uvFallbackSnippet)) { $fallbackMsg += " stderr: $uvFallbackSnippet" }
+      $pyErrors += $fallbackMsg
+    }
+  }
+
+  if (($null -ne $uvEffectiveExit -and $uvEffectiveExit -eq 0) -and -not $foundTxt) {
+    $pyErrors += "backend/requirements.txt not found; cannot diff pinned versions."
+  } elseif ($null -ne $uvEffectiveExit -and $uvEffectiveExit -eq 0) {
     $curMap = ConvertFrom-RequirementsPinned $backendReqTxt
     $upgMap = ConvertFrom-RequirementsPinned $upgradedPath
 
@@ -916,11 +1339,11 @@ foreach ($row in ($pyRows | Where-Object { $_.Status -eq "update" -or $_.Status 
   }
 }
 
-$impactRequiresChanges = @($impactRows | Where-Object { $_.Recommendation -eq "likely_changes_required" }).Count -gt 0
-$impactNeedsReview = @($impactRows | Where-Object { $_.Recommendation -eq "review_recommended" }).Count -gt 0
+$impactRequiresChanges = @($impactRows | Where-Object { $_.Recommendation -eq "LCR" }).Count -gt 0
+$impactNeedsReview = @($impactRows | Where-Object { $_.Recommendation -eq "RR" }).Count -gt 0
 
 $impactFileRows = @()
-foreach ($row in ($impactRows | Where-Object { $_.Recommendation -eq "review_recommended" -or $_.Recommendation -eq "likely_changes_required" })) {
+foreach ($row in ($impactRows | Where-Object { $_.Recommendation -eq "RR" -or $_.Recommendation -eq "LCR" })) {
   $files = @()
   if ($row.Ecosystem -eq "python") {
     $files += "backend/main.py"
@@ -968,6 +1391,19 @@ foreach ($k in $toolInfo.Keys) {
   if ($null -eq $v) { $v = "" }
   $v = $v -replace '\|','\\|'
   [void]$sb.AppendLine("| $k | $v |")
+}
+[void]$sb.AppendLine("")
+
+[void]$sb.AppendLine("## Toolchain upgrade availability (read-only)")
+[void]$sb.AppendLine("")
+if ($toolchainUpgradeRows.Count -gt 0) {
+  [void]$sb.AppendLine("| Tool | Current | Latest | Status | Source | Notes |")
+  [void]$sb.AppendLine("|---|---|---|---|---|---|")
+  foreach ($row in ($toolchainUpgradeRows | Sort-Object Tool)) {
+    [void]$sb.AppendLine("| $($row.Tool) | $($row.Current) | $($row.Latest) | $($row.Status) | $($row.Source) | $($row.Notes) |")
+  }
+} else {
+  [void]$sb.AppendLine("_No toolchain checks were produced._")
 }
 [void]$sb.AppendLine("")
 
@@ -1021,7 +1457,6 @@ if ($nodeRows.Count -gt 0) {
   foreach ($row in ($nodeRows | Sort-Object Scope, Package, Type)) {
     $scope = ($row.Scope); $pkg = ($row.Package); $type = ($row.Type)
     $cur = ($row.Current); $comp = ($row.CompatibleWanted); $want = ($row.Wanted); $lat = ($row.Latest)
-    foreach ($x in @("scope","pkg","type","cur","comp","want","lat")) { }
     if ($null -eq $cur) { $cur = "" }
     if ($null -eq $comp) { $comp = "" }
     if ($null -eq $want) { $want = "" }
@@ -1075,8 +1510,17 @@ if ($nodeDiscrepancies.Count -gt 0) {
 }
 [void]$sb.AppendLine("")
 
+if ($nodeNotes.Count -gt 0) {
+  [void]$sb.AppendLine("### Node scan notes")
+  [void]$sb.AppendLine("")
+  foreach ($e in ($nodeNotes | Select-Object -Unique)) {
+    [void]$sb.AppendLine("- $e")
+  }
+  [void]$sb.AppendLine("")
+}
+
 if ($nodeErrors.Count -gt 0) {
-  [void]$sb.AppendLine("### Node scan notes / errors")
+  [void]$sb.AppendLine("### Node scan errors")
   [void]$sb.AppendLine("")
   foreach ($e in ($nodeErrors | Select-Object -Unique)) {
     [void]$sb.AppendLine("- $e")
@@ -1089,9 +1533,15 @@ if ($nodeErrors.Count -gt 0) {
 [void]$sb.AppendLine("")
 [void]$sb.AppendLine(("- backend/requirements.in found: **{0}**" -f $foundIn))
 [void]$sb.AppendLine(("- backend/requirements.txt found: **{0}**" -f $foundTxt))
-if ($null -ne $uvExit) { [void]$sb.AppendLine(("- uv exit code: **{0}**" -f $uvExit)) }
+if ($uvCompileMode -ne "not_run") { [void]$sb.AppendLine(("- compile mode: **{0}**" -f $uvCompileMode)) }
+if ($null -ne $uvUpgradeExit) { [void]$sb.AppendLine(("- uv upgrade exit code: **{0}**" -f $uvUpgradeExit)) }
+if ($null -ne $uvFallbackExit) { [void]$sb.AppendLine(("- uv fallback exit code: **{0}**" -f $uvFallbackExit)) }
+if ($null -ne $uvEffectiveExit) { [void]$sb.AppendLine(("- uv effective exit code: **{0}**" -f $uvEffectiveExit)) }
 [void]$sb.AppendLine("- upgraded preview: " + '`' + (Get-RelPath $RepoRoot $upgradedPath) + '`')
-[void]$sb.AppendLine("- uv stderr: " + '`' + (Get-RelPath $RepoRoot $uvErrPath) + '`')
+[void]$sb.AppendLine("- uv stderr (upgrade): " + '`' + (Get-RelPath $RepoRoot $uvErrPath) + '`')
+if ($null -ne $uvFallbackExit) {
+  [void]$sb.AppendLine("- uv stderr (fallback): " + '`' + (Get-RelPath $RepoRoot $uvFallbackErrPath) + '`')
+}
 [void]$sb.AppendLine("")
 
 if ($pyRows.Count -gt 0) {
@@ -1124,11 +1574,18 @@ if ($pyErrors.Count -gt 0) {
 [void]$sb.AppendLine("- Note: this is a heuristic based on semantic version deltas and dependency category.")
 [void]$sb.AppendLine("")
 if ($impactRows.Count -gt 0) {
-  [void]$sb.AppendLine("| Ecosystem | Scope | Package | Type | Current | Target | Delta | Recommendation | Reason |")
+  [void]$sb.AppendLine("| Ecosystem | Scope | Package | Type | Current | Target | Delta | Rec | Reason |")
   [void]$sb.AppendLine("|---|---|---|---|---|---|---|---|---|")
   foreach ($row in ($impactRows | Sort-Object Ecosystem, Scope, Package)) {
-    [void]$sb.AppendLine("| $($row.Ecosystem) | $($row.Scope) | $($row.Package) | $($row.DependencyType) | $($row.Current) | $($row.Target) | $($row.Delta) | $($row.Recommendation) | $($row.Reason) |")
+    $recDisplay = "$($row.Recommendation)"
+    [void]$sb.AppendLine("| $($row.Ecosystem) | $($row.Scope) | $($row.Package) | $($row.DependencyType) | $($row.Current) | $($row.Target) | $($row.Delta) | $recDisplay | $($row.Reason) |")
   }
+  [void]$sb.AppendLine("")
+  [void]$sb.AppendLine("Rec legend:")
+  [void]$sb.AppendLine("- `NCE`: no_changes_expected")
+  [void]$sb.AppendLine("- `LNC`: likely_no_changes")
+  [void]$sb.AppendLine("- `RR`: review_recommended")
+  [void]$sb.AppendLine("- `LCR`: likely_changes_required")
   [void]$sb.AppendLine("")
 } else {
   [void]$sb.AppendLine("_No upgrade candidates to assess._")
@@ -1151,72 +1608,165 @@ if ($impactFileRows.Count -gt 0) {
 
 [void]$sb.AppendLine("## Upgrade Steps (Step-by-Step)")
 [void]$sb.AppendLine("")
-[void]$sb.AppendLine("1. Upgrade frontend runtime dependencies to latest.")
+[void]$sb.AppendLine("1. Update toolchain components with available upgrades (read-only checks above).")
+[void]$sb.AppendLine("   - For Python/pip/backend commands, activate backend venv:")
+[void]$sb.AppendLine("   - " + '`' + $BackendVenvActivate + '`')
+[void]$sb.AppendLine("   - Verify interpreter:")
+[void]$sb.AppendLine("   - " + '`' + 'python -c "import sys,os; print(sys.executable); print(os.environ.get(''VIRTUAL_ENV''))"' + '`')
+[void]$sb.AppendLine("   - Verify pip in both contexts:")
+[void]$sb.AppendLine("   - " + '`' + "py -m pip --version" + '`')
+[void]$sb.AppendLine("   - " + '`' + ('& "{0}" -m pip --version' -f $BackendVenvPython) + '`')
+$pnpmToolRow = @($toolchainUpgradeRows | Where-Object { $_.Tool -eq "pnpm" } | Select-Object -First 1)
+$pnpmPinVersion = if ($pnpmToolRow.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace("$($pnpmToolRow.Latest)")) { "$($pnpmToolRow.Latest)" } else { "latest" }
+$pnpmPinExplicitCmd = "volta pin pnpm@{0}" -f $pnpmPinVersion
+[void]$sb.AppendLine("   - Optional Volta project pinning (run once per demo project):")
+[void]$sb.AppendLine("   - " + '`' + "volta pin node@lts" + '`' + " or " + '`' + "volta pin node@latest" + '`')
+[void]$sb.AppendLine("   - " + '`' + $pnpmPinExplicitCmd + '`' + " or " + '`' + "volta pin pnpm@latest" + '`')
+[void]$sb.AppendLine("   - Verify active/runtime tool versions:")
+[void]$sb.AppendLine("   - " + '`' + "node -v" + '`')
+[void]$sb.AppendLine("   - " + '`' + "pnpm -v" + '`')
+[void]$sb.AppendLine("   - " + '`' + "volta list node" + '`')
+[void]$sb.AppendLine("   - " + '`' + "volta list pnpm" + '`')
+[void]$sb.AppendLine("   - Check demo project pin declarations (run from repo root " + '`' + "linalg" + '`' + "):")
+[void]$sb.AppendLine("   - " + '`' + 'Get-ChildItem demos -Recurse -Filter package.json | Where-Object { $_.FullName -notmatch ''\\node_modules\\'' } | Select-String -Pattern ''"volta"|"packageManager"'' | ForEach-Object { "{0}:{1}: {2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() }' + '`')
+[void]$sb.AppendLine("   - Output format: " + '`' + "<path>:<line>: <matched text>" + '`' + ".")
+[void]$sb.AppendLine("   - Optional cleanup: " + '`' + "volta uninstall pnpm@<unused-version>" + '`' + " (Volta does not currently support uninstalling Node runtimes).")
+$toolchainUpgradeCandidates = @($toolchainUpgradeRows | Where-Object { $_.Status -eq "upgrade_available" } | Sort-Object Tool)
+if ($toolchainUpgradeCandidates.Count -gt 0) {
+  foreach ($row in $toolchainUpgradeCandidates) {
+    $fromTo = if (-not [string]::IsNullOrWhiteSpace("$($row.Current)") -and -not [string]::IsNullOrWhiteSpace("$($row.Latest)")) {
+      "$($row.Current) -> $($row.Latest)"
+    } else {
+      "version change available"
+    }
+
+    if ($row.Tool -eq "pip-system") {
+      [void]$sb.AppendLine("   - " + '`' + "pip-system" + '`' + " ($fromTo): " + '`' + "py -m pip install --upgrade pip" + '`')
+      [void]$sb.AppendLine("   - Verify: " + '`' + "py -m pip --version" + '`')
+    } elseif ($row.Tool -eq "pip-venv") {
+      [void]$sb.AppendLine("   - " + '`' + "pip-venv" + '`' + " ($fromTo): " + '`' + ('& "{0}" -m pip install --upgrade pip' -f $BackendVenvPython) + '`')
+      [void]$sb.AppendLine("   - Verify: " + '`' + ('& "{0}" -m pip --version' -f $BackendVenvPython) + '`')
+    } elseif ($row.Tool -eq "pnpm") {
+      [void]$sb.AppendLine("   - " + '`' + "pnpm" + '`' + " ($fromTo): " + '`' + "volta install pnpm@latest" + '`')
+      [void]$sb.AppendLine("   - Verify: " + '`' + "pnpm -v" + '`')
+    } elseif ($row.Tool -eq "uv") {
+      [void]$sb.AppendLine("   - " + '`' + "uv" + '`' + " ($fromTo): " + '`' + "uv self update" + '`')
+      [void]$sb.AppendLine("   - Verify: " + '`' + "uv --version" + '`')
+    } elseif ($row.Tool -eq "git") {
+      [void]$sb.AppendLine("   - " + '`' + "git" + '`' + " ($fromTo): " + '`' + "winget upgrade --id Git.Git -e" + '`')
+      [void]$sb.AppendLine("   - Verify: " + '`' + "git --version" + '`')
+    } elseif ($row.Tool -eq "python") {
+      [void]$sb.AppendLine("   - " + '`' + "python" + '`' + " ($fromTo): update via installer/package manager for your platform.")
+      [void]$sb.AppendLine("   - Verify: " + '`' + "python --version" + '`')
+    } elseif ($row.Tool -eq "volta") {
+      [void]$sb.AppendLine("   - " + '`' + "volta" + '`' + " ($fromTo): update via installer/package manager channel.")
+      [void]$sb.AppendLine("   - Verify: " + '`' + "volta --version" + '`')
+    } else {
+      [void]$sb.AppendLine("   - " + '`' + "$($row.Tool)" + '`' + " ($fromTo): update using the tool's official channel.")
+    }
+  }
+} else {
+  [void]$sb.AppendLine("   - No toolchain upgrades flagged as available.")
+}
+[void]$sb.AppendLine("")
+
+[void]$sb.AppendLine("2. Upgrade frontend runtime dependencies to latest (if any).")
 $runtimeInstallRows = @($nodeRuntimeRows | Where-Object { $_.Type -eq "dependencies" -or $_.Type -eq "optionalDependencies" })
 if ($runtimeInstallRows.Count -gt 0) {
   $runtimeByScope = @{}
   foreach ($row in $runtimeInstallRows) {
-    if (-not $runtimeByScope.ContainsKey($row.Scope)) { $runtimeByScope[$row.Scope] = [ordered]@{ Dir = $row.Dir; Pkgs = @() } }
+    if (-not $runtimeByScope.ContainsKey($row.Scope)) { $runtimeByScope[$row.Scope] = [ordered]@{ Dir = $row.Dir; Pkgs = @(); Names = @() } }
     $runtimeByScope[$row.Scope].Pkgs += ("{0}@latest" -f $row.Package)
+    $runtimeByScope[$row.Scope].Names += $row.Package
   }
   foreach ($scope in ($runtimeByScope.Keys | Sort-Object)) {
     $dir = $runtimeByScope[$scope].Dir
     $pkgs = @($runtimeByScope[$scope].Pkgs | Sort-Object -Unique) -join " "
+    $names = @($runtimeByScope[$scope].Names | Sort-Object -Unique) -join " "
     [void]$sb.AppendLine("   - " + '`' + ("pnpm --dir " + $dir + " add " + $pkgs) + '`')
+    [void]$sb.AppendLine("   - Verify: " + '`' + ("pnpm --dir " + $dir + " list --depth -1 " + $names) + '`')
   }
 } else {
   [void]$sb.AppendLine("   - No outdated frontend runtime dependencies found.")
 }
 [void]$sb.AppendLine("")
 
-[void]$sb.AppendLine("2. Upgrade frontend dev dependencies to latest.")
+[void]$sb.AppendLine("3. Upgrade frontend dev dependencies to latest (if any).")
 if ($nodeDevRows.Count -gt 0) {
   $devByScope = @{}
   foreach ($row in $nodeDevRows) {
-    if (-not $devByScope.ContainsKey($row.Scope)) { $devByScope[$row.Scope] = [ordered]@{ Dir = $row.Dir; Pkgs = @() } }
+    if (-not $devByScope.ContainsKey($row.Scope)) { $devByScope[$row.Scope] = [ordered]@{ Dir = $row.Dir; Pkgs = @(); Names = @() } }
     $devByScope[$row.Scope].Pkgs += ("{0}@latest" -f $row.Package)
+    $devByScope[$row.Scope].Names += $row.Package
   }
   foreach ($scope in ($devByScope.Keys | Sort-Object)) {
     $dir = $devByScope[$scope].Dir
     $pkgs = @($devByScope[$scope].Pkgs | Sort-Object -Unique) -join " "
+    $names = @($devByScope[$scope].Names | Sort-Object -Unique) -join " "
     [void]$sb.AppendLine("   - " + '`' + ("pnpm --dir " + $dir + " add -D " + $pkgs) + '`')
+    [void]$sb.AppendLine("   - Verify: " + '`' + ("pnpm --dir " + $dir + " list --depth -1 " + $names) + '`')
   }
 } else {
   [void]$sb.AppendLine("   - No outdated frontend dev dependencies found.")
 }
 [void]$sb.AppendLine("")
 
-[void]$sb.AppendLine("3. Rebuild affected frontends.")
+[void]$sb.AppendLine("4. Rebuild affected frontends.")
 $affectedDirs = @($nodeRows | Select-Object -ExpandProperty Dir -Unique | Sort-Object)
 if ($affectedDirs.Count -gt 0) {
   foreach ($dir in $affectedDirs) {
     [void]$sb.AppendLine("   - " + '`' + ("pnpm --dir " + $dir + " build") + '`')
+    [void]$sb.AppendLine("   - Verify: " + '`' + '$LASTEXITCODE' + '`' + " (expect 0)")
   }
 } else {
-  [void]$sb.AppendLine("   - No frontend scopes were scanned.")
+  if ($nodeSummary.Count -eq 0) {
+    [void]$sb.AppendLine("   - No frontend scopes were scanned.")
+  } else {
+    [void]$sb.AppendLine("   - No frontend scopes have outdated packages; no rebuild targets identified.")
+  }
 }
 [void]$sb.AppendLine("")
 
-[void]$sb.AppendLine("4. Apply backend Python upgrades from the requirements.in workflow.")
+[void]$sb.AppendLine("5. Apply backend Python upgrades from the requirements.in workflow.")
+[void]$sb.AppendLine("   - Run from repo root (" + '`' + "linalg" + '`' + ") so " + '`' + "backend/..." + '`' + " paths resolve.")
+[void]$sb.AppendLine("   - Activate shared backend venv:")
+[void]$sb.AppendLine("   - " + '`' + $BackendVenvActivate + '`')
 [void]$sb.AppendLine("   - Verify interpreter is the shared venv:")
 [void]$sb.AppendLine("   - " + '`' + 'python -c "import sys,os; print(sys.executable); print(os.environ.get(''VIRTUAL_ENV''))"' + '`')
 [void]$sb.AppendLine("   - Compile + sync:")
-[void]$sb.AppendLine("   - " + '`' + "uv pip compile backend/requirements.in -o backend/requirements.txt" + '`')
+[void]$sb.AppendLine("   - " + '`' + "uv pip compile --upgrade backend/requirements.in -o backend/requirements.txt" + '`')
+[void]$sb.AppendLine("   - Verify: " + '`' + "git diff -- backend/requirements.txt" + '`')
 [void]$sb.AppendLine("   - " + '`' + "uv pip sync backend/requirements.txt" + '`')
+[void]$sb.AppendLine("   - Verify: " + '`' + "uv pip check" + '`')
 $pyUpgradeRows = @($pyRows | Where-Object { $_.Status -eq "update" -or $_.Status -eq "added" -or $_.Status -eq "removed" })
 if ($pyUpgradeRows.Count -gt 0) {
   [void]$sb.AppendLine("   - Packages identified by scan:")
   foreach ($row in ($pyUpgradeRows | Sort-Object Package)) {
     [void]$sb.AppendLine("   - " + '`' + $row.Package + '`' + ": " + '`' + $row.Current + '`' + " -> " + '`' + $row.Upgraded + '`' + " (" + $row.Status + ")")
   }
+  [void]$sb.AppendLine("   - Verify expected pins in " + '`' + "backend/requirements.txt" + '`' + ":")
+  foreach ($row in ($pyUpgradeRows | Sort-Object Package)) {
+    $pkgPattern = [regex]::Escape("$($row.Package)")
+    if ($row.Status -eq "removed") {
+      $cmd = "Select-String -Path backend/requirements.txt -Pattern '^{0}=='" -f $pkgPattern
+      [void]$sb.AppendLine("   - " + '`' + $cmd + '`' + " (expect no matches)")
+    } else {
+      $verPattern = [regex]::Escape("$($row.Upgraded)")
+      $cmd = "Select-String -Path backend/requirements.txt -Pattern '^{0}=={1}$'" -f $pkgPattern, $verPattern
+      [void]$sb.AppendLine("   - " + '`' + $cmd + '`')
+    }
+  }
 } else {
-  [void]$sb.AppendLine("   - No backend package changes detected in preview.")
+  if ($null -ne $uvEffectiveExit -and $uvEffectiveExit -ne 0) {
+    [void]$sb.AppendLine("   - Backend upgrade preview failed; no reliable backend diff is available from this run.")
+  } else {
+    [void]$sb.AppendLine("   - No backend package changes detected in preview.")
+  }
 }
 [void]$sb.AppendLine("")
 
-[void]$sb.AppendLine("5. Re-run scan to confirm upgrades are complete.")
+[void]$sb.AppendLine("6. Re-run scan to confirm upgrades are complete.")
 [void]$sb.AppendLine("   - " + '`' + "pwsh -NoProfile -File .agent/skills/update-scan/scripts/update-dep-scanner.ps1" + '`')
-
 $reportBody = Format-MarkdownTables -Markdown $sb.ToString()
 $reportBody = $reportBody.TrimEnd("`r","`n") + "`r`n"
 Set-Content -Path $reportPath -Value $reportBody -Encoding UTF8 -NoNewline

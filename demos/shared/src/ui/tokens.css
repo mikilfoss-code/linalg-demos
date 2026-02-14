@@ -1,62 +1,64 @@
 /*
- * Shared design tokens for demo shells.
+ * Shared design tokens for base shells.
  *
- * These are intentionally generic and value-stable so demos can alias them
+ * These are intentionally generic and value-stable so base tokens can alias them
  * into local token names without visual or behavioral changes.
  */
 :root {
   /* Typography tokens.
    * Affects: body copy, headings, monospace debug/output text. */
-  --demo-font-sans: 'Space Grotesk', sans-serif;
-  --demo-font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+  --base-font-sans: 'Space Grotesk', sans-serif;
+  --base-font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
 
   /* Spacing scale.
    * Affects: gaps, paddings, margins across panels and controls. */
-  --demo-space-0: 0;
-  --demo-space-1: 0.25rem;
-  --demo-space-2: 0.5rem;
-  --demo-space-3: 0.75rem;
-  --demo-space-4: 1rem;
-  --demo-space-5: 1.25rem;
-  --demo-space-6: 1.5rem;
-  --demo-space-7: 2rem;
-  --demo-space-8: 2.5rem;
-  --demo-space-9: 3.5rem;
+  --base-space-0: 0;
+  --base-space-1: 0.25rem;
+  --base-space-2: 0.5rem;
+  --base-space-3: 0.75rem;
+  --base-space-4: 1rem;
+  --base-space-5: 1.25rem;
+  --base-space-6: 1.5rem;
+  --base-space-7: 2rem;
+  --base-space-8: 2.5rem;
+  --base-space-9: 3.5rem;
 
   /* Core palette.
    * Affects: text color, page/panel backgrounds, accent controls. */
-  --demo-ink: #1d2433;
-  --demo-ink-soft: #3c4761;
-  --demo-paper: #f4f0e6;
-  --demo-surface: #fffaf1;
-  --demo-surface-2: #f6efe1;
-  --demo-accent: #f06449;
-  --demo-accent-2: #2a9d8f;
-  --demo-accent-contrast: #fff8f0;
+  --base-ink: #1d2433;
+  --base-ink-soft: #3c4761;
+  --base-paper: #f4f0e6;
+  --base-surface: #fffaf1;
+  --base-surface-2: #f6efe1;
+  --base-accent: #f06449;
+  --base-accent-2: #2a9d8f;
+  --base-accent-contrast: #fff8f0;
 
   /* Borders, shadows, focus.
    * Affects: panel chrome, control focus rings, elevated card depth. */
-  --demo-border: rgba(29, 36, 51, 0.12);
-  --demo-shadow: rgba(18, 24, 33, 0.12);
-  --demo-shadow-soft: rgba(24, 30, 40, 0.14);
-  --demo-focus-accent: rgba(240, 100, 73, 0.35);
-  --demo-focus-teal: rgba(42, 157, 143, 0.35);
-  --demo-shadow-accent: rgba(240, 100, 73, 0.35);
-  --demo-shadow-accent-soft: rgba(240, 100, 73, 0.25);
+  --base-border: rgba(29, 36, 51, 0.12);
+  --base-shadow: rgba(18, 24, 33, 0.12);
+  --base-shadow-soft: rgba(24, 30, 40, 0.14);
+  --base-focus-accent: rgba(240, 100, 73, 0.35);
+  --base-focus-teal: rgba(42, 157, 143, 0.35);
+  --base-shadow-accent: rgba(240, 100, 73, 0.35);
+  --base-shadow-accent-soft: rgba(240, 100, 73, 0.25);
 
   /* Radii and standard shell geometry.
    * Affects: rounded cards/buttons and page container width/padding. */
-  --demo-radius: 16px;
-  --demo-panel-radius: 20px;
-  --demo-gap: var(--demo-space-4);
-  --demo-shell-max-width: 1200px;
-  --demo-shell-padding: var(--demo-space-6) var(--demo-space-6) var(--demo-space-6);
-  --demo-shell-min-height: 100vh;
+  --base-radius: 16px;
+  --base-panel-radius: 20px;
+  --base-gap: var(--base-space-4);
+  --base-shell-max-width: 1200px;
+  --base-shell-padding: var(--base-space-6) var(--base-space-6) var(--base-space-6);
+  --base-shell-min-height: 100vh;
 
   /* Background gradient palette.
    * Affects: full-page shell background layers. */
-  --demo-bg-radial-1: #fde4c9;
-  --demo-bg-radial-2: #cfe9e2;
-  --demo-bg-linear-top: #f9f3ea;
-  --demo-bg-linear-bottom: #efe8dc;
+  --base-bg-radial-1: #fde4c9;
+  --base-bg-radial-2: #cfe9e2;
+  --base-bg-linear-top: #f9f3ea;
+  --base-bg-linear-bottom: #efe8dc;
 }
+
+

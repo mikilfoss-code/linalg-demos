@@ -1,0 +1,295 @@
+body {
+  margin: 0;
+}
+
+.markov-shell {
+  --ui-button-bg: #0f4c81;
+  --ui-button-fg: #f5f9ff;
+  --ui-button-focus-ring: rgba(15, 76, 129, 0.32);
+  --ui-button-hover-shadow: 0 12px 24px rgba(15, 76, 129, 0.28);
+}
+
+code {
+  font-family: var(--base-font-mono);
+  border: 1px solid var(--base-border);
+  border-radius: 6px;
+  padding: 0.1em 0.4em;
+  background: var(--base-surface-2);
+}
+
+.markov-api-pill {
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--base-border);
+  background: rgba(255, 255, 255, 0.42);
+  color: var(--base-ink-soft);
+  font-size: 0.88rem;
+}
+
+.markov-layout {
+  display: grid;
+  gap: var(--base-space-5);
+  align-items: start;
+}
+
+.markov-top-panel {
+  min-width: 0;
+}
+
+.markov-top-grid {
+  display: grid;
+  gap: var(--base-space-5);
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  align-items: start;
+}
+
+.markov-layout--stacked-vertical .markov-top-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.markov-panel {
+  min-width: 0;
+}
+
+.base-button--secondary {
+  background: transparent;
+  color: var(--base-ink);
+  border: 1px solid var(--base-border);
+  box-shadow: none;
+}
+
+.base-button--secondary:hover {
+  box-shadow: none;
+  background: var(--base-surface-2);
+}
+
+.markov-panel-graph {
+  display: grid;
+  gap: var(--base-space-4);
+}
+
+.markov-graph {
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(14, 65, 108, 0.16);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(228, 240, 252, 0.9), transparent 45%),
+    radial-gradient(circle at 80% 85%, rgba(254, 235, 213, 0.7), transparent 42%),
+    linear-gradient(180deg, rgba(247, 251, 255, 0.95) 0%, rgba(241, 247, 253, 0.92) 100%);
+}
+
+.markov-edge {
+  stroke-linecap: round;
+}
+
+.markov-edge-label {
+  fill: rgba(10, 41, 68, 0.85);
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  font-family: var(--base-font-mono);
+}
+
+.markov-node-label {
+  text-anchor: middle;
+  dominant-baseline: middle;
+  fill: #0d2a43;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.markov-node-value {
+  text-anchor: middle;
+  fill: rgba(12, 38, 61, 0.82);
+  font-size: 11px;
+  font-family: var(--base-font-mono);
+}
+
+.markov-node-circle {
+  stroke: rgba(9, 39, 63, 0.45);
+  stroke-width: 1.4;
+  transition: fill 0.25s ease;
+}
+
+.markov-flow-dot {
+  fill: rgba(16, 107, 158, 0.86);
+}
+
+.markov-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--base-space-3);
+  font-size: 0.88rem;
+  color: var(--base-ink-soft);
+}
+
+.markov-panel-state {
+  display: grid;
+  gap: var(--base-space-3);
+}
+
+.markov-controls-block {
+  display: grid;
+  gap: var(--base-space-2);
+}
+
+.markov-control-label {
+  font-weight: 600;
+  color: var(--base-ink-soft);
+}
+
+.markov-node-count-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: var(--base-space-2);
+  align-items: center;
+}
+
+.markov-step-controls,
+.markov-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--base-space-2);
+}
+
+.markov-meta-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--base-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.44);
+  padding: var(--base-space-2) var(--base-space-3);
+  font-size: 0.92rem;
+}
+
+.markov-state-table-wrap {
+  overflow: auto;
+}
+
+.markov-state-table,
+.markov-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markov-state-table th,
+.markov-state-table td,
+.markov-matrix-table th,
+.markov-matrix-table td {
+  border: 1px solid rgba(22, 43, 66, 0.14);
+  padding: 0.46rem 0.42rem;
+  text-align: center;
+  font-size: 0.88rem;
+}
+
+.markov-state-table th,
+.markov-matrix-table th {
+  background: rgba(235, 242, 250, 0.72);
+}
+
+.markov-number-input {
+  width: 100%;
+  min-width: 68px;
+  font: inherit;
+  padding: 0.3rem 0.38rem;
+  border-radius: 8px;
+  border: 1px solid rgba(13, 48, 79, 0.2);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--base-ink);
+}
+
+.markov-number-input:focus-visible {
+  outline: 3px solid rgba(20, 108, 160, 0.27);
+  outline-offset: 1px;
+}
+
+.markov-analysis {
+  border: 1px solid rgba(13, 52, 86, 0.2);
+  border-radius: 14px;
+  padding: var(--base-space-3);
+  background: linear-gradient(180deg, rgba(235, 244, 252, 0.7) 0%, rgba(255, 250, 244, 0.6) 100%);
+  display: grid;
+  gap: var(--base-space-2);
+}
+
+.markov-analysis-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--base-space-2);
+  align-items: center;
+}
+
+.markov-analysis-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.markov-analysis-status {
+  margin: 0;
+  color: var(--base-ink-soft);
+  font-size: 0.9rem;
+}
+
+.markov-analysis-output {
+  margin: 0;
+  min-height: 112px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(14, 65, 108, 0.2);
+  border-radius: 10px;
+  background: rgba(8, 32, 52, 0.9);
+  color: #d8f0ff;
+  font-family: var(--base-font-mono);
+  padding: var(--base-space-3);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.markov-error-list {
+  margin: 0;
+  color: #9f2c2c;
+  font-size: 0.88rem;
+  min-height: 1.2em;
+}
+
+.markov-panel-matrix {
+  display: grid;
+  gap: var(--base-space-4);
+}
+
+.markov-matrix-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--base-space-3);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.markov-matrix-wrap {
+  overflow-x: auto;
+}
+
+.markov-row-sum {
+  font-family: var(--base-font-mono);
+  color: rgba(15, 45, 71, 0.9);
+}
+
+.markov-row-normalize {
+  padding: 0.34rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1080px) {
+  .markov-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markov-node-circle,
+  .base-button {
+    transition: none;
+  }
+}

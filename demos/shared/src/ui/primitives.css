@@ -1,13 +1,13 @@
 /*
  * Shared UI primitives.
  *
- * Demos map local design tokens to the --ui-* aliases consumed here.
- * This keeps class behavior consistent while allowing per-demo theming.
+ * Base styles map local design tokens to the --ui-* aliases consumed here.
+ * This keeps class behavior consistent while allowing per-base theming.
  */
 
 /* Shared panel card primitive.
  * Affects: elevated container cards for main content regions. */
-.demo-panel,
+.base-panel,
 .panel {
   background: var(--ui-panel-bg);
   border: 1px solid var(--ui-panel-border);
@@ -18,7 +18,7 @@
 
 /* Shared primary button primitive.
  * Affects: action button chrome, spacing, and interaction affordance. */
-.demo-button,
+.base-button,
 .primary {
   border: none;
   background: var(--ui-button-bg);
@@ -34,7 +34,7 @@
 
 /* Shared button hover affordance.
  * Affects: visual lift and glow on pointer hover. */
-.demo-button:hover,
+.base-button:hover,
 .primary:hover {
   transform: translateY(-1px);
   box-shadow: var(--ui-button-hover-shadow);
@@ -42,8 +42,11 @@
 
 /* Shared button keyboard focus ring.
  * Affects: visible keyboard focus state for accessibility. */
-.demo-button:focus-visible,
+.base-button:focus-visible,
 .primary:focus-visible {
   outline: 3px solid var(--ui-button-focus-ring);
   outline-offset: 2px;
 }
+
+
+
