@@ -67,11 +67,11 @@
 ### demos/linalg-markov_chains/frontend/
 - `demos/linalg-markov_chains/frontend/package.json` - Markov demo scripts and engine constraints.
 - `demos/linalg-markov_chains/frontend/index.html` - Vite HTML entry.
-- `demos/linalg-markov_chains/frontend/src/main.ts` - composition root, shared layout mounting, store wiring, and backend analysis orchestration.
+- `demos/linalg-markov_chains/frontend/src/main.ts` - composition root, shared layout mounting, store wiring, auto-step orchestration, and panel-to-graph highlight wiring.
 - `demos/linalg-markov_chains/frontend/src/layout-options.ts` - Markov demo schema-driven panel layout profile.
-- `demos/linalg-markov_chains/frontend/src/style.css` - Markov demo styles for graph, controls, matrix table, and analysis output.
+- `demos/linalg-markov_chains/frontend/src/style.css` - Markov demo styles for graph, controls, matrix table, and inline graph editors.
 - `demos/linalg-markov_chains/frontend/src/app/` - reducer/store and panel renderers (graph/state/matrix).
-- `demos/linalg-markov_chains/frontend/src/lib/` - Markov math/validation helpers and API bindings.
+- `demos/linalg-markov_chains/frontend/src/lib/` - Markov math/validation helpers and graph-generation strategies.
 
 ### .agent/
 - `.agent/rules/` - repo-specific agent operating rules.
@@ -159,22 +159,27 @@
 - `lib/api.ts` - matrix demo API exports.
 
 ### demos/linalg-markov_chains/frontend/src/
-- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, and async backend analysis dispatch.
+- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, node-count random-graph regeneration, graph auto-step run/pause loop, pending matrix auto-normalization on cross-panel click, and panel-input hover/focus edge/node highlighting.
 - `layout-options.ts` - internal layout mode selection for top graph/state row and bottom matrix panel.
 - `style.css` - Markov graph visuals, flow particles, state controls, and matrix editor styling.
 
 ### demos/linalg-markov_chains/frontend/src/app/
-- `types.ts` - canonical app state contracts for vectors, matrix, validation, and analysis lifecycle.
-- `actions.ts` - reducer action union for matrix/vector edits, stepping, normalization, and analysis events.
-- `reducer.ts` - pure state transitions including flow-animation metadata generation on each step.
+- `types.ts` - canonical app state contracts for matrix/vector editing, flow animation, and pending-matrix-normalization tracking.
+- `actions.ts` - reducer action union for matrix/vector edits, graph-inline node/edge edits, state-vector Enter-commit reset/normalization actions, and stepping.
+- `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, and flow-animation metadata generation on each step.
 - `store.ts` - minimal reducer-driven store with subscribe/dispatch APIs.
-- `render-graph.ts` - SVG directed-graph rendering with arrowheads, self-loops, probability styling, and flow-particle animation.
-- `render-state-panel.ts` - right-side controls for node count, state vectors, stepping, and backend analysis output.
-- `render-matrix-panel.ts` - transition-matrix table rendering with row sums and normalization actions.
+- `graph-layout.ts` - strategy-based graph layout engine with deterministic probability-aware positioning and fallback radial strategy.
+- `graph-data.ts` - graph render-data adapter for full-graph and top-state-mass subgraph extraction.
+- `graph-interaction-presenter.ts` - pure presenter utilities for graph hover/selection, highlight sets, and selected node/edge edit-model derivation.
+- `graph-viewport.ts` - clamped zoom/pan transform model for the SVG viewport layer.
+- `node-label.ts` - shared node-label format helpers (`N` with subscript index) reused by multiple panels.
+- `render-graph.ts` - SVG directed-graph rendering with constrained cubic edge geometry, arc-based self-loops, probability-aware styling, graph-local controls, interaction highlighting, inline on-graph value overlays/editors, subgraph-aware drawing, viewport transform support, editor-dismiss behavior (`Enter` or off-target click), and edge-aligned clustered flow-particle ("glob") animation.
+- `render-state-panel.ts` - right-side controls for state vectors, auto-step toggle, and Enter-to-commit reset/normalization workflows.
+- `render-matrix-panel.ts` - transition-matrix table rendering with row sums and matrix-wide normalization.
 
 ### demos/linalg-markov_chains/frontend/src/lib/
-- `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning.
-- `api.ts` - typed `/api/v1/markov/analyze` frontend client and runtime response validation.
+- `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning with source-node-weighted, intra-glob non-overlapping slot offsets.
+- `transition-graph-generator.ts` - strategy-based transition graph generators (random directed/no-self default) returning matrix + state vectors.
 
 ## Key Functions/Methods (By Location)
 
@@ -296,17 +301,33 @@
 - `toImageData(sample, imageWidth, imageHeight)` - converts grayscale bytes to `ImageData`.
 
 ### demos/linalg-markov_chains/frontend/src/main.ts
-- `runAnalysis()` - triggers backend Markov analysis and commits async success/error state.
 - `render()` - fan-out render pass for graph/state/matrix panels from canonical store state.
 
 ### demos/linalg-markov_chains/frontend/src/app/reducer.ts
 - `createInitialState() -> AppState` - initializes default transition matrix/state vectors and validation.
-- `reducer(state, action) -> AppState` - handles all edits, normalization, stepping, and analysis lifecycle transitions.
+- `reducer(state, action) -> AppState` - handles all edits, generated-graph apply, graph-inline edge/node edit rules, state-vector Enter-commit reset/normalization actions, deferred matrix normalization tracking, and stepping.
+
+### demos/linalg-markov_chains/frontend/src/app/graph-layout.ts
+- `createGraphLayoutEngine(options?)` - registers layout strategies and resolves active strategy at render time.
+- `probabilityToEdgeLength(probability, minLength, maxLength)` - linearly maps probability to edge-length target for graph geometry.
+
+### demos/linalg-markov_chains/frontend/src/app/graph-data.ts
+- `buildGraphRenderData(state, selection) -> GraphRenderData` - derives render-ready matrix/vector/index maps and edge key sets for full graph or subgraph modes.
+
+### demos/linalg-markov_chains/frontend/src/app/graph-viewport.ts
+- `normalizeGraphViewportTransform(transform, fallback) -> GraphViewportTransform` - clamps external zoom/pan updates into safe bounds.
+
+### demos/linalg-markov_chains/frontend/src/app/graph-interaction-presenter.ts
+- `sanitizeGraphInteractionState(interaction, appState)` - removes invalid hover/selection targets when node counts change.
+- `buildGraphInteractionPresentation(appState, interaction)` - produces highlight sets and selected edit models for node/edge interaction.
 
 ### demos/linalg-markov_chains/frontend/src/lib/markov.ts
 - `buildValidationSummary(...) -> ValidationSummary` - validates matrix/vector probability constraints and step/analyze gates.
 - `stepVector(currentVector, transitionMatrix) -> number[]` - computes `x_{t+1} = x_t P`.
 - `createFlowAnimation(...) -> FlowAnimationState` - computes per-edge mass transfer and particle timing for animated updates.
+
+### demos/linalg-markov_chains/frontend/src/lib/transition-graph-generator.ts
+- `createTransitionGraphGenerator(options?)` - registers generation strategies and produces transition matrices/state vectors for requested node counts.
 
 ## Theme And Style Tokens (Vectors Frontend)
 
@@ -396,7 +417,7 @@
 - `USE_RECURSIVE_LAYOUT_ENGINE` (`demos/linalg-vectors/frontend/src/app/view.ts`) - temporary vectors internal migration toggle between recursive and legacy layout rendering paths.
 - `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
-- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor.
+- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor (currently supports up to 8 states).
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
 
 ## Global Objects / Shared State

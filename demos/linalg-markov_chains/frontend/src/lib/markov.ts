@@ -1,17 +1,54 @@
 export const MIN_NODE_COUNT = 2;
-export const MAX_NODE_COUNT = 6;
+export const MAX_NODE_COUNT = 8;
 export const DEFAULT_NODE_COUNT = 4;
 
 const VALUE_EPSILON = 1e-9;
 const PROBABILITY_SUM_TOLERANCE = 1e-4;
 const PARTICLE_MASS_THRESHOLD = 0.012;
+const FLOW_PARTICLE_RADIUS = 2.2;
+const FLOW_GLOB_MIN_PARTICLES = 2;
+const FLOW_GLOB_MAX_PARTICLES = 12;
+const FLOW_GLOB_MIN_SEPARATION = 0.35;
+const FLOW_GLOB_STRETCH_ALONG_RATIO = 1.65;
+const FLOW_GLOB_STRETCH_NORMAL_RATIO = 0.5;
+const FLOW_GLOB_SOURCE_SIZE_SCALE = 0.95;
+const FLOW_GLOB_EDGE_SPREAD_MIN = 0.34;
+const FLOW_GLOB_EDGE_SPREAD_MAX = 1;
+const FLOW_GLOB_EDGE_SPREAD_EXPONENT = 1.25;
+const FLOW_GLOB_SPREAD_EXPANSION = 0.72;
+
+type GlobSlot = {
+  x: number;
+  y: number;
+};
+
+const FLOW_GLOB_SLOT_COORDS: readonly GlobSlot[] = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+  { x: 2, y: 0 },
+  { x: -2, y: 0 },
+  { x: 1, y: 1 },
+  { x: -1, y: 1 },
+  { x: 1, y: -1 },
+  { x: -1, y: -1 },
+  { x: 3, y: 0 },
+  { x: -3, y: 0 },
+  { x: 0, y: 2 },
+  { x: 0, y: -2 },
+  { x: 2, y: 1 },
+  { x: -2, y: 1 },
+  { x: 2, y: -1 },
+  { x: -2, y: -1 },
+];
 
 export type ValidationSummary = {
   matrixValid: boolean;
   initialVectorValid: boolean;
   currentVectorValid: boolean;
   canStep: boolean;
-  canAnalyze: boolean;
   rowSums: number[];
   initialVectorSum: number;
   currentVectorSum: number;
@@ -32,7 +69,8 @@ export type FlowParticle = {
   delayMs: number;
   durationMs: number;
   radius: number;
-  opacity: number;
+  offsetAlong: number;
+  offsetNormal: number;
 };
 
 export type FlowAnimationState = {
@@ -73,7 +111,9 @@ export function createDefaultMatrix(nodeCount: number): number[][] {
     ];
   }
 
-  const matrix: number[][] = Array.from({ length: count }, () => Array.from({ length: count }, () => 0));
+  const matrix: number[][] = Array.from({ length: count }, () =>
+    Array.from({ length: count }, () => 0)
+  );
   for (let rowIndex = 0; rowIndex < count; rowIndex += 1) {
     matrix[rowIndex][rowIndex] = 0.48;
     matrix[rowIndex][(rowIndex + 1) % count] += 0.34;
@@ -191,8 +231,16 @@ export function buildValidationSummary(
     }
   }
 
-  const initialVectorResult = validateProbabilityVector(initialVector, nodeCount, 'Initial state vector');
-  const currentVectorResult = validateProbabilityVector(currentVector, nodeCount, 'Current state vector');
+  const initialVectorResult = validateProbabilityVector(
+    initialVector,
+    nodeCount,
+    'Initial state vector'
+  );
+  const currentVectorResult = validateProbabilityVector(
+    currentVector,
+    nodeCount,
+    'Current state vector'
+  );
 
   errors.push(...initialVectorResult.errors, ...currentVectorResult.errors);
 
@@ -204,7 +252,6 @@ export function buildValidationSummary(
     initialVectorValid,
     currentVectorValid,
     canStep: matrixValid && currentVectorValid,
-    canAnalyze: matrixValid && currentVectorValid && initialVectorValid,
     rowSums,
     initialVectorSum: initialVectorResult.sum,
     currentVectorSum: currentVectorResult.sum,
@@ -250,21 +297,39 @@ export function createFlowAnimation(
     .filter((edge) => edge.mass >= PARTICLE_MASS_THRESHOLD)
     .sort((left, right) => right.mass - left.mass)
     .forEach((edge, edgeIndex) => {
-      const particleCount = Math.max(1, Math.min(8, Math.round(edge.mass * 84)));
+      const edgeSeed = (id + 17) * (edgeIndex + 11);
+      const sourceValue = clampProbability(fromVector[edge.from] ?? 0);
+      const particleCount =
+        FLOW_GLOB_MIN_PARTICLES +
+        Math.round((FLOW_GLOB_MAX_PARTICLES - FLOW_GLOB_MIN_PARTICLES) * sourceValue);
+      const edgeSpreadScale =
+        FLOW_GLOB_EDGE_SPREAD_MIN +
+        Math.pow(clampProbability(edge.probability), FLOW_GLOB_EDGE_SPREAD_EXPONENT) *
+          (FLOW_GLOB_EDGE_SPREAD_MAX - FLOW_GLOB_EDGE_SPREAD_MIN);
+      const spreadScale =
+        1 +
+        sourceValue * FLOW_GLOB_SOURCE_SIZE_SCALE +
+        edgeSpreadScale * FLOW_GLOB_SPREAD_EXPANSION;
+      const baseSpacing = FLOW_PARTICLE_RADIUS * 2 + FLOW_GLOB_MIN_SEPARATION;
+      const alongStep = baseSpacing * FLOW_GLOB_STRETCH_ALONG_RATIO * spreadScale;
+      const normalStep = baseSpacing * FLOW_GLOB_STRETCH_NORMAL_RATIO * spreadScale;
+      const delayMs = 26 + pseudoRandom(edgeSeed + 13) * 168;
+      const durationMs = 520 + pseudoRandom(edgeSeed + 101) * 300;
+      maxTravelMs = Math.max(maxTravelMs, delayMs + durationMs);
+
       for (let particleIndex = 0; particleIndex < particleCount; particleIndex += 1) {
-        const seed = (id + 17) * (edgeIndex + 11) * (particleIndex + 5);
-        const delayMs = 30 + pseudoRandom(seed) * 360;
-        const durationMs = 420 + pseudoRandom(seed + 101) * 360;
-        const radius = 1.8 + pseudoRandom(seed + 307) * 1.8;
-        const opacity = 0.32 + pseudoRandom(seed + 503) * 0.46;
-        maxTravelMs = Math.max(maxTravelMs, delayMs + durationMs);
+        const slot =
+          FLOW_GLOB_SLOT_COORDS[particleIndex] ??
+          FLOW_GLOB_SLOT_COORDS[FLOW_GLOB_SLOT_COORDS.length - 1];
+
         particles.push({
           id: `particle-${id}-${edge.from}-${edge.to}-${particleIndex}`,
           pathKey: edge.pathKey,
           delayMs,
           durationMs,
-          radius,
-          opacity,
+          radius: FLOW_PARTICLE_RADIUS,
+          offsetAlong: slot.x * alongStep,
+          offsetNormal: slot.y * normalStep,
         });
       }
     });
@@ -291,9 +356,9 @@ export function formatProbability(value: number, digits = 3): string {
  */
 export function colorForStateValue(value: number): string {
   const normalized = clampProbability(value);
-  const hue = 198 - normalized * 146;
-  const saturation = 72;
-  const lightness = 90 - normalized * 40;
+  const hue = 206;
+  const saturation = 68;
+  const lightness = 93 - normalized * 56;
   return `hsl(${hue.toFixed(1)} ${saturation}% ${lightness.toFixed(1)}%)`;
 }
 
@@ -305,7 +370,7 @@ export function lerp(fromValue: number, toValue: number, progress: number): numb
 }
 
 /**
- * Normalize an integer node-count request into the supported [2, 6] range.
+ * Normalize an integer node-count request into the supported [2, 8] range.
  */
 export function clampNodeCount(nodeCount: number): number {
   if (!Number.isFinite(nodeCount)) return DEFAULT_NODE_COUNT;

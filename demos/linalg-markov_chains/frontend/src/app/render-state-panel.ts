@@ -1,52 +1,73 @@
 import type { Action } from './actions';
 import type { AppState } from './types';
-import { formatProbability, MAX_NODE_COUNT, MIN_NODE_COUNT } from '../lib/markov';
+import { formatNodeLabelMarkup } from './node-label';
 
 export type StatePanelController = {
   element: HTMLElement;
   render: (state: AppState) => void;
+  setAutoStepRunning: (running: boolean) => void;
 };
 
 /**
- * Create the right-side panel containing state vectors, controls, and backend analysis.
+ * Create the right-side panel containing state vectors and step controls.
  */
 export function createStatePanelController(options: {
   dispatch: (action: Action) => void;
-  onAnalyze: () => void;
+  onToggleAutoStep: () => void;
 }): StatePanelController {
   const element = createTemplateElement(`
     <section class="base-panel markov-panel markov-panel-state">
       <h2 class="base-panel-title">State Vectors</h2>
       <p class="base-subtitle">Edit x<sub>0</sub>, edit x<sub>t</sub>, and advance one Markov step at a time.</p>
 
-      <div class="markov-controls-block">
-        <label class="markov-control-label" for="node-count-range">Node count</label>
-        <div class="markov-node-count-controls">
-          <input
-            id="node-count-range"
-            type="range"
-            min="${MIN_NODE_COUNT}"
-            max="${MAX_NODE_COUNT}"
-            step="1"
-          />
-          <input
-            id="node-count-number"
-            type="number"
-            min="${MIN_NODE_COUNT}"
-            max="${MAX_NODE_COUNT}"
-            step="1"
-          />
-        </div>
+      <div class="markov-step-row">
+        <span class="markov-inline-heading">Step:</span>
+        <button
+          class="base-button base-button--secondary markov-inline-toggle"
+          type="button"
+          data-action="step"
+          id="state-step-one-button"
+        >
+          One
+        </button>
+        <button
+          class="base-button base-button--secondary markov-inline-toggle"
+          type="button"
+          data-action="toggle-auto-step"
+          aria-pressed="false"
+          id="state-toggle-auto-step-button"
+        >
+          Auto
+        </button>
+        <span class="markov-step-count-inline">
+          Count:
+          <strong id="step-count">0</strong>
+        </span>
       </div>
 
-      <div class="markov-step-controls">
-        <button class="base-button" type="button" data-action="step">Step: x<sub>t+1</sub> = x<sub>t</sub>P</button>
-        <button class="base-button base-button--secondary" type="button" data-action="reset">Reset to x<sub>0</sub></button>
-      </div>
-
-      <div class="markov-meta-line">
-        <span>Step count:</span>
-        <strong id="step-count">0</strong>
+      <div class="markov-step-row markov-step-row--initial">
+        <span class="markov-inline-heading">Initial State:</span>
+        <button
+          class="base-button base-button--secondary markov-initial-button"
+          type="button"
+          data-action="set-initial-uniform"
+        >
+          Uniform
+        </button>
+        <button
+          class="base-button base-button--secondary markov-initial-button"
+          type="button"
+          data-action="set-initial-random"
+        >
+          Random
+        </button>
+        <button
+          class="base-button base-button--secondary markov-initial-button"
+          type="button"
+          data-action="set-initial-current"
+        >
+          Current
+        </button>
       </div>
 
       <div class="markov-state-table-wrap">
@@ -62,54 +83,22 @@ export function createStatePanelController(options: {
         </table>
       </div>
 
-      <div class="markov-inline-actions">
-        <button class="base-button base-button--secondary" type="button" data-action="normalize-initial">Normalize x<sub>0</sub></button>
-        <button class="base-button base-button--secondary" type="button" data-action="normalize-current">Normalize x<sub>t</sub></button>
-      </div>
-
-      <div class="markov-meta-line">
-        <span>sum(x<sub>0</sub>):</span>
-        <strong id="initial-sum">1.000</strong>
-      </div>
-      <div class="markov-meta-line">
-        <span>sum(x<sub>t</sub>):</span>
-        <strong id="current-sum">1.000</strong>
-      </div>
-
-      <div class="markov-analysis" aria-live="polite">
-        <div class="markov-analysis-head">
-          <h3>Backend Analysis</h3>
-          <button class="base-button" type="button" data-action="analyze">Analyze</button>
-        </div>
-        <p class="markov-analysis-status" id="analysis-status">Ready to analyze.</p>
-        <pre class="markov-analysis-output" id="analysis-output">No analysis yet.</pre>
-      </div>
-
       <p class="markov-error-list" id="validation-errors" role="status"></p>
     </section>
   `);
 
-  const nodeCountRange = requireElement<HTMLInputElement>(element, '#node-count-range');
-  const nodeCountNumber = requireElement<HTMLInputElement>(element, '#node-count-number');
   const stateVectorBody = requireElement<HTMLTableSectionElement>(element, '#state-vector-body');
   const stepCountEl = requireElement<HTMLElement>(element, '#step-count');
-  const initialSumEl = requireElement<HTMLElement>(element, '#initial-sum');
-  const currentSumEl = requireElement<HTMLElement>(element, '#current-sum');
   const validationErrorsEl = requireElement<HTMLElement>(element, '#validation-errors');
-  const analysisStatusEl = requireElement<HTMLElement>(element, '#analysis-status');
-  const analysisOutputEl = requireElement<HTMLPreElement>(element, '#analysis-output');
-  const stepButton = requireElement<HTMLButtonElement>(element, '[data-action="step"]');
-  const analyzeButton = requireElement<HTMLButtonElement>(element, '[data-action="analyze"]');
-
-  nodeCountRange.addEventListener('input', (event) => {
-    const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
-    options.dispatch({ type: 'SET_NODE_COUNT', nodeCount: value });
-  });
-
-  nodeCountNumber.addEventListener('change', (event) => {
-    const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
-    options.dispatch({ type: 'SET_NODE_COUNT', nodeCount: value });
-  });
+  const stepButton = requireElement<HTMLButtonElement>(element, '#state-step-one-button');
+  const toggleAutoStepButton = requireElement<HTMLButtonElement>(
+    element,
+    '#state-toggle-auto-step-button'
+  );
+  let isAutoStepRunning = false;
+  let highlightOneStepButton = false;
+  let oneStepHighlightTimeoutId: number | null = null;
+  updateControlButtonStyles();
 
   stateVectorBody.addEventListener('change', (event) => {
     const target = event.target;
@@ -136,6 +125,36 @@ export function createStatePanelController(options: {
     }
   });
 
+  stateVectorBody.addEventListener('keydown', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (event.key !== 'Enter') return;
+
+    const index = Number.parseInt(target.dataset.index ?? '', 10);
+    const value = Number.parseFloat(target.value);
+
+    if (target.dataset.kind === 'current') {
+      event.preventDefault();
+      options.dispatch({
+        type: 'SET_CURRENT_CELL',
+        index,
+        value,
+      });
+      options.dispatch({ type: 'APPLY_CURRENT_AS_INITIAL_RESET' });
+      return;
+    }
+
+    if (target.dataset.kind === 'initial') {
+      event.preventDefault();
+      options.dispatch({
+        type: 'SET_INITIAL_CELL',
+        index,
+        value,
+      });
+      options.dispatch({ type: 'NORMALIZE_INITIAL_AND_RESET' });
+    }
+  });
+
   element.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -146,18 +165,19 @@ export function createStatePanelController(options: {
     switch (action) {
       case 'step':
         options.dispatch({ type: 'STEP' });
+        pulseOneStepButton();
         break;
-      case 'reset':
-        options.dispatch({ type: 'RESET_TO_INITIAL' });
+      case 'toggle-auto-step':
+        options.onToggleAutoStep();
         break;
-      case 'normalize-initial':
-        options.dispatch({ type: 'NORMALIZE_INITIAL_VECTOR' });
+      case 'set-initial-uniform':
+        options.dispatch({ type: 'SET_INITIAL_UNIFORM' });
         break;
-      case 'normalize-current':
-        options.dispatch({ type: 'NORMALIZE_CURRENT_VECTOR' });
+      case 'set-initial-random':
+        options.dispatch({ type: 'SET_INITIAL_RANDOM' });
         break;
-      case 'analyze':
-        options.onAnalyze();
+      case 'set-initial-current':
+        options.dispatch({ type: 'SET_INITIAL_FROM_CURRENT' });
         break;
       default:
         break;
@@ -166,15 +186,14 @@ export function createStatePanelController(options: {
 
   return {
     element,
+    setAutoStepRunning(running) {
+      isAutoStepRunning = running;
+      updateControlButtonStyles();
+    },
     render(state) {
-      nodeCountRange.value = String(state.nodeCount);
-      nodeCountNumber.value = String(state.nodeCount);
       stepCountEl.textContent = String(state.stepCount);
-      initialSumEl.textContent = formatProbability(state.validation.initialVectorSum);
-      currentSumEl.textContent = formatProbability(state.validation.currentVectorSum);
 
       stepButton.disabled = !state.validation.canStep;
-      analyzeButton.disabled = !state.validation.canAnalyze || state.analysis.status === 'loading';
 
       stateVectorBody.innerHTML = buildStateRowsMarkup(state);
 
@@ -183,54 +202,38 @@ export function createStatePanelController(options: {
       } else {
         validationErrorsEl.textContent = '';
       }
-
-      if (state.analysis.status === 'loading') {
-        analysisStatusEl.textContent = 'Analyzing transition behavior...';
-        analysisOutputEl.textContent = 'Working...';
-      } else if (state.analysis.status === 'error') {
-        analysisStatusEl.textContent = 'Analysis failed.';
-        analysisOutputEl.textContent = state.analysis.errorMessage ?? 'Unknown error.';
-      } else if (state.analysis.status === 'success' && state.analysis.result) {
-        const result = state.analysis.result;
-        analysisStatusEl.textContent = `Spectral gap: ${
-          result.spectralGap === null ? 'n/a' : formatProbability(result.spectralGap, 4)
-        }`;
-        const eigenSummary = result.eigenvalues
-          .slice(0, 4)
-          .map(
-            (eigenvalue, index) =>
-              `lambda${index + 1} = ${formatProbability(eigenvalue.real, 4)} + ${formatProbability(
-                eigenvalue.imag,
-                4
-              )}i |lambda|=${formatProbability(eigenvalue.magnitude, 4)}`
-          )
-          .join('\n');
-
-        analysisOutputEl.textContent = [
-          `row sums: [${result.rowSums.map((value) => formatProbability(value, 4)).join(', ')}]`,
-          `next x:    [${result.nextVector.map((value) => formatProbability(value, 4)).join(', ')}]`,
-          `stationary:[${result.stationaryDistribution
-            .map((value) => formatProbability(value, 4))
-            .join(', ')}]`,
-          `residual: ${formatProbability(result.stationaryResidual, 6)}`,
-          eigenSummary,
-        ].join('\n');
-      } else {
-        analysisStatusEl.textContent = 'Ready to analyze.';
-        analysisOutputEl.textContent = 'No analysis yet.';
-      }
     },
   };
+
+  function pulseOneStepButton() {
+    highlightOneStepButton = true;
+    updateControlButtonStyles();
+
+    if (oneStepHighlightTimeoutId !== null) {
+      window.clearTimeout(oneStepHighlightTimeoutId);
+    }
+    oneStepHighlightTimeoutId = window.setTimeout(() => {
+      highlightOneStepButton = false;
+      oneStepHighlightTimeoutId = null;
+      updateControlButtonStyles();
+    }, 200);
+  }
+
+  function updateControlButtonStyles() {
+    stepButton.classList.toggle('is-active', highlightOneStepButton);
+    toggleAutoStepButton.classList.toggle('is-active', isAutoStepRunning);
+    toggleAutoStepButton.setAttribute('aria-pressed', isAutoStepRunning ? 'true' : 'false');
+  }
 }
 
 function buildStateRowsMarkup(state: AppState): string {
   return Array.from({ length: state.nodeCount }, (_, index) => {
     return `
       <tr>
-        <th scope="row">S${index + 1}</th>
+        <th scope="row">${formatNodeLabelMarkup(index)}</th>
         <td>
           <input
-            class="markov-number-input"
+            class="markov-number-input markov-number-input--state"
             data-kind="initial"
             data-index="${index}"
             type="number"
@@ -243,7 +246,7 @@ function buildStateRowsMarkup(state: AppState): string {
         </td>
         <td>
           <input
-            class="markov-number-input"
+            class="markov-number-input markov-number-input--state"
             data-kind="current"
             data-index="${index}"
             type="number"

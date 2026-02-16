@@ -1,5 +1,6 @@
 import type { Action } from './actions';
 import type { AppState } from './types';
+import { formatNodeLabelMarkup } from './node-label';
 import { formatProbability } from '../lib/markov';
 
 export type MatrixPanelController = {
@@ -20,9 +21,11 @@ export function createMatrixPanelController(options: {
           <h2 class="base-panel-title">Transition Matrix P</h2>
           <p class="base-subtitle">Each row defines outgoing probabilities from one state.</p>
         </div>
-        <button class="base-button base-button--secondary" type="button" data-action="normalize-matrix">
-          Normalize all rows
-        </button>
+        <div class="markov-inline-actions">
+          <button class="base-button base-button--secondary" type="button" data-action="normalize-matrix">
+            Normalize all rows
+          </button>
+        </div>
       </div>
 
       <div class="markov-matrix-wrap" id="matrix-wrap"></div>
@@ -40,12 +43,6 @@ export function createMatrixPanelController(options: {
 
     if (action === 'normalize-matrix') {
       options.dispatch({ type: 'NORMALIZE_MATRIX' });
-      return;
-    }
-
-    if (action === 'normalize-row') {
-      const rowIndex = Number.parseInt(target.dataset.rowIndex ?? '', 10);
-      options.dispatch({ type: 'NORMALIZE_ROW', rowIndex });
     }
   });
 
@@ -74,7 +71,10 @@ export function createMatrixPanelController(options: {
 }
 
 function buildMatrixMarkup(state: AppState): string {
-  const columnHeaders = Array.from({ length: state.nodeCount }, (_, index) => `<th scope="col">S${index + 1}</th>`).join('');
+  const columnHeaders = Array.from(
+    { length: state.nodeCount },
+    (_, index) => `<th scope="col">${formatNodeLabelMarkup(index)}</th>`
+  ).join('');
 
   const bodyRows = Array.from({ length: state.nodeCount }, (_, rowIndex) => {
     const rowCells = Array.from({ length: state.nodeCount }, (_, colIndex) => {
@@ -82,7 +82,7 @@ function buildMatrixMarkup(state: AppState): string {
       return `
         <td>
           <input
-            class="markov-number-input"
+            class="markov-number-input markov-number-input--matrix"
             type="number"
             min="0"
             max="1"
@@ -98,19 +98,9 @@ function buildMatrixMarkup(state: AppState): string {
 
     return `
       <tr>
-        <th scope="row">S${rowIndex + 1}</th>
+        <th scope="row">${formatNodeLabelMarkup(rowIndex)}</th>
         ${rowCells}
         <td class="markov-row-sum">${formatProbability(state.validation.rowSums[rowIndex], 4)}</td>
-        <td>
-          <button
-            class="base-button base-button--secondary markov-row-normalize"
-            type="button"
-            data-action="normalize-row"
-            data-row-index="${rowIndex}"
-          >
-            Normalize
-          </button>
-        </td>
       </tr>
     `;
   }).join('');
@@ -122,7 +112,6 @@ function buildMatrixMarkup(state: AppState): string {
           <th scope="col">From \\ To</th>
           ${columnHeaders}
           <th scope="col">Row sum</th>
-          <th scope="col">Action</th>
         </tr>
       </thead>
       <tbody>${bodyRows}</tbody>

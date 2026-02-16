@@ -1,2 +1,5 @@
 packages:
-  - "demos/*/frontend"
+  - demos/*/frontend
+
+onlyBuiltDependencies:
+  - esbuild

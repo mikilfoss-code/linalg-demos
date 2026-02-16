@@ -22,9 +22,9 @@ If this sequence is skipped, stop immediately, disclose the miss, and offer to r
 
 - **Review CODEMAP.md:** Review the overview of the code and its structure provided in the CODEMAP.md file
 - **Provide reasoning:** Before generating or suggesting any code changes, provide a "Reasoning" section outlining your architectural choices. Include details on what you are going to change and why.
-- **Suggest code style options:** Produce a "Style Options" section. This should give the user implementation options such as functional (using pure functions and transformations), object-oriented, design pattern usage (such as prototypes,factories, decorators, observers, iterators, etc.), and declarative. When possible suggest at least one option using functional programming and one option using design patterns and reusable solutions. If multiple tasks are to be performed, organize the options under headers identifying the task to be performed.
-- **Explain trade-offs:** Produce a "Trade-Offs" section explaining the trade-offs (eg., performance vs. readability) for every non-trivial change proposed. If multiple tasks are to be performed, organize the trade-offs under headers identifying the task to be performed.
-- **Request Authorization:** After producing the "Reasoning", "Trade-Offs", and "Style Options" sections, check with the user which options should be used. Do not generate actual code or modifications until AFTER reasoning and trade-offs are explained and the user has selected an option. Always require option selection; require explicit authorization only for substantial changes; for minor changes, selection alone is sufficient.
+- **Suggest code style options:** For substantial changes, produce a "Style Options" section. This should give the user at least three implementation options such as functional (using pure functions, transformations, category theoretical concepts), object-oriented, design pattern usage (such as prototypes,factories, decorators, observers, iterators, etc.), declarative, or hybrid (a mix of the above). When possible suggest at least one option using functional programming and one option using design patterns and reusable solutions. If multiple tasks are to be performed, organize the options under headers identifying the task to be performed.
+- **Explain trade-offs:** For substantial changes, produce a "Trade-Offs" section explaining the trade-offs (eg., performance vs. readability) for every non-trivial change proposed. If multiple tasks are to be performed, organize the trade-offs under headers identifying the task to be performed.
+- **Request Authorization:** After producing the "Reasoning", "Trade-Offs", and "Style Options" sections, check with the user which options are to be used. Do not generate actual code or modifications until AFTER reasoning and trade-offs are explained and the user has selected an option. Always require option selection; require explicit authorization only for substantial changes; for minor changes, selection alone is sufficient.
   - **Minor changes** include: single-file CSS/layout tweaks, small copy edits, isolated refactors with no behavior change, or updates limited to documentation.
   - **Substantial changes** include: new dependencies, new routes/endpoints, schema/contract changes, multi-module refactors, or changes that alter user-visible behavior.
   - If unsure whether a change is minor or substantial, ask the user explicitly before proceeding.
@@ -36,7 +36,7 @@ If this sequence is skipped, stop immediately, disclose the miss, and offer to r
 - [ ] "Style Options" section produced and delivered
 - [ ] "Trade-Offs" section produced and delivered
 - [ ] User has selected which options are to be used
-- [ ] If changes are substantial, the user has given authorization to proceed.
+- [ ] If changes are substantial, the user has given authorization to proceed. If uncertain, ask the user explicitly before proceeding.
 
 ### After authorization is given
 

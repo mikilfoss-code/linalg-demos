@@ -1,5 +1,5 @@
 import type { Action } from './actions';
-import type { AnalysisState, AppState } from './types';
+import type { AppState } from './types';
 import {
   buildValidationSummary,
   clampNodeCount,
@@ -13,14 +13,6 @@ import {
   resizeVectorToNodeCount,
   stepVector,
 } from '../lib/markov';
-
-function createIdleAnalysisState(): AnalysisState {
-  return {
-    status: 'idle',
-    result: null,
-    errorMessage: null,
-  };
-}
 
 /**
  * Create the initial reducer state for the Markov demo.
@@ -38,9 +30,9 @@ export function createInitialState(): AppState {
     stepCount: 0,
     sourceMode: 'manual',
     validation: buildValidationSummary(transitionMatrix, initialVector, currentVector),
-    analysis: createIdleAnalysisState(),
     flowAnimation: null,
     nextAnimationId: 1,
+    hasPendingMatrixEdits: false,
   };
 }
 
@@ -65,8 +57,8 @@ export function reducer(state: AppState, action: Action): AppState {
         initialVector,
         currentVector,
         stepCount: 0,
-        analysis: createIdleAnalysisState(),
         flowAnimation: null,
+        hasPendingMatrixEdits: false,
       });
     }
 
@@ -87,10 +79,47 @@ export function reducer(state: AppState, action: Action): AppState {
         });
       });
 
+      const initialVector = normalizeVectorWithDefault(state.initialVector, state.nodeCount);
+      const currentVector = normalizeVectorWithDefault(state.currentVector, state.nodeCount);
+
       return withValidation({
         ...state,
         transitionMatrix,
-        analysis: createIdleAnalysisState(),
+        initialVector,
+        currentVector,
+        hasPendingMatrixEdits: true,
+      });
+    }
+
+    case 'SET_GRAPH_EDGE_CELL': {
+      if (!isValidIndex(action.rowIndex, state.nodeCount) || !isValidIndex(action.colIndex, state.nodeCount)) {
+        return state;
+      }
+
+      const transitionMatrix = state.transitionMatrix.map((row, rowIndex) => {
+        if (rowIndex !== action.rowIndex) {
+          return [...row];
+        }
+
+        const updatedRow = row.map((value, colIndex) => {
+          if (colIndex !== action.colIndex) {
+            return value;
+          }
+          return clampProbability(action.value);
+        });
+
+        return normalizeRowWithFallback(updatedRow, rowIndex, false);
+      });
+
+      const initialVector = normalizeVectorWithDefault(state.initialVector, state.nodeCount);
+      const currentVector = normalizeVectorWithDefault(state.currentVector, state.nodeCount);
+
+      return withValidation({
+        ...state,
+        transitionMatrix,
+        initialVector,
+        currentVector,
+        hasPendingMatrixEdits: false,
       });
     }
 
@@ -107,7 +136,6 @@ export function reducer(state: AppState, action: Action): AppState {
       return withValidation({
         ...state,
         initialVector,
-        analysis: createIdleAnalysisState(),
       });
     }
 
@@ -124,29 +152,136 @@ export function reducer(state: AppState, action: Action): AppState {
       return withValidation({
         ...state,
         currentVector,
-        analysis: createIdleAnalysisState(),
       });
     }
 
-    case 'NORMALIZE_ROW': {
-      if (!isValidIndex(action.rowIndex, state.nodeCount)) {
+    case 'SET_INITIAL_UNIFORM': {
+      const nextInitial = createUniformProbabilityVector(state.nodeCount);
+      return withValidation({
+        ...state,
+        initialVector: [...nextInitial],
+        currentVector: [...nextInitial],
+        stepCount: 0,
+        flowAnimation: null,
+      });
+    }
+
+    case 'SET_INITIAL_RANDOM': {
+      const nextInitial = createRandomProbabilityVector(state.nodeCount);
+      return withValidation({
+        ...state,
+        initialVector: [...nextInitial],
+        currentVector: [...nextInitial],
+        stepCount: 0,
+        flowAnimation: null,
+      });
+    }
+
+    case 'SET_INITIAL_FROM_CURRENT': {
+      const normalizedCurrent = normalizeVectorWithDefault(state.currentVector, state.nodeCount);
+      return withValidation({
+        ...state,
+        initialVector: [...normalizedCurrent],
+        currentVector: [...normalizedCurrent],
+        stepCount: 0,
+        flowAnimation: null,
+      });
+    }
+
+    case 'APPLY_CURRENT_AS_INITIAL_RESET': {
+      const normalizedCurrent = normalizeVectorWithDefault(state.currentVector, state.nodeCount);
+      return withValidation({
+        ...state,
+        initialVector: [...normalizedCurrent],
+        currentVector: [...normalizedCurrent],
+        stepCount: 0,
+        flowAnimation: null,
+      });
+    }
+
+    case 'NORMALIZE_INITIAL_AND_RESET': {
+      const normalizedInitial = normalizeVectorWithDefault(state.initialVector, state.nodeCount);
+      return withValidation({
+        ...state,
+        initialVector: normalizedInitial,
+        currentVector: [...normalizedInitial],
+        stepCount: 0,
+        flowAnimation: null,
+      });
+    }
+
+    case 'SET_GRAPH_NODE_VALUE': {
+      if (!isValidIndex(action.index, state.nodeCount)) {
         return state;
       }
-      const transitionMatrix = state.transitionMatrix.map((row, rowIndex) => {
-        if (rowIndex !== action.rowIndex) {
-          return [...row];
+
+      const updatedCurrent = state.currentVector.map((value, index) => {
+        if (index !== action.index) {
+          return value;
         }
-        const normalized = normalizeProbabilityVector(row);
-        if (vectorSum(normalized) <= Number.EPSILON) {
-          normalized[rowIndex] = 1;
-          return normalizeProbabilityVector(normalized);
-        }
-        return normalized;
+        return clampProbability(action.value);
       });
+
+      let normalizedCurrent = normalizeProbabilityVector(updatedCurrent);
+      if (vectorSum(normalizedCurrent) <= Number.EPSILON) {
+        normalizedCurrent = Array.from({ length: state.nodeCount }, (_, index) =>
+          index === action.index ? 1 : 0
+        );
+      }
+
+      const initialVector = [...normalizedCurrent];
+      const currentVector = [...normalizedCurrent];
+
+      return withValidation({
+        ...state,
+        initialVector,
+        currentVector,
+        stepCount: 0,
+        flowAnimation: null,
+      });
+    }
+
+    case 'APPLY_GENERATED_GRAPH': {
+      if (
+        action.transitionMatrix.length !== state.nodeCount ||
+        action.initialVector.length !== state.nodeCount ||
+        action.currentVector.length !== state.nodeCount
+      ) {
+        return state;
+      }
+
+      const transitionMatrix = action.transitionMatrix.map((row, rowIndex) => {
+        if (!Array.isArray(row) || row.length !== state.nodeCount) {
+          return state.transitionMatrix[rowIndex] ?? createDefaultMatrix(state.nodeCount)[rowIndex];
+        }
+
+        const sanitized = row.map((value, colIndex) => {
+          if (colIndex === rowIndex) {
+            return 0;
+          }
+          return clampProbability(value);
+        });
+        const sum = vectorSum(sanitized);
+        if (sum <= Number.EPSILON) {
+          const fallbackRow = Array.from({ length: state.nodeCount }, () => 0);
+          const fallbackTarget = rowIndex === 0 ? 1 : 0;
+          fallbackRow[fallbackTarget] = 1;
+          return fallbackRow;
+        }
+        return sanitized.map((value) => value / sum);
+      });
+
+      const initialVector = resizeVectorToNodeCount(action.initialVector, state.nodeCount);
+      const currentVector = resizeVectorToNodeCount(action.currentVector, state.nodeCount);
+
       return withValidation({
         ...state,
         transitionMatrix,
-        analysis: createIdleAnalysisState(),
+        initialVector,
+        currentVector,
+        stepCount: 0,
+        flowAnimation: null,
+        hasPendingMatrixEdits: false,
       });
     }
 
@@ -159,28 +294,14 @@ export function reducer(state: AppState, action: Action): AppState {
         }
         return normalized;
       });
+      const initialVector = normalizeVectorWithDefault(state.initialVector, state.nodeCount);
+      const currentVector = normalizeVectorWithDefault(state.currentVector, state.nodeCount);
       return withValidation({
         ...state,
         transitionMatrix,
-        analysis: createIdleAnalysisState(),
-      });
-    }
-
-    case 'NORMALIZE_INITIAL_VECTOR': {
-      const initialVector = normalizeProbabilityVector(state.initialVector);
-      return withValidation({
-        ...state,
         initialVector,
-        analysis: createIdleAnalysisState(),
-      });
-    }
-
-    case 'NORMALIZE_CURRENT_VECTOR': {
-      const currentVector = normalizeProbabilityVector(state.currentVector);
-      return withValidation({
-        ...state,
         currentVector,
-        analysis: createIdleAnalysisState(),
+        hasPendingMatrixEdits: false,
       });
     }
 
@@ -204,7 +325,6 @@ export function reducer(state: AppState, action: Action): AppState {
         stepCount: state.stepCount + 1,
         flowAnimation,
         nextAnimationId: state.nextAnimationId + 1,
-        analysis: createIdleAnalysisState(),
       });
     }
 
@@ -215,7 +335,6 @@ export function reducer(state: AppState, action: Action): AppState {
         currentVector,
         stepCount: 0,
         flowAnimation: null,
-        analysis: createIdleAnalysisState(),
       });
     }
 
@@ -226,39 +345,6 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         flowAnimation: null,
-      };
-    }
-
-    case 'ANALYZE_REQUEST': {
-      return {
-        ...state,
-        analysis: {
-          status: 'loading',
-          result: null,
-          errorMessage: null,
-        },
-      };
-    }
-
-    case 'ANALYZE_SUCCESS': {
-      return {
-        ...state,
-        analysis: {
-          status: 'success',
-          result: action.result,
-          errorMessage: null,
-        },
-      };
-    }
-
-    case 'ANALYZE_ERROR': {
-      return {
-        ...state,
-        analysis: {
-          status: 'error',
-          result: null,
-          errorMessage: action.message,
-        },
       };
     }
 
@@ -280,4 +366,49 @@ function isValidIndex(index: number, size: number): boolean {
 
 function vectorSum(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0);
+}
+
+function normalizeRowWithFallback(
+  row: number[],
+  rowIndex: number,
+  allowSelfLoopFallback: boolean
+): number[] {
+  const normalized = normalizeProbabilityVector(row);
+  if (vectorSum(normalized) > Number.EPSILON) {
+    return normalized;
+  }
+
+  const fallback = Array.from({ length: row.length }, () => 0);
+  if (allowSelfLoopFallback) {
+    fallback[rowIndex] = 1;
+  } else {
+    const fallbackTarget = rowIndex === 0 ? 1 : 0;
+    if (fallbackTarget >= 0 && fallbackTarget < fallback.length) {
+      fallback[fallbackTarget] = 1;
+    } else if (fallback.length > 0) {
+      fallback[0] = 1;
+    }
+  }
+  return normalizeProbabilityVector(fallback);
+}
+
+function normalizeVectorWithDefault(vector: number[], nodeCount: number): number[] {
+  const normalized = normalizeProbabilityVector(vector);
+  if (vectorSum(normalized) > Number.EPSILON) {
+    return normalized;
+  }
+  return createDefaultVector(nodeCount);
+}
+
+function createUniformProbabilityVector(nodeCount: number): number[] {
+  if (nodeCount <= 0) {
+    return [];
+  }
+  const uniformValue = 1 / nodeCount;
+  return Array.from({ length: nodeCount }, () => uniformValue);
+}
+
+function createRandomProbabilityVector(nodeCount: number): number[] {
+  const raw = Array.from({ length: nodeCount }, () => Math.random());
+  return normalizeVectorWithDefault(raw, nodeCount);
 }

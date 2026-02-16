@@ -1,5 +1,3 @@
-import type { MarkovAnalysisResponse } from '../lib/api';
-
 export type Action =
   | {
       type: 'SET_NODE_COUNT';
@@ -7,6 +5,12 @@ export type Action =
     }
   | {
       type: 'SET_TRANSITION_CELL';
+      rowIndex: number;
+      colIndex: number;
+      value: number;
+    }
+  | {
+      type: 'SET_GRAPH_EDGE_CELL';
       rowIndex: number;
       colIndex: number;
       value: number;
@@ -22,17 +26,33 @@ export type Action =
       value: number;
     }
   | {
-      type: 'NORMALIZE_ROW';
-      rowIndex: number;
+      type: 'SET_INITIAL_UNIFORM';
+    }
+  | {
+      type: 'SET_INITIAL_RANDOM';
+    }
+  | {
+      type: 'SET_INITIAL_FROM_CURRENT';
+    }
+  | {
+      type: 'SET_GRAPH_NODE_VALUE';
+      index: number;
+      value: number;
+    }
+  | {
+      type: 'APPLY_CURRENT_AS_INITIAL_RESET';
+    }
+  | {
+      type: 'NORMALIZE_INITIAL_AND_RESET';
+    }
+  | {
+      type: 'APPLY_GENERATED_GRAPH';
+      transitionMatrix: number[][];
+      initialVector: number[];
+      currentVector: number[];
     }
   | {
       type: 'NORMALIZE_MATRIX';
-    }
-  | {
-      type: 'NORMALIZE_INITIAL_VECTOR';
-    }
-  | {
-      type: 'NORMALIZE_CURRENT_VECTOR';
     }
   | {
       type: 'STEP';
@@ -43,15 +63,4 @@ export type Action =
   | {
       type: 'CLEAR_FLOW_ANIMATION';
       animationId: number;
-    }
-  | {
-      type: 'ANALYZE_REQUEST';
-    }
-  | {
-      type: 'ANALYZE_SUCCESS';
-      result: MarkovAnalysisResponse;
-    }
-  | {
-      type: 'ANALYZE_ERROR';
-      message: string;
     };

@@ -39,7 +39,7 @@ code {
 .markov-top-grid {
   display: grid;
   gap: var(--base-space-5);
-  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 0.86fr);
   align-items: start;
 }
 
@@ -68,9 +68,21 @@ code {
   gap: var(--base-space-4);
 }
 
+.markov-graph-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--base-space-3);
+  padding: var(--base-space-3);
+  border: 1px solid rgba(14, 65, 108, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
 .markov-graph {
   width: 100%;
   height: auto;
+  isolation: isolate;
   border-radius: 18px;
   border: 1px solid rgba(14, 65, 108, 0.16);
   background:
@@ -81,6 +93,7 @@ code {
 
 .markov-edge {
   stroke-linecap: round;
+  transition: stroke 140ms ease, stroke-width 140ms ease, opacity 140ms ease;
 }
 
 .markov-edge-label {
@@ -89,6 +102,7 @@ code {
   text-anchor: middle;
   dominant-baseline: middle;
   font-family: var(--base-font-mono);
+  pointer-events: none;
 }
 
 .markov-node-label {
@@ -97,6 +111,7 @@ code {
   fill: #0d2a43;
   font-weight: 700;
   font-size: 14px;
+  pointer-events: none;
 }
 
 .markov-node-value {
@@ -104,16 +119,25 @@ code {
   fill: rgba(12, 38, 61, 0.82);
   font-size: 11px;
   font-family: var(--base-font-mono);
+  pointer-events: none;
 }
 
 .markov-node-circle {
   stroke: rgba(9, 39, 63, 0.45);
   stroke-width: 1.4;
-  transition: fill 0.25s ease;
+  transition: fill 0.25s ease, stroke 0.14s ease, stroke-width 0.14s ease, filter 0.14s ease;
+}
+
+.markov-svg-node-subscript {
+  font-size: 0.9em;
 }
 
 .markov-flow-dot {
-  fill: rgba(16, 107, 158, 0.86);
+  fill: rgb(255 238 92);
+  stroke: rgb(71 51 0);
+  stroke-width: 0.8;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 0 1.4px rgb(71 51 0 / 0.45));
 }
 
 .markov-legend {
@@ -124,9 +148,53 @@ code {
   color: var(--base-ink-soft);
 }
 
+.markov-graph-value-label {
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  font-family: var(--base-font-mono);
+}
+
+.markov-graph-value-cell {
+  fill: rgba(247, 251, 255, 0.58);
+  mix-blend-mode: screen;
+  stroke: none;
+  pointer-events: none;
+}
+
+.markov-graph-value-label--edge {
+  font-size: 11px;
+  fill: rgba(124, 21, 21, 0.94);
+}
+
+.markov-graph-value-label--node {
+  font-size: 11px;
+  fill: rgba(96, 33, 33, 0.94);
+}
+
+.markov-graph-editor-foreign {
+  overflow: visible;
+}
+
+.markov-graph-editor-wrap {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+}
+
+.markov-number-input--graph-inline {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  padding: 0.16rem 0.32rem;
+}
+
 .markov-panel-state {
   display: grid;
   gap: var(--base-space-3);
+  width: min(100%, 430px);
 }
 
 .markov-controls-block {
@@ -146,22 +214,62 @@ code {
   align-items: center;
 }
 
-.markov-step-controls,
 .markov-inline-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--base-space-2);
 }
 
-.markov-meta-line {
+.markov-step-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  border: 1px solid var(--base-border);
+  flex-wrap: wrap;
+  gap: var(--base-space-2);
+  border: 1px solid rgba(14, 65, 108, 0.14);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.44);
+  background: rgba(255, 255, 255, 0.5);
   padding: var(--base-space-2) var(--base-space-3);
+}
+
+.markov-step-row--initial {
+  flex-wrap: nowrap;
+  gap: 0.34rem;
+  overflow-x: auto;
+  padding: 0.4rem 0.5rem;
+}
+
+.markov-step-row--initial .markov-inline-heading {
+  white-space: nowrap;
+  margin-right: 0.12rem;
+}
+
+.markov-initial-button {
+  padding: 0.32rem 0.56rem;
+  font-size: 0.82rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.markov-inline-heading {
+  font-weight: 600;
+  color: var(--base-ink-soft);
+}
+
+.markov-step-count-inline {
+  margin-left: auto;
   font-size: 0.92rem;
+  color: var(--base-ink-soft);
+}
+
+.markov-inline-toggle.is-active {
+  background: #0f4c81;
+  color: #f5f9ff;
+  border-color: #0f4c81;
+  box-shadow: 0 12px 24px rgba(15, 76, 129, 0.28);
+}
+
+.markov-inline-toggle.is-active:hover {
+  background: #0f4c81;
 }
 
 .markov-state-table-wrap {
@@ -179,9 +287,15 @@ code {
 .markov-matrix-table th,
 .markov-matrix-table td {
   border: 1px solid rgba(22, 43, 66, 0.14);
-  padding: 0.46rem 0.42rem;
+  padding: 0.42rem 0.36rem;
   text-align: center;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
+}
+
+.markov-node-label-subscript {
+  font-size: 0.78em;
+  line-height: 0;
+  vertical-align: sub;
 }
 
 .markov-state-table th,
@@ -191,7 +305,7 @@ code {
 
 .markov-number-input {
   width: 100%;
-  min-width: 68px;
+  min-width: 0;
   font: inherit;
   padding: 0.3rem 0.38rem;
   border-radius: 8px;
@@ -200,51 +314,17 @@ code {
   color: var(--base-ink);
 }
 
+.markov-number-input--state {
+  width: 66px;
+}
+
+.markov-number-input--matrix {
+  width: 62px;
+}
+
 .markov-number-input:focus-visible {
   outline: 3px solid rgba(20, 108, 160, 0.27);
   outline-offset: 1px;
-}
-
-.markov-analysis {
-  border: 1px solid rgba(13, 52, 86, 0.2);
-  border-radius: 14px;
-  padding: var(--base-space-3);
-  background: linear-gradient(180deg, rgba(235, 244, 252, 0.7) 0%, rgba(255, 250, 244, 0.6) 100%);
-  display: grid;
-  gap: var(--base-space-2);
-}
-
-.markov-analysis-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--base-space-2);
-  align-items: center;
-}
-
-.markov-analysis-head h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.markov-analysis-status {
-  margin: 0;
-  color: var(--base-ink-soft);
-  font-size: 0.9rem;
-}
-
-.markov-analysis-output {
-  margin: 0;
-  min-height: 112px;
-  max-height: 220px;
-  overflow: auto;
-  border: 1px solid rgba(14, 65, 108, 0.2);
-  border-radius: 10px;
-  background: rgba(8, 32, 52, 0.9);
-  color: #d8f0ff;
-  font-family: var(--base-font-mono);
-  padding: var(--base-space-3);
-  font-size: 0.8rem;
-  line-height: 1.45;
 }
 
 .markov-error-list {
@@ -276,13 +356,14 @@ code {
   color: rgba(15, 45, 71, 0.9);
 }
 
-.markov-row-normalize {
-  padding: 0.34rem 0.55rem;
-  font-size: 0.8rem;
-}
-
 @media (max-width: 1080px) {
   .markov-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .markov-graph-controls {
     grid-template-columns: minmax(0, 1fr);
   }
 }

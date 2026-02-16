@@ -6,15 +6,13 @@ trigger: always_on
 
 ---
 
-## trigger: always_on
-
-# Mandatory Pre-Edit Gate
+## Mandatory Pre-Edit Gate
 
 These steps are required before any file edit or file-modifying command.
 
 1. Read `AGENT.md` in the repo root.
 2. Read `CODEMAP.md` in the repo root.
-3. Post a response containing all three sections:
+3. For substantial changes, post a response containing all three sections:
    - `Reasoning`
    - `Style Options`
    - `Trade-Offs`
@@ -50,9 +48,9 @@ If the user asks for analysis only (no edits/commands that modify files), steps 
 
 ## Repo layout
 
-- Backend code lives only in `backend/`.
-- Each demo frontend lives only in `demos/<demo-name>/frontend/`
-  (example: `demos/linalg-vectors/frontend/`).
+- Backend code lives only in `backend\`.
+- Each demo frontend lives only in `demos\<demo-name>\frontend\`
+  (example: `demos\linalg-vectors\frontend\`).
 - Do not create per-demo Python venvs in the repo.
 
 ## Python environment policy
@@ -61,15 +59,15 @@ If the user asks for analysis only (no edits/commands that modify files), steps 
 - Use the shared venv at: `C:\Users\mfoss3\.venvs\linalg-demos`
 - Do NOT install Python packages globally or into user-site.
 - Prefer `uv` for installs when available:
-  - `uv pip compile backend/requirements.in -o backend/requirements.txt`
-  - `uv pip sync backend/requirements.txt`
-  - fallback: `python -m pip install -r backend/requirements.in`
-- When adding dependencies: update `backend/requirements.in`, then recompile `backend/requirements.txt`, and explain why.
+  - `uv pip compile backend\requirements.in -o backend\requirements.txt`
+  - `uv pip sync backend\requirements.txt`
+  - fallback: `python -m pip install -r backend\requirements.in`
+- When adding dependencies: update `backend\requirements.in`, then recompile `backend\requirements.txt`, and explain why.
 - Canonical backend run command from repo root: `python -m uvicorn backend.main:app --reload --port 8000`
 
 ## JS environment policy
 
-- Run Node commands from `demos/<demo-name>/frontend/`.
+- Run Node commands from `demos\<demo-name>\frontend\`.
 - Use `pnpm` (not `npm`) for installs and scripts.
 - Respect the repo’s pinned Node toolchain:
   - locally: use Volta (if present) and prefer `volta pin ...` when setting versions
@@ -78,12 +76,12 @@ If the user asks for analysis only (no edits/commands that modify files), steps 
 
 ## Git policy
 
-- Never commit `node_modules/`, build outputs, or local env files.
+- Never commit `node_modules\`, build outputs, or local env files.
 - Ensure the repo has a `.gitignore` that excludes:
-  - `**/node_modules/`
-  - `**/dist/`, `**/.vite/`
+  - `**\node_modules\`
+  - `**\dist\`, `**\.vite\`
   - `.env`, `.env.*`
-  - `__pycache__/`, `*.pyc`
+  - `__pycache__\`, `*.pyc`
 
 ## Verification
 
