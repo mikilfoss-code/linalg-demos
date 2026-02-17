@@ -286,10 +286,10 @@ function relaxPositions(options: {
   const maxY = input.height - margin;
   const minSeparation = input.nodeRadius * 2.72;
 
-  const iterations = input.nodeCount <= 12 ? 240 : 150;
-  const springStrength = 0.03;
+  const iterations = input.nodeCount <= 16 ? 240 : 150;
+  const springStrength = 0.05;
   const repelStrength = 5000;
-  const centerPullStrength = 0.004;
+  const centerPullStrength = 0.003;
   const damping = 0.9;
   const maxStep = 11;
 

@@ -64,7 +64,7 @@ function runAutoStepTick() {
   if (snapshot.flowAnimation) {
     return;
   }
-  if (!snapshot.validation.canStep) {
+  if (!snapshot.validation.canStep && !snapshot.hasPendingMatrixEdits) {
     setAutoStepRunning(false);
     return;
   }
@@ -78,6 +78,7 @@ const graphPanel = createGraphPanelController({
     runAutoStepTick();
   },
   onSetNodeCount(nodeCount) {
+    setAutoStepRunning(false);
     store.dispatch({ type: 'SET_NODE_COUNT', nodeCount });
     const updated = store.getState();
     const generated = transitionGraphGenerator.generate({
@@ -91,6 +92,7 @@ const graphPanel = createGraphPanelController({
     });
   },
   onGenerateRandomDirectedGraph() {
+    setAutoStepRunning(false);
     const snapshot = store.getState();
     const generated = transitionGraphGenerator.generate({
       nodeCount: snapshot.nodeCount,
@@ -262,8 +264,11 @@ function readEdgeTargetFromMatrixInput(eventTarget: EventTarget | null): GraphIn
     return null;
   }
 
-  const fromIndex = Number.parseInt(input.dataset.rowIndex ?? '', 10);
-  const toIndex = Number.parseInt(input.dataset.colIndex ?? '', 10);
+  const displayedRowIndex = Number.parseInt(input.dataset.rowIndex ?? '', 10);
+  const displayedColIndex = Number.parseInt(input.dataset.colIndex ?? '', 10);
+  // Matrix panel displays P^T, so displayed[row, col] maps to edge col -> row in internal P.
+  const fromIndex = displayedColIndex;
+  const toIndex = displayedRowIndex;
   if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
     return null;
   }

@@ -5,7 +5,7 @@ export type GraphViewportTransform = {
 };
 
 const MIN_VIEWPORT_SCALE = 0.25;
-const MAX_VIEWPORT_SCALE = 4;
+const MAX_VIEWPORT_SCALE = 8;
 
 /**
  * Identity transform used for the graph viewport layer.

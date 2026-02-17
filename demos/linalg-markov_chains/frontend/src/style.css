@@ -34,6 +34,9 @@ code {
 
 .markov-top-panel {
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--base-space-2);
 }
 
 .markov-top-grid {
@@ -41,6 +44,9 @@ code {
   gap: var(--base-space-5);
   grid-template-columns: minmax(0, 2fr) minmax(260px, 0.86fr);
   align-items: start;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .markov-layout--stacked-vertical .markov-top-grid {
@@ -49,6 +55,8 @@ code {
 
 .markov-panel {
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .base-button--secondary {
@@ -79,6 +87,13 @@ code {
   background: rgba(255, 255, 255, 0.6);
 }
 
+.markov-graph-status {
+  margin: 0;
+  min-height: 1.1em;
+  color: #9f2c2c;
+  font-size: 0.84rem;
+}
+
 .markov-graph {
   width: 100%;
   height: auto;
@@ -93,7 +108,10 @@ code {
 
 .markov-edge {
   stroke-linecap: round;
-  transition: stroke 140ms ease, stroke-width 140ms ease, opacity 140ms ease;
+  transition:
+    stroke 140ms ease,
+    stroke-width 140ms ease,
+    opacity 140ms ease;
 }
 
 .markov-edge-label {
@@ -125,7 +143,11 @@ code {
 .markov-node-circle {
   stroke: rgba(9, 39, 63, 0.45);
   stroke-width: 1.4;
-  transition: fill 0.25s ease, stroke 0.14s ease, stroke-width 0.14s ease, filter 0.14s ease;
+  transition:
+    fill 0.25s ease,
+    stroke 0.14s ease,
+    stroke-width 0.14s ease,
+    filter 0.14s ease;
 }
 
 .markov-svg-node-subscript {
@@ -164,12 +186,16 @@ code {
 
 .markov-graph-value-label--edge {
   font-size: 11px;
-  fill: rgba(124, 21, 21, 0.94);
+  fill: rgba(18, 72, 132, 0.95);
 }
 
 .markov-graph-value-label--node {
   font-size: 11px;
-  fill: rgba(96, 33, 33, 0.94);
+  fill: rgba(16, 68, 126, 0.95);
+}
+
+.markov-graph-value-label.markov-graph-value-label--highlighted {
+  fill: rgba(124, 21, 21, 0.96);
 }
 
 .markov-graph-editor-foreign {
@@ -185,8 +211,8 @@ code {
 }
 
 .markov-number-input--graph-inline {
-  width: 100%;
-  min-width: 0;
+  width: 7ch;
+  min-width: 7ch;
   font-size: 12px;
   padding: 0.16rem 0.32rem;
 }
@@ -194,7 +220,9 @@ code {
 .markov-panel-state {
   display: grid;
   gap: var(--base-space-3);
-  width: min(100%, 430px);
+  width: 100%;
+  max-width: 430px;
+  justify-self: stretch;
 }
 
 .markov-controls-block {
@@ -232,19 +260,27 @@ code {
 }
 
 .markov-step-row--initial {
-  flex-wrap: nowrap;
-  gap: 0.34rem;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.38rem;
   padding: 0.4rem 0.5rem;
 }
 
 .markov-step-row--initial .markov-inline-heading {
   white-space: nowrap;
-  margin-right: 0.12rem;
+  margin-right: 0;
 }
 
+.markov-initial-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 0.34rem;
+}
+
+.markov-inline-toggle,
 .markov-initial-button {
-  padding: 0.32rem 0.56rem;
+  padding: 0.34rem 0.62rem;
   font-size: 0.82rem;
   line-height: 1.1;
   white-space: nowrap;
@@ -315,11 +351,13 @@ code {
 }
 
 .markov-number-input--state {
-  width: 66px;
+  width: 7ch;
+  min-width: 7ch;
 }
 
 .markov-number-input--matrix {
-  width: 62px;
+  width: 7ch;
+  min-width: 7ch;
 }
 
 .markov-number-input:focus-visible {

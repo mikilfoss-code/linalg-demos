@@ -159,23 +159,23 @@
 - `lib/api.ts` - matrix demo API exports.
 
 ### demos/linalg-markov_chains/frontend/src/
-- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, node-count random-graph regeneration, graph auto-step run/pause loop, pending matrix auto-normalization on cross-panel click, and panel-input hover/focus edge/node highlighting.
+- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, node-count random-graph regeneration, graph auto-step run/pause loop, pending matrix auto-normalization on cross-panel click, panel-input hover/focus edge/node highlighting, and transposed-matrix panel edge-target mapping.
 - `layout-options.ts` - internal layout mode selection for top graph/state row and bottom matrix panel.
 - `style.css` - Markov graph visuals, flow particles, state controls, and matrix editor styling.
 
 ### demos/linalg-markov_chains/frontend/src/app/
 - `types.ts` - canonical app state contracts for matrix/vector editing, flow animation, and pending-matrix-normalization tracking.
 - `actions.ts` - reducer action union for matrix/vector edits, graph-inline node/edge edits, state-vector Enter-commit reset/normalization actions, and stepping.
-- `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, and flow-animation metadata generation on each step.
+- `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, pre-step pending-matrix row normalization, and flow-animation metadata generation on each step.
 - `store.ts` - minimal reducer-driven store with subscribe/dispatch APIs.
 - `graph-layout.ts` - strategy-based graph layout engine with deterministic probability-aware positioning and fallback radial strategy.
 - `graph-data.ts` - graph render-data adapter for full-graph and top-state-mass subgraph extraction.
 - `graph-interaction-presenter.ts` - pure presenter utilities for graph hover/selection, highlight sets, and selected node/edge edit-model derivation.
 - `graph-viewport.ts` - clamped zoom/pan transform model for the SVG viewport layer.
 - `node-label.ts` - shared node-label format helpers (`N` with subscript index) reused by multiple panels.
-- `render-graph.ts` - SVG directed-graph rendering with constrained cubic edge geometry, arc-based self-loops, probability-aware styling, graph-local controls, interaction highlighting, inline on-graph value overlays/editors, subgraph-aware drawing, viewport transform support, editor-dismiss behavior (`Enter` or off-target click), and edge-aligned clustered flow-particle ("glob") animation.
+- `render-graph.ts` - SVG directed-graph rendering with constrained cubic edge geometry, arc-based self-loops, probability-aware styling, graph-local controls, interaction highlighting, inline on-graph value overlays/editors, subgraph-aware drawing, constrained viewport transform support (Ctrl+wheel and +/- zoom, arrow/right-drag pan with visible-node guarantees), editor-dismiss behavior (`Enter` or off-target click), and edge-aligned clustered flow-particle ("glob") animation.
 - `render-state-panel.ts` - right-side controls for state vectors, auto-step toggle, and Enter-to-commit reset/normalization workflows.
-- `render-matrix-panel.ts` - transition-matrix table rendering with row sums and matrix-wide normalization.
+- `render-matrix-panel.ts` - transition-matrix table rendering as a transposed view (`P^T`) with column normalization controls and displayed-column sum diagnostics.
 
 ### demos/linalg-markov_chains/frontend/src/lib/
 - `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning with source-node-weighted, intra-glob non-overlapping slot offsets.

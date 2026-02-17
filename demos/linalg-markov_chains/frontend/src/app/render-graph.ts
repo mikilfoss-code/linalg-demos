@@ -39,7 +39,7 @@ const GRAPH_HEIGHT = 620;
 const GRAPH_CENTER_Y = GRAPH_HEIGHT * 0.43;
 const NODE_RADIUS = 26;
 const PROBABILITY_EPSILON = 1e-6;
-const MIN_EDGE_LENGTH = 112;
+const MIN_EDGE_LENGTH = 80;
 const MAX_EDGE_LENGTH = 316;
 const EDGE_LABEL_TAIL_BIAS = 0.33;
 const ARROW_HEAD_WIDTH = 16;
@@ -59,6 +59,9 @@ const EDGE_CUBIC_END_HANDLE = 0.46;
 const EDGE_REVERSE_BASE_OFFSET = 12;
 const EDGE_SINGLE_BASE_OFFSET = 9;
 const EDGE_CUBIC_MAX_OFFSET_SCALE = 0.68;
+const EDGE_MAX_AVOIDANCE_OFFSET_SCALE = 1;
+const EDGE_NODE_CLEARANCE_MARGIN = 0.2;
+const EDGE_BEND_SCALE_CANDIDATES = [1, 1.3, 1.6, 1.9, 2.2, 2.5] as const;
 const EDGE_DEFAULT_MARKER_ID = 'markov-arrow-head';
 const EDGE_HIGHLIGHT_MARKER_ID = 'markov-arrow-head-highlight';
 const EDGE_HIGHLIGHT_STROKE = 'hsl(2 72% 46%)';
@@ -100,6 +103,17 @@ const NODE_EDITOR_CANDIDATE_OFFSETS: Point[] = [
   { x: -NODE_RADIUS - 38, y: 4 },
   { x: 0, y: -NODE_RADIUS - 22 },
 ];
+const MIN_NODE_DIAMETER_HEIGHT_RATIO = 0.045;
+const MAX_NODE_DIAMETER_HEIGHT_RATIO = 0.5;
+const MIN_GRAPH_SCALE = (GRAPH_HEIGHT * MIN_NODE_DIAMETER_HEIGHT_RATIO) / (NODE_RADIUS * 2);
+const MAX_GRAPH_SCALE = (GRAPH_HEIGHT * MAX_NODE_DIAMETER_HEIGHT_RATIO) / (NODE_RADIUS * 2);
+const KEYBOARD_ZOOM_STEP = 1.12;
+const WHEEL_ZOOM_IN_STEP = 1.11;
+const WHEEL_ZOOM_OUT_STEP = 1 / WHEEL_ZOOM_IN_STEP;
+const KEYBOARD_PAN_STEP = 30;
+const PAN_BLOCKED_NOTICE_MS = 200;
+const PAN_PROJECTION_START_DELAY_MS = 50;
+const PROJECTION_ANIMATION_DURATION_MS = 300;
 
 const GRAPH_LAYOUT_ENGINE = createGraphLayoutEngine({
   defaultStrategyId: DEFAULT_GRAPH_LAYOUT_STRATEGY_ID,
@@ -109,6 +123,8 @@ type Point = {
   x: number;
   y: number;
 };
+
+type PanDirection = 'left' | 'right' | 'up' | 'down';
 
 type Rect = {
   x: number;
@@ -212,6 +228,7 @@ export function createGraphPanelController(options: {
           </button>
         </div>
       </div>
+      <p class="markov-graph-status" id="markov-graph-status" role="status" aria-live="polite"></p>
 
       <svg
         class="markov-graph"
@@ -267,16 +284,22 @@ export function createGraphPanelController(options: {
   const annotationLayer = requireElement<SVGGElement>(element, '#annotation-layer');
   const nodeCountRange = requireElement<HTMLInputElement>(element, '#graph-node-count-range');
   const nodeCountNumber = requireElement<HTMLInputElement>(element, '#graph-node-count-number');
-  const toggleAllValuesButton = requireElement<HTMLButtonElement>(element, '#toggle-all-values-button');
+  const toggleAllValuesButton = requireElement<HTMLButtonElement>(
+    element,
+    '#toggle-all-values-button'
+  );
+  const graphStatus = requireElement<HTMLElement>(element, '#markov-graph-status');
 
   nodeCountRange.addEventListener('input', (event) => {
     const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
     options.onSetNodeCount(value);
+    resetViewportToDefault();
   });
 
   nodeCountNumber.addEventListener('change', (event) => {
     const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
     options.onSetNodeCount(value);
+    resetViewportToDefault();
   });
 
   element.addEventListener('click', (event) => {
@@ -284,6 +307,7 @@ export function createGraphPanelController(options: {
     if (!(target instanceof HTMLElement)) return;
     if (target.dataset.action === 'randomize-directed-graph') {
       options.onGenerateRandomDirectedGraph();
+      resetViewportToDefault();
       return;
     }
     if (target.dataset.action === 'toggle-all-values') {
@@ -313,7 +337,57 @@ export function createGraphPanelController(options: {
     }
   });
 
+  graphSvg.addEventListener(
+    'wheel',
+    (event) => {
+      if (!event.ctrlKey) {
+        return;
+      }
+      event.preventDefault();
+      const rect = graphSvg.getBoundingClientRect();
+      const focal = {
+        x: ((event.clientX - rect.left) / Math.max(1, rect.width)) * GRAPH_WIDTH,
+        y: ((event.clientY - rect.top) / Math.max(1, rect.height)) * GRAPH_HEIGHT,
+      };
+      const zoomFactor = event.deltaY < 0 ? WHEEL_ZOOM_IN_STEP : WHEEL_ZOOM_OUT_STEP;
+      zoomViewport(zoomFactor, focal);
+    },
+    { passive: false }
+  );
+
+  graphSvg.addEventListener('pointerdown', (event) => {
+    if (event.button !== 2) {
+      return;
+    }
+    isPanDragging = true;
+    didPanDuringDrag = false;
+    panPointerId = event.pointerId;
+    lastPanClientPoint = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    graphSvg.setPointerCapture(event.pointerId);
+    clearGraphStatus();
+    event.preventDefault();
+  });
+
+  graphSvg.addEventListener('pointerup', (event) => {
+    finishPanDrag(event.pointerId);
+  });
+
+  graphSvg.addEventListener('pointercancel', (event) => {
+    finishPanDrag(event.pointerId);
+  });
+
+  graphSvg.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+  });
+
   graphSvg.addEventListener('pointermove', (event) => {
+    if (isPanDragging) {
+      handlePanDragMove(event);
+      return;
+    }
     const hoveredTarget = readGraphTarget(event.target);
     if (isSameGraphInteractionTarget(interactionState.hovered, hoveredTarget)) {
       return;
@@ -335,7 +409,14 @@ export function createGraphPanelController(options: {
   });
 
   graphSvg.addEventListener('click', (event) => {
-    if (event.target instanceof HTMLElement && event.target.dataset.action?.startsWith('graph-set-')) {
+    if (didPanDuringDrag) {
+      didPanDuringDrag = false;
+      return;
+    }
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.dataset.action?.startsWith('graph-set-')
+    ) {
       return;
     }
     const clickedTarget = readGraphTarget(event.target);
@@ -364,6 +445,84 @@ export function createGraphPanelController(options: {
       applyInteractionPresentation();
     }
   });
+
+  const handleWindowKeyDown = (event: KeyboardEvent) => {
+    if (shouldIgnoreGraphKeyEvent(event)) {
+      return;
+    }
+
+    const zoomIn =
+      event.key === '+' ||
+      event.key === '=' ||
+      event.key === 'NumpadAdd' ||
+      (event.code === 'Equal' && event.shiftKey);
+    if (zoomIn) {
+      event.preventDefault();
+      zoomViewport(KEYBOARD_ZOOM_STEP, {
+        x: GRAPH_WIDTH / 2,
+        y: GRAPH_HEIGHT / 2,
+      });
+      return;
+    }
+
+    const zoomOut = event.key === '-' || event.key === '_' || event.key === 'NumpadSubtract';
+    if (zoomOut) {
+      event.preventDefault();
+      zoomViewport(1 / KEYBOARD_ZOOM_STEP, {
+        x: GRAPH_WIDTH / 2,
+        y: GRAPH_HEIGHT / 2,
+      });
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      activeArrowPanKeys.add('ArrowLeft');
+      panViewport({ x: -KEYBOARD_PAN_STEP, y: 0 }, 'left');
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      activeArrowPanKeys.add('ArrowRight');
+      panViewport({ x: KEYBOARD_PAN_STEP, y: 0 }, 'right');
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      activeArrowPanKeys.add('ArrowUp');
+      panViewport({ x: 0, y: -KEYBOARD_PAN_STEP }, 'up');
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      activeArrowPanKeys.add('ArrowDown');
+      panViewport({ x: 0, y: KEYBOARD_PAN_STEP }, 'down');
+    }
+  };
+  window.addEventListener('keydown', handleWindowKeyDown);
+
+  const handleWindowKeyUp = (event: KeyboardEvent) => {
+    if (
+      event.key !== 'ArrowLeft' &&
+      event.key !== 'ArrowRight' &&
+      event.key !== 'ArrowUp' &&
+      event.key !== 'ArrowDown'
+    ) {
+      return;
+    }
+
+    activeArrowPanKeys.delete(event.key);
+    if (activeArrowPanKeys.size === 0) {
+      cancelViewportProjectionAnimation();
+    }
+  };
+  window.addEventListener('keyup', handleWindowKeyUp);
+
+  const handleWindowBlur = () => {
+    activeArrowPanKeys.clear();
+    cancelViewportProjectionAnimation();
+  };
+  window.addEventListener('blur', handleWindowBlur);
 
   const handleWindowPointerDown = (event: PointerEvent) => {
     if (!interactionState.selected) {
@@ -409,11 +568,22 @@ export function createGraphPanelController(options: {
   let lastGraphData: GraphRenderData | null = null;
   let showAllValues = false;
   let isAnimationRunning = false;
+  let isPanDragging = false;
+  let didPanDuringDrag = false;
+  let panPointerId: number | null = null;
+  let lastPanClientPoint: Point | null = null;
+  let activeArrowPanKeys = new Set<string>();
+  let graphStatusTimeoutId: number | null = null;
+  let viewportProjectionAnimationHandle: number | null = null;
+  let viewportProjectionStartTimeoutId: number | null = null;
+  let viewportProjectionAnimationToken = 0;
+  let viewportProjectionTarget: GraphViewportTransform | null = null;
   let subgraphSelection: GraphSubgraphSelection = {
     ...DEFAULT_GRAPH_SUBGRAPH_SELECTION,
   };
   let viewportTransform = createDefaultGraphViewportTransform();
-  viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
+  applyViewportTransformImmediate(viewportTransform);
+  clearGraphStatus();
   updateToggleAllValuesButton();
 
   const controller: GraphPanelController = {
@@ -421,7 +591,7 @@ export function createGraphPanelController(options: {
     render(state) {
       lastRenderedState = state;
       lastGraphData = buildGraphRenderData(state, subgraphSelection);
-      viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
+      applyViewportTransformImmediate(viewportTransform);
       nodeCountRange.value = String(state.nodeCount);
       nodeCountNumber.value = String(state.nodeCount);
       updateToggleAllValuesButton();
@@ -442,6 +612,8 @@ export function createGraphPanelController(options: {
         currentEdgeLabelPoints,
         currentNodeCenters,
       });
+      viewportTransform = normalizeViewportTransformForNodes(viewportTransform);
+      applyViewportTransformImmediate(viewportTransform);
       applyInteractionPresentation();
 
       if (!state.flowAnimation) {
@@ -495,16 +667,26 @@ export function createGraphPanelController(options: {
       }
     },
     setViewportTransform(transform) {
-      viewportTransform = normalizeGraphViewportTransform(transform, viewportTransform);
-      viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
+      cancelViewportProjectionAnimation();
+      viewportTransform = normalizeViewportTransformForNodes(
+        normalizeGraphViewportTransform(transform, viewportTransform)
+      );
+      applyViewportTransformImmediate(viewportTransform);
     },
     resetViewportTransform() {
-      viewportTransform = createDefaultGraphViewportTransform();
-      viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
+      resetViewportToDefault();
     },
     destroy() {
       cancelAnimationLoop();
+      cancelViewportProjectionAnimation();
       window.removeEventListener('pointerdown', handleWindowPointerDown, true);
+      window.removeEventListener('keydown', handleWindowKeyDown);
+      window.removeEventListener('keyup', handleWindowKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
+      if (graphStatusTimeoutId !== null) {
+        window.clearTimeout(graphStatusTimeoutId);
+        graphStatusTimeoutId = null;
+      }
     },
   };
   return controller;
@@ -562,15 +744,26 @@ export function createGraphPanelController(options: {
       state: renderState,
       activeTarget: presentation.activeTarget,
       selectedTarget: presentation.selectedTarget,
+      highlightedEdgeKeys: presentation.highlightedEdgeKeys,
+      highlightedNodeIndices: presentation.highlightedNodeIndices,
       selectedEdgeEditor: presentation.selectedEdgeEditor,
       selectedNodeEditor: presentation.selectedNodeEditor,
     });
+  }
+
+  function resetViewportToDefault() {
+    cancelViewportProjectionAnimation();
+    clearGraphStatus();
+    viewportTransform = normalizeViewportTransformForNodes(createDefaultGraphViewportTransform());
+    applyViewportTransformImmediate(viewportTransform);
   }
 
   function renderInlineAnnotations(config: {
     state: AppState;
     activeTarget: GraphInteractionTarget | null;
     selectedTarget: GraphInteractionTarget | null;
+    highlightedEdgeKeys: ReadonlySet<string>;
+    highlightedNodeIndices: ReadonlySet<number>;
     selectedEdgeEditor: { fromIndex: number; toIndex: number; value: number } | null;
     selectedNodeEditor: { nodeIndex: number; value: number } | null;
   }) {
@@ -579,11 +772,13 @@ export function createGraphPanelController(options: {
     const edgeKeysToShow = new Set<string>();
     const nodesToShow = new Set<number>();
     const occupiedRects: Rect[] = [];
-    const nodeObstacles: CircleObstacle[] = Array.from(currentNodeCenters.values()).map((center) => ({
-      x: center.x,
-      y: center.y,
-      radius: NODE_RADIUS + 7,
-    }));
+    const nodeObstacles: CircleObstacle[] = Array.from(currentNodeCenters.values()).map(
+      (center) => ({
+        x: center.x,
+        y: center.y,
+        radius: NODE_RADIUS + 7,
+      })
+    );
 
     if (showAllValues) {
       currentNodeCenters.forEach((_center, nodeIndex) => {
@@ -612,7 +807,9 @@ export function createGraphPanelController(options: {
     }
 
     if (config.selectedTarget?.kind === 'edge') {
-      edgeKeysToShow.add(edgePathKey(config.selectedTarget.fromIndex, config.selectedTarget.toIndex));
+      edgeKeysToShow.add(
+        edgePathKey(config.selectedTarget.fromIndex, config.selectedTarget.toIndex)
+      );
       nodesToShow.add(config.selectedTarget.fromIndex);
       nodesToShow.add(config.selectedTarget.toIndex);
     } else if (config.selectedTarget?.kind === 'node') {
@@ -626,8 +823,7 @@ export function createGraphPanelController(options: {
       if (!point) return;
       const probability = config.state.transitionMatrix[indices.fromIndex]?.[indices.toIndex] ?? 0;
       const text = formatProbability(probability, 3);
-      const labelWidth =
-        estimateLabelWidth(text, 'edge') + VALUE_LABEL_CELL_PADDING_X * 2;
+      const labelWidth = estimateLabelWidth(text, 'edge') + VALUE_LABEL_CELL_PADDING_X * 2;
       const labelHeight = VALUE_LABEL_BASE_HEIGHT + VALUE_LABEL_CELL_PADDING_Y * 2;
       const rect = placeRectNearAnchor({
         anchor: point,
@@ -641,6 +837,7 @@ export function createGraphPanelController(options: {
         rect,
         text,
         kind: 'edge',
+        isHighlighted: config.highlightedEdgeKeys.has(key),
       });
       occupiedRects.push(rect);
       annotationLayer.appendChild(label);
@@ -652,8 +849,7 @@ export function createGraphPanelController(options: {
       const value = config.state.currentVector[nodeIndex] ?? 0;
       const valueText = formatProbability(value, 3);
       const text = `N${nodeIndex + 1}=${valueText}`;
-      const labelWidth =
-        estimateLabelWidth(text, 'node') + VALUE_LABEL_CELL_PADDING_X * 2;
+      const labelWidth = estimateLabelWidth(text, 'node') + VALUE_LABEL_CELL_PADDING_X * 2;
       const labelHeight = VALUE_LABEL_BASE_HEIGHT + VALUE_LABEL_CELL_PADDING_Y * 2;
       const rect = placeRectNearAnchor({
         anchor: center,
@@ -668,13 +864,17 @@ export function createGraphPanelController(options: {
         text: valueText,
         kind: 'node',
         nodeIndex,
+        isHighlighted: config.highlightedNodeIndices.has(nodeIndex),
       });
       occupiedRects.push(rect);
       annotationLayer.appendChild(label);
     });
 
     if (config.selectedEdgeEditor) {
-      const key = edgePathKey(config.selectedEdgeEditor.fromIndex, config.selectedEdgeEditor.toIndex);
+      const key = edgePathKey(
+        config.selectedEdgeEditor.fromIndex,
+        config.selectedEdgeEditor.toIndex
+      );
       const point = currentEdgeLabelPoints.get(key);
       if (point) {
         const rect = placeRectNearAnchor({
@@ -751,6 +951,7 @@ export function createGraphPanelController(options: {
     text: string;
     kind: 'edge' | 'node';
     nodeIndex?: number;
+    isHighlighted?: boolean;
   }): SVGGElement {
     const group = createSvgElement<SVGGElement>('g');
     const cell = createSvgElement<SVGRectElement>('rect');
@@ -767,6 +968,9 @@ export function createGraphPanelController(options: {
     label.classList.add(
       config.kind === 'edge' ? 'markov-graph-value-label--edge' : 'markov-graph-value-label--node'
     );
+    if (config.isHighlighted) {
+      label.classList.add('markov-graph-value-label--highlighted');
+    }
     label.setAttribute('x', (config.rect.x + config.rect.width / 2).toFixed(2));
     label.setAttribute('y', (config.rect.y + config.rect.height / 2).toFixed(2));
     const nodeIndex = config.nodeIndex;
@@ -807,6 +1011,458 @@ export function createGraphPanelController(options: {
     toggleAllValuesButton.setAttribute('aria-pressed', showAllValues ? 'true' : 'false');
   }
 
+  function applyViewportAfterResolution(
+    requested: GraphViewportTransform,
+    resolved: GraphViewportTransform,
+    options?: {
+      delayBeforeStart?: boolean;
+    }
+  ) {
+    if (isSameViewportTransform(requested, resolved)) {
+      applyViewportTransformImmediate(resolved);
+      return;
+    }
+
+    animateViewportProjectionTo(resolved, options?.delayBeforeStart ?? false);
+  }
+
+  function applyViewportTransformImmediate(next: GraphViewportTransform) {
+    viewportTransform = next;
+    viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
+  }
+
+  function cancelViewportProjectionAnimation() {
+    if (viewportProjectionStartTimeoutId !== null) {
+      window.clearTimeout(viewportProjectionStartTimeoutId);
+      viewportProjectionStartTimeoutId = null;
+    }
+    if (viewportProjectionAnimationHandle !== null) {
+      cancelAnimationFrame(viewportProjectionAnimationHandle);
+      viewportProjectionAnimationHandle = null;
+    }
+    viewportProjectionAnimationToken += 1;
+    viewportProjectionTarget = null;
+  }
+
+  function animateViewportProjectionTo(target: GraphViewportTransform, delayBeforeStart: boolean) {
+    if (reduceMotionQuery.matches) {
+      cancelViewportProjectionAnimation();
+      applyViewportTransformImmediate(target);
+      return;
+    }
+
+    if (isSameViewportTransform(viewportTransform, target)) {
+      applyViewportTransformImmediate(target);
+      return;
+    }
+
+    if (viewportProjectionTarget && isSameViewportTransform(viewportProjectionTarget, target)) {
+      return;
+    }
+
+    if (
+      delayBeforeStart &&
+      (viewportProjectionStartTimeoutId !== null || viewportProjectionAnimationHandle !== null)
+    ) {
+      // Keep an in-flight delayed/running projection while user continues panning; just retarget.
+      viewportProjectionTarget = target;
+      return;
+    }
+
+    cancelViewportProjectionAnimation();
+    viewportProjectionTarget = target;
+    const token = viewportProjectionAnimationToken;
+    const startTween = () => {
+      if (token !== viewportProjectionAnimationToken) {
+        return;
+      }
+
+      viewportProjectionStartTimeoutId = null;
+      const resolvedTarget = viewportProjectionTarget ?? target;
+      const start = { ...viewportTransform };
+      const startTime = performance.now();
+
+      const renderFrame = (now: number) => {
+        if (token !== viewportProjectionAnimationToken) {
+          return;
+        }
+
+        const elapsed = now - startTime;
+        const progress = clamp01(elapsed / PROJECTION_ANIMATION_DURATION_MS);
+        const eased = easeInOutCubic(progress);
+        const activeTarget = viewportProjectionTarget ?? resolvedTarget;
+        const next = {
+          scale: lerp(start.scale, activeTarget.scale, eased),
+          translateX: lerp(start.translateX, activeTarget.translateX, eased),
+          translateY: lerp(start.translateY, activeTarget.translateY, eased),
+        };
+        applyViewportTransformImmediate(next);
+
+        if (progress < 1) {
+          viewportProjectionAnimationHandle = requestAnimationFrame(renderFrame);
+          return;
+        }
+
+        viewportProjectionAnimationHandle = null;
+        const finalTarget = viewportProjectionTarget ?? resolvedTarget;
+        viewportProjectionTarget = null;
+        applyViewportTransformImmediate(finalTarget);
+      };
+
+      viewportProjectionAnimationHandle = requestAnimationFrame(renderFrame);
+    };
+
+    if (!delayBeforeStart) {
+      startTween();
+      return;
+    }
+
+    viewportProjectionStartTimeoutId = window.setTimeout(startTween, PAN_PROJECTION_START_DELAY_MS);
+  }
+
+  function shouldIgnoreGraphKeyEvent(event: KeyboardEvent): boolean {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return false;
+    }
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      return true;
+    }
+    if (target instanceof HTMLElement && target.isContentEditable) {
+      return true;
+    }
+    return false;
+  }
+
+  function zoomViewport(zoomFactor: number, focalPoint: Point) {
+    if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) {
+      return;
+    }
+
+    const nextScale = clamp(viewportTransform.scale * zoomFactor, MIN_GRAPH_SCALE, MAX_GRAPH_SCALE);
+    if (Math.abs(nextScale - viewportTransform.scale) <= PROBABILITY_EPSILON) {
+      return;
+    }
+
+    const worldX = (focalPoint.x - viewportTransform.translateX) / viewportTransform.scale;
+    const worldY = (focalPoint.y - viewportTransform.translateY) / viewportTransform.scale;
+    const candidate = normalizeGraphViewportTransform(
+      {
+        scale: nextScale,
+        translateX: focalPoint.x - nextScale * worldX,
+        translateY: focalPoint.y - nextScale * worldY,
+      },
+      viewportTransform
+    );
+    const resolved = normalizeViewportTransformForNodes(candidate);
+    applyViewportAfterResolution(candidate, resolved, {
+      delayBeforeStart: false,
+    });
+  }
+
+  function panViewport(delta: Point, direction: PanDirection) {
+    if (
+      !Number.isFinite(delta.x) ||
+      !Number.isFinite(delta.y) ||
+      (Math.abs(delta.x) <= PROBABILITY_EPSILON && Math.abs(delta.y) <= PROBABILITY_EPSILON)
+    ) {
+      return;
+    }
+
+    const candidate = normalizeGraphViewportTransform(
+      {
+        translateX: viewportTransform.translateX + delta.x,
+        translateY: viewportTransform.translateY + delta.y,
+      },
+      viewportTransform
+    );
+
+    if (currentNodeCenters.size === 0) {
+      cancelViewportProjectionAnimation();
+      viewportTransform = clampViewportScaleBounds(candidate);
+      applyViewportTransformImmediate(viewportTransform);
+      return;
+    }
+
+    if (hasAnyFullyVisibleNode(candidate, currentNodeCenters.values())) {
+      cancelViewportProjectionAnimation();
+      clearGraphStatus();
+      viewportTransform = clampViewportScaleBounds(candidate);
+      applyViewportTransformImmediate(viewportTransform);
+      return;
+    }
+
+    const current = viewportTransform;
+    const constrained = projectPanToVisibleNodeInDirection(current, candidate, direction);
+
+    if (
+      isSameViewportTransform(constrained, current) &&
+      !hasAnyFullyVisibleNode(candidate, currentNodeCenters.values())
+    ) {
+      cancelViewportProjectionAnimation();
+      showPanBlockedStatus(direction);
+    } else {
+      clearGraphStatus();
+      applyViewportAfterResolution(candidate, constrained, {
+        // Delay only when user keeps panning into the visibility boundary.
+        delayBeforeStart: true,
+      });
+    }
+  }
+
+  function handlePanDragMove(event: PointerEvent) {
+    if (!isPanDragging || panPointerId === null || event.pointerId !== panPointerId) {
+      return;
+    }
+
+    if (!lastPanClientPoint) {
+      lastPanClientPoint = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      return;
+    }
+
+    const clientDeltaX = event.clientX - lastPanClientPoint.x;
+    const clientDeltaY = event.clientY - lastPanClientPoint.y;
+    lastPanClientPoint = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+
+    const rect = graphSvg.getBoundingClientRect();
+    const graphDelta = {
+      x: (clientDeltaX / Math.max(1, rect.width)) * GRAPH_WIDTH,
+      y: (clientDeltaY / Math.max(1, rect.height)) * GRAPH_HEIGHT,
+    };
+    const direction = inferPanDirection(graphDelta);
+    if (!direction) {
+      return;
+    }
+    panViewport(graphDelta, direction);
+    didPanDuringDrag = true;
+  }
+
+  function finishPanDrag(pointerId: number) {
+    if (!isPanDragging || panPointerId === null || pointerId !== panPointerId) {
+      return;
+    }
+    isPanDragging = false;
+    panPointerId = null;
+    lastPanClientPoint = null;
+    cancelViewportProjectionAnimation();
+  }
+
+  function inferPanDirection(delta: Point): PanDirection | null {
+    if (Math.abs(delta.x) <= PROBABILITY_EPSILON && Math.abs(delta.y) <= PROBABILITY_EPSILON) {
+      return null;
+    }
+    if (Math.abs(delta.x) >= Math.abs(delta.y)) {
+      return delta.x >= 0 ? 'right' : 'left';
+    }
+    return delta.y >= 0 ? 'down' : 'up';
+  }
+
+  function normalizeViewportTransformForNodes(
+    transform: GraphViewportTransform
+  ): GraphViewportTransform {
+    const clampedScale = clampViewportScaleBounds(transform);
+    if (currentNodeCenters.size === 0) {
+      return clampedScale;
+    }
+    if (hasAnyFullyVisibleNode(clampedScale, currentNodeCenters.values())) {
+      return clampedScale;
+    }
+    return projectTransformToNearestVisibleNode(clampedScale, currentNodeCenters.values());
+  }
+
+  function clampViewportScaleBounds(transform: GraphViewportTransform): GraphViewportTransform {
+    return {
+      ...transform,
+      scale: clamp(transform.scale, MIN_GRAPH_SCALE, MAX_GRAPH_SCALE),
+    };
+  }
+
+  function projectPanToVisibleNodeInDirection(
+    current: GraphViewportTransform,
+    requested: GraphViewportTransform,
+    direction: PanDirection
+  ): GraphViewportTransform {
+    let best: GraphViewportTransform | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    let bestAxisProgress = Number.NEGATIVE_INFINITY;
+
+    for (const center of currentNodeCenters.values()) {
+      const candidate = projectTransformToVisibleNodeForCenter(requested, center);
+      if (!candidate) {
+        continue;
+      }
+      if (!hasPanProgressInDirection(current, candidate, direction)) {
+        continue;
+      }
+
+      const axisProgress = panAxisProgress(current, candidate, direction);
+      const distance = Math.hypot(
+        candidate.translateX - requested.translateX,
+        candidate.translateY - requested.translateY
+      );
+      const hasBetterDistance =
+        distance < bestDistance - 1e-6 ||
+        (Math.abs(distance - bestDistance) <= 1e-6 && axisProgress > bestAxisProgress + 1e-6);
+      if (hasBetterDistance) {
+        bestDistance = distance;
+        bestAxisProgress = axisProgress;
+        best = candidate;
+      }
+    }
+
+    return best ?? current;
+  }
+
+  function projectTransformToVisibleNodeForCenter(
+    transform: GraphViewportTransform,
+    center: Point
+  ): GraphViewportTransform | null {
+    const scale = transform.scale;
+    const radius = NODE_RADIUS * scale;
+    const txMin = radius - center.x * scale;
+    const txMax = GRAPH_WIDTH - radius - center.x * scale;
+    const tyMin = radius - center.y * scale;
+    const tyMax = GRAPH_HEIGHT - radius - center.y * scale;
+    if (txMin > txMax || tyMin > tyMax) {
+      return null;
+    }
+
+    return {
+      scale,
+      translateX: clamp(transform.translateX, txMin, txMax),
+      translateY: clamp(transform.translateY, tyMin, tyMax),
+    };
+  }
+
+  function panAxisProgress(
+    current: GraphViewportTransform,
+    next: GraphViewportTransform,
+    direction: PanDirection
+  ): number {
+    if (direction === 'left') {
+      return current.translateX - next.translateX;
+    }
+    if (direction === 'right') {
+      return next.translateX - current.translateX;
+    }
+    if (direction === 'up') {
+      return current.translateY - next.translateY;
+    }
+    return next.translateY - current.translateY;
+  }
+
+  function hasPanProgressInDirection(
+    current: GraphViewportTransform,
+    next: GraphViewportTransform,
+    direction: PanDirection
+  ): boolean {
+    return panAxisProgress(current, next, direction) > PROBABILITY_EPSILON;
+  }
+
+  function hasAnyFullyVisibleNode(
+    transform: GraphViewportTransform,
+    centers: Iterable<Point>
+  ): boolean {
+    for (const center of centers) {
+      if (isNodeFullyVisible(transform, center)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function isNodeFullyVisible(transform: GraphViewportTransform, center: Point): boolean {
+    const radius = NODE_RADIUS * transform.scale;
+    const screenX = transform.translateX + center.x * transform.scale;
+    const screenY = transform.translateY + center.y * transform.scale;
+    return (
+      screenX - radius >= 0 &&
+      screenX + radius <= GRAPH_WIDTH &&
+      screenY - radius >= 0 &&
+      screenY + radius <= GRAPH_HEIGHT
+    );
+  }
+
+  function projectTransformToNearestVisibleNode(
+    transform: GraphViewportTransform,
+    centers: Iterable<Point>
+  ): GraphViewportTransform {
+    const scale = transform.scale;
+    const radius = NODE_RADIUS * scale;
+    let best: GraphViewportTransform | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const center of centers) {
+      const txMin = radius - center.x * scale;
+      const txMax = GRAPH_WIDTH - radius - center.x * scale;
+      const tyMin = radius - center.y * scale;
+      const tyMax = GRAPH_HEIGHT - radius - center.y * scale;
+      if (txMin > txMax || tyMin > tyMax) {
+        continue;
+      }
+
+      const candidate = {
+        scale,
+        translateX: clamp(transform.translateX, txMin, txMax),
+        translateY: clamp(transform.translateY, tyMin, tyMax),
+      };
+      const distance = Math.hypot(
+        candidate.translateX - transform.translateX,
+        candidate.translateY - transform.translateY
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = candidate;
+      }
+    }
+
+    return best ?? transform;
+  }
+
+  function showPanBlockedStatus(direction: PanDirection) {
+    if (graphStatusTimeoutId !== null) {
+      window.clearTimeout(graphStatusTimeoutId);
+      graphStatusTimeoutId = null;
+    }
+    graphStatus.textContent = `No node further ${toViewportPanDirection(direction)}.`;
+    graphStatusTimeoutId = window.setTimeout(() => {
+      graphStatusTimeoutId = null;
+      graphStatus.textContent = '';
+    }, PAN_BLOCKED_NOTICE_MS);
+  }
+
+  function toViewportPanDirection(direction: PanDirection): string {
+    if (direction === 'left') return 'to the right';
+    if (direction === 'right') return 'to the left';
+    if (direction === 'up') return 'downward';
+    return 'upward';
+  }
+
+  function clearGraphStatus() {
+    if (graphStatusTimeoutId !== null) {
+      window.clearTimeout(graphStatusTimeoutId);
+      graphStatusTimeoutId = null;
+    }
+    graphStatus.textContent = '';
+  }
+
+  function isSameViewportTransform(
+    left: GraphViewportTransform,
+    right: GraphViewportTransform
+  ): boolean {
+    return (
+      Math.abs(left.scale - right.scale) <= 1e-9 &&
+      Math.abs(left.translateX - right.translateX) <= 1e-6 &&
+      Math.abs(left.translateY - right.translateY) <= 1e-6
+    );
+  }
+
   function estimateLabelWidth(text: string, kind: 'edge' | 'node'): number {
     const base = kind === 'edge' ? 38 : 52;
     return Math.max(base, text.length * 6.8 + 10);
@@ -826,15 +1482,25 @@ export function createGraphPanelController(options: {
 
     candidates.forEach((offset) => {
       const candidate: Rect = {
-        x: clamp(options.anchor.x + offset.x - options.width / 2, 2, GRAPH_WIDTH - options.width - 2),
-        y: clamp(options.anchor.y + offset.y - options.height / 2, 2, GRAPH_HEIGHT - options.height - 2),
+        x: clamp(
+          options.anchor.x + offset.x - options.width / 2,
+          2,
+          GRAPH_WIDTH - options.width - 2
+        ),
+        y: clamp(
+          options.anchor.y + offset.y - options.height / 2,
+          2,
+          GRAPH_HEIGHT - options.height - 2
+        ),
         width: options.width,
         height: options.height,
       };
-      const score = scoreAnnotationRect(candidate, {
-        occupiedRects: options.occupiedRects,
-        nodeObstacles: options.nodeObstacles,
-      }) + Math.hypot(offset.x, offset.y) * 0.08;
+      const score =
+        scoreAnnotationRect(candidate, {
+          occupiedRects: options.occupiedRects,
+          nodeObstacles: options.nodeObstacles,
+        }) +
+        Math.hypot(offset.x, offset.y) * 0.08;
 
       if (score < bestScore) {
         best = candidate;
@@ -842,12 +1508,14 @@ export function createGraphPanelController(options: {
       }
     });
 
-    return best ?? {
-      x: clamp(options.anchor.x - options.width / 2, 2, GRAPH_WIDTH - options.width - 2),
-      y: clamp(options.anchor.y - options.height / 2, 2, GRAPH_HEIGHT - options.height - 2),
-      width: options.width,
-      height: options.height,
-    };
+    return (
+      best ?? {
+        x: clamp(options.anchor.x - options.width / 2, 2, GRAPH_WIDTH - options.width - 2),
+        y: clamp(options.anchor.y - options.height / 2, 2, GRAPH_HEIGHT - options.height - 2),
+        width: options.width,
+        height: options.height,
+      }
+    );
   }
 
   function scoreAnnotationRect(
@@ -936,9 +1604,7 @@ export function createGraphPanelController(options: {
     const dy = endPoint.y - startPoint.y;
     const magnitude = Math.hypot(dx, dy);
     const tangent =
-      magnitude > PROBABILITY_EPSILON
-        ? { x: dx / magnitude, y: dy / magnitude }
-        : { x: 1, y: 0 };
+      magnitude > PROBABILITY_EPSILON ? { x: dx / magnitude, y: dy / magnitude } : { x: 1, y: 0 };
     const normal = {
       x: -tangent.y,
       y: tangent.x,
@@ -1107,8 +1773,12 @@ function drawGraph(args: {
         nodeLayout[fromLocalIndex],
         nodeLayout[toLocalIndex],
         probability,
-        (args.graphData.transitionMatrix[toLocalIndex]?.[fromLocalIndex] ?? 0) > PROBABILITY_EPSILON,
-        fromLocalIndex < toLocalIndex
+        (args.graphData.transitionMatrix[toLocalIndex]?.[fromLocalIndex] ?? 0) >
+          PROBABILITY_EPSILON,
+        fromLocalIndex < toLocalIndex,
+        nodeLayout,
+        fromLocalIndex,
+        toLocalIndex
       );
       nonSelfGeometryByKey.set(key, geometry);
       collisionPoints.push(...geometry.samplePoints);
@@ -1141,7 +1811,10 @@ function drawGraph(args: {
               probability,
               (args.graphData.transitionMatrix[toLocalIndex]?.[fromLocalIndex] ?? 0) >
                 PROBABILITY_EPSILON,
-              fromLocalIndex < toLocalIndex
+              fromLocalIndex < toLocalIndex,
+              nodeLayout,
+              fromLocalIndex,
+              toLocalIndex
             ));
 
       if (fromLocalIndex === toLocalIndex) {
@@ -1215,7 +1888,10 @@ function createEdgePath(
   toNode: GraphNodeLayout,
   probability: number,
   hasReverseEdge: boolean,
-  isForwardPair: boolean
+  isForwardPair: boolean,
+  allNodes: readonly GraphNodeLayout[],
+  fromNodeIndex: number,
+  toNodeIndex: number
 ): PathGeometry {
   const dx = toNode.x - fromNode.x;
   const dy = toNode.y - fromNode.y;
@@ -1237,23 +1913,115 @@ function createEdgePath(
 
   // Keep both directions for the same pair on parallel nearby tracks with opposite signed offsets.
   const pairSign = chooseDeterministicBendDirection(fromNode, toNode);
-  const directionSign = hasReverseEdge ? (isForwardPair ? pairSign : -pairSign) : pairSign;
-  const normalOffset = directionSign * bendMagnitude;
+  const preferredDirectionSign = hasReverseEdge ? (isForwardPair ? pairSign : -pairSign) : pairSign;
+  const directionCandidates = [preferredDirectionSign, -preferredDirectionSign];
+  const maxAvoidanceOffset = centerDistance * EDGE_MAX_AVOIDANCE_OFFSET_SCALE;
 
+  let bestGeometry: PathGeometry | null = null;
+  let bestClearance = Number.NEGATIVE_INFINITY;
+  let bestUsesPreferredDirection = false;
+  let bestMagnitude = Number.POSITIVE_INFINITY;
+
+  directionCandidates.forEach((directionSign, directionIndex) => {
+    EDGE_BEND_SCALE_CANDIDATES.forEach((scale) => {
+      const magnitude = Math.min(maxAvoidanceOffset, bendMagnitude * scale);
+      const normalOffset = directionSign * magnitude;
+      const candidate = buildEdgeGeometryFromOffset({
+        fromNode,
+        toNode,
+        centerDistance,
+        ux,
+        uy,
+        perpX,
+        perpY,
+        normalOffset,
+        hasReverseEdge,
+        directionSign,
+      });
+      const clearance = minimumClearanceToUnrelatedNodes(
+        candidate.samplePoints,
+        allNodes,
+        fromNodeIndex,
+        toNodeIndex
+      );
+      const usesPreferredDirection = directionIndex === 0;
+      const shouldReplace =
+        clearance > bestClearance + 1e-6 ||
+        (Math.abs(clearance - bestClearance) <= 1e-6 &&
+          usesPreferredDirection &&
+          !bestUsesPreferredDirection) ||
+        (Math.abs(clearance - bestClearance) <= 1e-6 &&
+          usesPreferredDirection === bestUsesPreferredDirection &&
+          magnitude < bestMagnitude - 1e-6);
+
+      if (shouldReplace) {
+        bestGeometry = candidate;
+        bestClearance = clearance;
+        bestUsesPreferredDirection = usesPreferredDirection;
+        bestMagnitude = magnitude;
+      }
+    });
+  });
+
+  return (
+    bestGeometry ??
+    buildEdgeGeometryFromOffset({
+      fromNode,
+      toNode,
+      centerDistance,
+      ux,
+      uy,
+      perpX,
+      perpY,
+      normalOffset: preferredDirectionSign * bendMagnitude,
+      hasReverseEdge,
+      directionSign: preferredDirectionSign,
+    })
+  );
+}
+
+function buildEdgeGeometryFromOffset(options: {
+  fromNode: GraphNodeLayout;
+  toNode: GraphNodeLayout;
+  centerDistance: number;
+  ux: number;
+  uy: number;
+  perpX: number;
+  perpY: number;
+  normalOffset: number;
+  hasReverseEdge: boolean;
+  directionSign: number;
+}): PathGeometry {
   const centerCurve: CubicCurve = {
-    start: { x: fromNode.x, y: fromNode.y },
+    start: { x: options.fromNode.x, y: options.fromNode.y },
     controlA: {
-      x: fromNode.x + ux * (centerDistance * EDGE_CUBIC_START_HANDLE) + perpX * normalOffset,
-      y: fromNode.y + uy * (centerDistance * EDGE_CUBIC_START_HANDLE) + perpY * normalOffset,
+      x:
+        options.fromNode.x +
+        options.ux * (options.centerDistance * EDGE_CUBIC_START_HANDLE) +
+        options.perpX * options.normalOffset,
+      y:
+        options.fromNode.y +
+        options.uy * (options.centerDistance * EDGE_CUBIC_START_HANDLE) +
+        options.perpY * options.normalOffset,
     },
     controlB: {
-      x: toNode.x - ux * (centerDistance * EDGE_CUBIC_END_HANDLE) + perpX * normalOffset,
-      y: toNode.y - uy * (centerDistance * EDGE_CUBIC_END_HANDLE) + perpY * normalOffset,
+      x:
+        options.toNode.x -
+        options.ux * (options.centerDistance * EDGE_CUBIC_END_HANDLE) +
+        options.perpX * options.normalOffset,
+      y:
+        options.toNode.y -
+        options.uy * (options.centerDistance * EDGE_CUBIC_END_HANDLE) +
+        options.perpY * options.normalOffset,
     },
-    end: { x: toNode.x, y: toNode.y },
+    end: { x: options.toNode.x, y: options.toNode.y },
   };
 
-  const boundaryT = findArrowTipBoundaryT(centerCurve, { x: toNode.x, y: toNode.y }, NODE_RADIUS);
+  const boundaryT = findArrowTipBoundaryT(
+    centerCurve,
+    { x: options.toNode.x, y: options.toNode.y },
+    NODE_RADIUS
+  );
   const clippedCurve = clipCubicCurve(centerCurve, clamp(boundaryT, 0.02, 1));
 
   const rawLabelPoint = cubicAt(
@@ -1263,12 +2031,14 @@ function createEdgePath(
     clippedCurve.end,
     EDGE_LABEL_TAIL_BIAS
   );
-  const labelNudge = hasReverseEdge ? 8 : 5;
+  const labelNudge = options.hasReverseEdge ? 8 : 5;
   const labelDirection =
-    Math.abs(normalOffset) <= PROBABILITY_EPSILON ? directionSign : Math.sign(normalOffset);
+    Math.abs(options.normalOffset) <= PROBABILITY_EPSILON
+      ? options.directionSign
+      : Math.sign(options.normalOffset);
   const labelPoint = {
-    x: rawLabelPoint.x + perpX * labelNudge * labelDirection,
-    y: rawLabelPoint.y + perpY * labelNudge * labelDirection,
+    x: rawLabelPoint.x + options.perpX * labelNudge * labelDirection,
+    y: rawLabelPoint.y + options.perpY * labelNudge * labelDirection,
   };
 
   const samplePoints = sampleCubicCurve({
@@ -1276,9 +2046,9 @@ function createEdgePath(
     controlA: clippedCurve.controlA,
     controlB: clippedCurve.controlB,
     end: clippedCurve.end,
-    sampleCount: 16,
-    startT: 0.08,
-    endT: 0.92,
+    sampleCount: 20,
+    startT: 0.06,
+    endT: 0.96,
   });
 
   return {
@@ -1390,7 +2160,11 @@ function sampleLoopArc(options: {
   return points;
 }
 
-function findArrowTipBoundaryT(curve: CubicCurve, targetCenter: Point, targetRadius: number): number {
+function findArrowTipBoundaryT(
+  curve: CubicCurve,
+  targetCenter: Point,
+  targetRadius: number
+): number {
   const sampleCount = 160;
   let previousT = 0;
   let previousError = markerTipBoundaryError(curve, previousT, targetCenter, targetRadius);
@@ -1568,6 +2342,31 @@ function minimumClearanceToOtherNodes(
   return minClearance;
 }
 
+function minimumClearanceToUnrelatedNodes(
+  samples: readonly Point[],
+  allNodes: readonly GraphNodeLayout[],
+  fromNodeIndex: number,
+  toNodeIndex: number
+): number {
+  if (allNodes.length <= 2) {
+    return 1000;
+  }
+
+  let minClearance = Number.POSITIVE_INFINITY;
+  samples.forEach((sample) => {
+    allNodes.forEach((node) => {
+      if (node.index === fromNodeIndex || node.index === toNodeIndex) return;
+      const centerDistance = Math.hypot(sample.x - node.x, sample.y - node.y);
+      const clearance = centerDistance - (NODE_RADIUS + EDGE_NODE_CLEARANCE_MARGIN);
+      if (clearance < minClearance) {
+        minClearance = clearance;
+      }
+    });
+  });
+
+  return Number.isFinite(minClearance) ? minClearance : 1000;
+}
+
 function minimumBoundaryClearance(samples: readonly Point[]): number {
   if (samples.length === 0) {
     return 0;
@@ -1689,7 +2488,8 @@ function normalizeSubgraphSelection(
   const maxNodes = Math.max(2, Math.floor(maxNodesRaw));
 
   const minEdgeProbabilityRaw =
-    typeof selection.minEdgeProbability === 'number' && Number.isFinite(selection.minEdgeProbability)
+    typeof selection.minEdgeProbability === 'number' &&
+    Number.isFinite(selection.minEdgeProbability)
       ? selection.minEdgeProbability
       : fallback.minEdgeProbability;
   const minEdgeProbability = clamp(minEdgeProbabilityRaw, 0, 1);

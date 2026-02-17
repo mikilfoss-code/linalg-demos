@@ -1,6 +1,6 @@
 # Dependency update report
 
-Generated: 2026-02-13 17:19:43
+Generated: 2026-02-17 17:03:20
 
 ## Toolchain
 
@@ -20,24 +20,26 @@ Version keys:
 
 ## Toolchain upgrade availability (read-only)
 
-| Tool       | Current | Latest  | Status     | Source | Notes              |
-| ---------- | ------- | ------- | ---------- | ------ | ------------------ |
-| git        | 2.53.0  | 2.53.0  | up_to_date | S51    |                    |
-| pip-system | 26.0.1  | 26.0.1  | up_to_date | S52    |                    |
-| pip-venv   | 26.0.1  | 26.0.1  | up_to_date | S52    |                    |
-| pnpm       | 10.29.3 | 10.29.3 | up_to_date | S53    |                    |
-| python     | 3.14.3  | 3.14.3  | up_to_date | S54    | used tags fallback |
-| uv         | 0.10.2  | 0.10.2  | up_to_date | S55    |                    |
-| volta      | 2.0.2   | 2.0.2   | up_to_date | S56    |                    |
+| Tool       | Current | Latest | Status         | Source | Notes |
+| ---------- | ------- | ------ | -------------- | ------ | ----- |
+| git        | 2.53.0  |        | latest_unknown | S51    | N1    |
+| pip-system | 26.0.1  |        | latest_unknown | S52    | N1    |
+| pip-venv   | 26.0.1  |        | latest_unknown | S52    | N1    |
+| pnpm       | 10.29.3 |        | latest_unknown | S53    | N1    |
+| python     | 3.14.3  |        | latest_unknown | S54    | N1    |
+| uv         | 0.10.2  |        | latest_unknown | S55    | N1    |
+| volta      | 2.0.2   |        | latest_unknown | S56    | N1    |
 
 Legend:
 Source keys:
 - S51: https://api.github.com/repos/git-for-windows/git/releases/latest
 - S52: https://pypi.org/pypi/pip/json
 - S53: https://registry.npmjs.org/pnpm/latest
-- S54: https://api.github.com/repos/python/cpython/releases?per_page=100; https://api.github.com/repos/python/cpython/tags?per_page=200
+- S54: https://api.github.com/repos/python/cpython/releases?per_page=100
 - S55: https://api.github.com/repos/astral-sh/uv/releases/latest
 - S56: https://api.github.com/repos/volta-cli/volta/releases/latest
+Notes keys:
+- N1: latest lookup failed or blocked
 
 ## Other Python manifests (discovery only)
 
@@ -45,7 +47,7 @@ _None found._
 
 ## Node/JS (pnpm outdated)
 
-Scopes scanned: **3**
+Scopes scanned: **4**
 
 - Note: @types/node is a TypeScript package and is separate from the Node runtime.
 - Node runtime target from .nvmrc: **25.6.0**
@@ -55,15 +57,18 @@ Scopes scanned: **3**
 | --------- | --- | ----------------- | --------------------- |
 | S1        | D1  | 0                 | 0                     |
 | S2        | D2  | 0                 | 0                     |
+| S3        | D3  | 0                 | 0                     |
 | node:root | .   | 0                 | 0                     |
 
 Legend:
 Scope keys:
-- S1: node:frontend:linalg-matrix_transforms
-- S2: node:frontend:linalg-vectors
+- S1: node:frontend:linalg-markov_chains
+- S2: node:frontend:linalg-matrix_transforms
+- S3: node:frontend:linalg-vectors
 Dir keys:
-- D1: demos\linalg-matrix_transforms\frontend
-- D2: demos\linalg-vectors\frontend
+- D1: demos\linalg-markov_chains\frontend
+- D2: demos\linalg-matrix_transforms\frontend
+- D3: demos\linalg-vectors\frontend
 
 - Runtime dependency upgrades available: **0**
 - Dev dependency upgrades available: **0**
@@ -89,16 +94,20 @@ _No runtime/dev discrepancies detected._
 
 - backend/requirements.in found: **True**
 - backend/requirements.txt found: **True**
-- compile mode: **upgrade**
-- uv upgrade exit code: **0**
-- uv effective exit code: **0**
+- compile mode: **failed**
+- uv upgrade exit code: **2**
+- uv fallback exit code: **2**
+- uv effective exit code: **2**
 - upgraded preview: `reports\requirements.upgraded.txt`
 - uv stderr (upgrade): `reports\uv_compile.stderr.txt`
+- uv stderr (fallback): `reports\uv_compile.fallback.stderr.txt`
 
-Counts: update=0, added=0, removed=0
+_No Python diffs reported (or preview not run)._
 
-| Package | Current | Upgraded | Status |
-| ------- | ------- | -------- | ------ |
+### Python scan notes / errors
+
+- uv pip compile --upgrade exited with code 2: continuing with partial report. Detected: registry unreachable (pypi.org). See C:\Users\mfoss3\Documents\Coding\webapps\linalg\reports\uv_compile.stderr.txt. stderr: WARN Retry attempt #0. Sleeping 222.5545ms before the next attempt | WARN Retry attempt #0. Sleeping 418.0144ms before the next attempt
+- uv pip compile fallback (without --upgrade) exited with code 2: continuing with partial report. Detected: registry unreachable (pypi.org). See C:\Users\mfoss3\Documents\Coding\webapps\linalg\reports\uv_compile.fallback.stderr.txt. stderr: WARN Retry attempt #0. Sleeping 923.1914ms before the next attempt | WARN Retry attempt #0. Sleeping 99.6228ms before the next attempt
 
 ## Code Change Impact (Heuristic)
 
@@ -124,7 +133,7 @@ _No likely code-change file targets identified._
    - `& "C:\Users\mfoss3\.venvs\linalg-demos\Scripts\python.exe" -m pip --version`
    - Optional Volta project pinning (run once per demo project):
    - `volta pin node@lts` or `volta pin node@latest`
-   - `volta pin pnpm@10.29.3` or `volta pin pnpm@latest`
+   - `volta pin pnpm@latest` or `volta pin pnpm@latest`
    - Verify active/runtime tool versions:
    - `node -v`
    - `pnpm -v`
@@ -156,7 +165,7 @@ _No likely code-change file targets identified._
    - Verify: `git diff -- backend/requirements.txt`
    - `uv pip sync backend/requirements.txt`
    - Verify: `uv pip check`
-   - No backend package changes detected in preview.
+   - Backend upgrade preview failed; no reliable backend diff is available from this run.
 
 6. Re-run scan to confirm upgrades are complete.
    - `pwsh -NoProfile -File .agent/skills/update-scan/scripts/update-dep-scanner.ps1`

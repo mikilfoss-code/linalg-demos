@@ -1,1 +1,28 @@
-Resolved 26 packages in 187ms
+WARN Retry attempt #0. Sleeping 222.5545ms before the next attempt
+WARN Retry attempt #0. Sleeping 418.0144ms before the next attempt
+WARN Retry attempt #0. Sleeping 455.424ms before the next attempt
+WARN Retry attempt #0. Sleeping 273.4175ms before the next attempt
+WARN Retry attempt #0. Sleeping 503.4729ms before the next attempt
+WARN Retry attempt #0. Sleeping 18.1286ms before the next attempt
+WARN Retry attempt #0. Sleeping 29.7263ms before the next attempt
+WARN Retry attempt #1. Sleeping 1.5654448s before the next attempt
+WARN Retry attempt #1. Sleeping 566.7473ms before the next attempt
+WARN Retry attempt #1. Sleeping 631.4496ms before the next attempt
+WARN Retry attempt #1. Sleeping 1.6563785s before the next attempt
+WARN Retry attempt #1. Sleeping 210.9383ms before the next attempt
+WARN Retry attempt #1. Sleeping 299.5533ms before the next attempt
+WARN Retry attempt #1. Sleeping 1.4477954s before the next attempt
+WARN Retry attempt #2. Sleeping 3.7763515s before the next attempt
+WARN Retry attempt #2. Sleeping 1.5229155s before the next attempt
+WARN Retry attempt #2. Sleeping 99.1411ms before the next attempt
+WARN Retry attempt #2. Sleeping 2.035817s before the next attempt
+WARN Retry attempt #2. Sleeping 3.7709265s before the next attempt
+WARN Retry attempt #2. Sleeping 986.7964ms before the next attempt
+WARN Retry attempt #2. Sleeping 1.7513442s before the next attempt
+error: Request failed after 3 retries
+  Caused by: Failed to fetch: `https://pypi.org/simple/fastapi/`
+  Caused by: error sending request for url (https://pypi.org/simple/fastapi/)
+  Caused by: client error (Connect)
+  Caused by: tunnel error: failed to create underlying connection
+  Caused by: tcp connect error
+  Caused by: No connection could be made because the target machine actively refused it. (os error 10061)

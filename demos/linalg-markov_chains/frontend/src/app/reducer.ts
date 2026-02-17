@@ -286,14 +286,7 @@ export function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'NORMALIZE_MATRIX': {
-      const transitionMatrix = state.transitionMatrix.map((row, rowIndex) => {
-        const normalized = normalizeProbabilityVector(row);
-        if (vectorSum(normalized) <= Number.EPSILON) {
-          normalized[rowIndex] = 1;
-          return normalizeProbabilityVector(normalized);
-        }
-        return normalized;
-      });
+      const transitionMatrix = normalizeTransitionRows(state.transitionMatrix);
       const initialVector = normalizeVectorWithDefault(state.initialVector, state.nodeCount);
       const currentVector = normalizeVectorWithDefault(state.currentVector, state.nodeCount);
       return withValidation({
@@ -306,25 +299,35 @@ export function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'STEP': {
-      if (!state.validation.canStep) {
+      const transitionMatrix = state.hasPendingMatrixEdits
+        ? normalizeTransitionRows(state.transitionMatrix)
+        : state.transitionMatrix;
+      const validation = buildValidationSummary(
+        transitionMatrix,
+        state.initialVector,
+        state.currentVector
+      );
+      if (!validation.canStep) {
         return state;
       }
 
       const fromVector = [...state.currentVector];
-      const toVector = stepVector(fromVector, state.transitionMatrix);
+      const toVector = stepVector(fromVector, transitionMatrix);
       const flowAnimation = createFlowAnimation(
         state.nextAnimationId,
         fromVector,
         toVector,
-        state.transitionMatrix
+        transitionMatrix
       );
 
       return withValidation({
         ...state,
+        transitionMatrix,
         currentVector: toVector,
         stepCount: state.stepCount + 1,
         flowAnimation,
         nextAnimationId: state.nextAnimationId + 1,
+        hasPendingMatrixEdits: false,
       });
     }
 
@@ -411,4 +414,15 @@ function createUniformProbabilityVector(nodeCount: number): number[] {
 function createRandomProbabilityVector(nodeCount: number): number[] {
   const raw = Array.from({ length: nodeCount }, () => Math.random());
   return normalizeVectorWithDefault(raw, nodeCount);
+}
+
+function normalizeTransitionRows(transitionMatrix: number[][]): number[][] {
+  return transitionMatrix.map((row, rowIndex) => {
+    const normalized = normalizeProbabilityVector(row);
+    if (vectorSum(normalized) <= Number.EPSILON) {
+      normalized[rowIndex] = 1;
+      return normalizeProbabilityVector(normalized);
+    }
+    return normalized;
+  });
 }

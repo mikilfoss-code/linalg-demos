@@ -47,27 +47,29 @@ export function createStatePanelController(options: {
 
       <div class="markov-step-row markov-step-row--initial">
         <span class="markov-inline-heading">Initial State:</span>
-        <button
-          class="base-button base-button--secondary markov-initial-button"
-          type="button"
-          data-action="set-initial-uniform"
-        >
-          Uniform
-        </button>
-        <button
-          class="base-button base-button--secondary markov-initial-button"
-          type="button"
-          data-action="set-initial-random"
-        >
-          Random
-        </button>
-        <button
-          class="base-button base-button--secondary markov-initial-button"
-          type="button"
-          data-action="set-initial-current"
-        >
-          Current
-        </button>
+        <div class="markov-initial-actions">
+          <button
+            class="base-button base-button--secondary markov-initial-button"
+            type="button"
+            data-action="set-initial-uniform"
+          >
+            Uniform
+          </button>
+          <button
+            class="base-button base-button--secondary markov-initial-button"
+            type="button"
+            data-action="set-initial-random"
+          >
+            Random
+          </button>
+          <button
+            class="base-button base-button--secondary markov-initial-button"
+            type="button"
+            data-action="set-initial-current"
+          >
+            Current
+          </button>
+        </div>
       </div>
 
       <div class="markov-state-table-wrap">
@@ -193,7 +195,7 @@ export function createStatePanelController(options: {
     render(state) {
       stepCountEl.textContent = String(state.stepCount);
 
-      stepButton.disabled = !state.validation.canStep;
+      stepButton.disabled = !state.validation.canStep && !state.hasPendingMatrixEdits;
 
       stateVectorBody.innerHTML = buildStateRowsMarkup(state);
 

@@ -19,11 +19,13 @@ export function createMatrixPanelController(options: {
       <div class="markov-matrix-head">
         <div>
           <h2 class="base-panel-title">Transition Matrix P</h2>
-          <p class="base-subtitle">Each row defines outgoing probabilities from one state.</p>
+          <p class="base-subtitle">
+            Displayed as transpose: columns are outgoing probabilities from each state.
+          </p>
         </div>
         <div class="markov-inline-actions">
           <button class="base-button base-button--secondary" type="button" data-action="normalize-matrix">
-            Normalize all rows
+            Normalize all columns
           </button>
         </div>
       </div>
@@ -50,14 +52,15 @@ export function createMatrixPanelController(options: {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
 
-    const rowIndex = Number.parseInt(target.dataset.rowIndex ?? '', 10);
-    const colIndex = Number.parseInt(target.dataset.colIndex ?? '', 10);
+    const displayedRowIndex = Number.parseInt(target.dataset.rowIndex ?? '', 10);
+    const displayedColIndex = Number.parseInt(target.dataset.colIndex ?? '', 10);
     const value = Number.parseFloat(target.value);
 
+    // Matrix is displayed as P^T, so displayed[row, col] maps to internal[col, row].
     options.dispatch({
       type: 'SET_TRANSITION_CELL',
-      rowIndex,
-      colIndex,
+      rowIndex: displayedColIndex,
+      colIndex: displayedRowIndex,
       value,
     });
   });
@@ -76,9 +79,9 @@ function buildMatrixMarkup(state: AppState): string {
     (_, index) => `<th scope="col">${formatNodeLabelMarkup(index)}</th>`
   ).join('');
 
-  const bodyRows = Array.from({ length: state.nodeCount }, (_, rowIndex) => {
+  const bodyRows = Array.from({ length: state.nodeCount }, (_, displayedRowIndex) => {
     const rowCells = Array.from({ length: state.nodeCount }, (_, colIndex) => {
-      const value = state.transitionMatrix[rowIndex][colIndex];
+      const value = state.transitionMatrix[colIndex]?.[displayedRowIndex] ?? 0;
       return `
         <td>
           <input
@@ -87,10 +90,10 @@ function buildMatrixMarkup(state: AppState): string {
             min="0"
             max="1"
             step="0.01"
-            data-row-index="${rowIndex}"
+            data-row-index="${displayedRowIndex}"
             data-col-index="${colIndex}"
             value="${value.toFixed(4)}"
-            aria-label="Transition probability from state ${rowIndex + 1} to state ${colIndex + 1}"
+            aria-label="Transposed entry for transition probability from state ${colIndex + 1} to state ${displayedRowIndex + 1}"
           />
         </td>
       `;
@@ -98,23 +101,32 @@ function buildMatrixMarkup(state: AppState): string {
 
     return `
       <tr>
-        <th scope="row">${formatNodeLabelMarkup(rowIndex)}</th>
+        <th scope="row">${formatNodeLabelMarkup(displayedRowIndex)}</th>
         ${rowCells}
-        <td class="markov-row-sum">${formatProbability(state.validation.rowSums[rowIndex], 4)}</td>
       </tr>
     `;
+  }).join('');
+
+  const displayedColumnSums = Array.from({ length: state.nodeCount }, (_, displayedColIndex) => {
+    // Displayed column sums of P^T correspond to internal row sums of P.
+    return `<td class="markov-row-sum">${formatProbability(state.validation.rowSums[displayedColIndex], 4)}</td>`;
   }).join('');
 
   return `
     <table class="markov-matrix-table" aria-label="Transition matrix">
       <thead>
         <tr>
-          <th scope="col">From \\ To</th>
+          <th scope="col">To \\ From</th>
           ${columnHeaders}
-          <th scope="col">Row sum</th>
         </tr>
       </thead>
-      <tbody>${bodyRows}</tbody>
+      <tbody>
+        ${bodyRows}
+        <tr>
+          <th scope="row">Column sum</th>
+          ${displayedColumnSums}
+        </tr>
+      </tbody>
     </table>
   `;
 }
