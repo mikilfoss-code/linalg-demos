@@ -3,6 +3,10 @@ import type { AppState } from './types';
 import { formatNodeLabelMarkup } from './node-label';
 import { formatProbability } from '../lib/markov';
 
+/**
+ * Purpose: MatrixPanelController object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type MatrixPanelController = {
   element: HTMLElement;
   render: (state: AppState) => void;
@@ -73,6 +77,12 @@ export function createMatrixPanelController(options: {
   };
 }
 
+/**
+ * Purpose: buildMatrixMarkup function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildMatrixMarkup(state: AppState): string {
   const columnHeaders = Array.from(
     { length: state.nodeCount },
@@ -131,6 +141,12 @@ function buildMatrixMarkup(state: AppState): string {
   `;
 }
 
+/**
+ * Purpose: createTemplateElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTemplateElement(markup: string): HTMLElement {
   const template = document.createElement('template');
   template.innerHTML = markup.trim();
@@ -141,6 +157,12 @@ function createTemplateElement(markup: string): HTMLElement {
   return node;
 }
 
+/**
+ * Purpose: requireElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (!element) {

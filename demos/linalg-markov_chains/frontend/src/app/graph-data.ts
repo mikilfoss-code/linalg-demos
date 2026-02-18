@@ -3,12 +3,20 @@ import { edgePathKey } from '../lib/markov';
 
 export type GraphSubgraphMode = 'all' | 'top-state-mass';
 
+/**
+ * Purpose: GraphSubgraphSelection object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphSubgraphSelection = {
   mode: GraphSubgraphMode;
   maxNodes: number;
   minEdgeProbability: number;
 };
 
+/**
+ * Purpose: GraphRenderData object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphRenderData = {
   nodeCount: number;
   nodeIndices: number[];
@@ -37,6 +45,12 @@ export function buildGraphRenderData(
   return buildTopStateMassRenderData(state, selection);
 }
 
+/**
+ * Purpose: buildAllNodesRenderData function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildAllNodesRenderData(
   state: AppState,
   minEdgeProbability: number
@@ -57,6 +71,12 @@ function buildAllNodesRenderData(
   };
 }
 
+/**
+ * Purpose: buildTopStateMassRenderData function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildTopStateMassRenderData(
   state: AppState,
   selection: GraphSubgraphSelection
@@ -85,6 +105,12 @@ function buildTopStateMassRenderData(
   };
 }
 
+/**
+ * Purpose: pickTopStateNodes function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function pickTopStateNodes(currentVector: number[], maxNodes: number): number[] {
   const safeMaxNodes = Math.max(2, Math.floor(maxNodes));
   return currentVector
@@ -100,6 +126,12 @@ function pickTopStateNodes(currentVector: number[], maxNodes: number): number[] 
     .sort((left, right) => left - right);
 }
 
+/**
+ * Purpose: buildEdgeKeys function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildEdgeKeys(options: {
   nodeIndices: number[];
   transitionMatrix: number[][];

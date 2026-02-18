@@ -1,3 +1,7 @@
+/**
+ * Purpose: ApiErrorInfo object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type ApiErrorInfo = {
   message: string;
   status: number;

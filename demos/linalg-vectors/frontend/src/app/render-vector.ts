@@ -13,6 +13,10 @@ import {
   offsetToSliderValue,
 } from './state';
 
+/**
+ * Purpose: VectorRendererDeps object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type VectorRendererDeps = {
   vectorRangeEl: HTMLDivElement;
   vectorSlider: HTMLInputElement;
@@ -23,6 +27,10 @@ type VectorRendererDeps = {
   setVectorHighlight: (word: string | null, weight: number) => void;
 };
 
+/**
+ * Purpose: VectorRenderer object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type VectorRenderer = {
   renderVector: (sample: DatasetSample | null, offset: number, meta: DatasetMeta | null) => void;
 };

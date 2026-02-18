@@ -2,22 +2,38 @@ import { clampNodeCount } from './markov';
 
 export const DEFAULT_TRANSITION_GRAPH_STRATEGY_ID = 'random-directed-no-self';
 
+/**
+ * Purpose: TransitionGraphGeneration object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type TransitionGraphGeneration = {
   transitionMatrix: number[][];
   initialVector: number[];
   currentVector: number[];
 };
 
+/**
+ * Purpose: TransitionGraphGenerationContext object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type TransitionGraphGenerationContext = {
   nodeCount: number;
   random: () => number;
 };
 
+/**
+ * Purpose: TransitionGraphStrategy object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type TransitionGraphStrategy = {
   id: string;
   generate: (context: TransitionGraphGenerationContext) => TransitionGraphGeneration;
 };
 
+/**
+ * Purpose: TransitionGraphGenerator object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type TransitionGraphGenerator = {
   defaultStrategyId: string;
   listStrategies: () => string[];
@@ -62,6 +78,12 @@ export function createTransitionGraphGenerator(options?: {
   };
 }
 
+/**
+ * Purpose: createRandomDirectedNoSelfStrategy function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createRandomDirectedNoSelfStrategy(): TransitionGraphStrategy {
   return {
     id: DEFAULT_TRANSITION_GRAPH_STRATEGY_ID,
@@ -89,6 +111,12 @@ function createRandomDirectedNoSelfStrategy(): TransitionGraphStrategy {
   };
 }
 
+/**
+ * Purpose: chooseOutgoingTargets function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function chooseOutgoingTargets(
   rowIndex: number,
   nodeCount: number,

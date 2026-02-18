@@ -17,6 +17,10 @@ const FLOW_GLOB_EDGE_SPREAD_MAX = 1;
 const FLOW_GLOB_EDGE_SPREAD_EXPONENT = 1.25;
 const FLOW_GLOB_SPREAD_EXPANSION = 0.72;
 
+/**
+ * Purpose: GlobSlot object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type GlobSlot = {
   x: number;
   y: number;
@@ -44,6 +48,10 @@ const FLOW_GLOB_SLOT_COORDS: readonly GlobSlot[] = [
   { x: -2, y: -1 },
 ];
 
+/**
+ * Purpose: ValidationSummary object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type ValidationSummary = {
   matrixValid: boolean;
   initialVectorValid: boolean;
@@ -55,6 +63,10 @@ export type ValidationSummary = {
   errors: string[];
 };
 
+/**
+ * Purpose: FlowEdge object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type FlowEdge = {
   from: number;
   to: number;
@@ -63,6 +75,10 @@ export type FlowEdge = {
   pathKey: string;
 };
 
+/**
+ * Purpose: FlowParticle object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type FlowParticle = {
   id: string;
   pathKey: string;
@@ -73,6 +89,10 @@ export type FlowParticle = {
   offsetNormal: number;
 };
 
+/**
+ * Purpose: FlowAnimationState object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type FlowAnimationState = {
   id: number;
   fromVector: number[];
@@ -380,6 +400,12 @@ export function clampNodeCount(nodeCount: number): number {
   return rounded;
 }
 
+/**
+ * Purpose: validateProbabilityVector function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function validateProbabilityVector(vector: number[], expectedLength: number, label: string) {
   const errors: string[] = [];
 
@@ -415,10 +441,22 @@ function validateProbabilityVector(vector: number[], expectedLength: number, lab
   };
 }
 
+/**
+ * Purpose: sumVector function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function sumVector(vector: readonly number[]): number {
   return vector.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
 }
 
+/**
+ * Purpose: pseudoRandom function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function pseudoRandom(seed: number): number {
   const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return value - Math.floor(value);

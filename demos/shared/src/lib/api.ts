@@ -10,6 +10,10 @@ import {
 } from "./types";
 import { buildError, fail, ok, type Result } from "./result";
 
+/**
+ * Purpose: ApiClient object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type ApiClient = {
   baseUrl: string;
   requestJson: <T>(
@@ -19,6 +23,10 @@ export type ApiClient = {
   ) => Promise<Result<T>>;
 };
 
+/**
+ * Purpose: ApiFeatures object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type ApiFeatures = {
   health?: boolean;
   matrixApply?: boolean;
@@ -31,6 +39,12 @@ export type ApiService = ApiClient & {
   eigen?: (req: EigenRequest) => Promise<Result<EigenResponse>>;
 };
 
+/**
+ * Purpose: normalizeBaseUrl function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeBaseUrl(url: string) {
   return url.replace(/\/+$/, "");
 }
@@ -48,6 +62,12 @@ export function getApiBaseUrl(): string {
   return normalizeBaseUrl(fallback);
 }
 
+/**
+ * Purpose: createRequestJson function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createRequestJson(baseUrl: string) {
   return async function requestJson<T>(
     path: string,
@@ -99,6 +119,12 @@ function createRequestJson(baseUrl: string) {
   };
 }
 
+/**
+ * Purpose: createApiClient function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 export function createApiClient(baseUrl?: string): ApiClient {
   const resolvedBase = normalizeBaseUrl(baseUrl ?? getApiBaseUrl());
   return {
@@ -107,16 +133,34 @@ export function createApiClient(baseUrl?: string): ApiClient {
   };
 }
 
+/**
+ * Purpose: validateHealth function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function validateHealth(data: any): HealthResponse {
   assert(data && typeof data.status === "string", "Invalid /health response");
   return data as HealthResponse;
 }
 
+/**
+ * Purpose: validateMatrixApply function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function validateMatrixApply(data: any): MatrixApplyResponse {
   assert(data && isVec(data.result), "Invalid matrix/apply response");
   return data as MatrixApplyResponse;
 }
 
+/**
+ * Purpose: validateEigen function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function validateEigen(data: any): EigenResponse {
   assert(data && Array.isArray(data.eigenvalues), "Invalid eig response: eigenvalues");
   assert(

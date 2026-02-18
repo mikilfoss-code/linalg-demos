@@ -14,22 +14,38 @@ export type GraphInteractionTarget =
       nodeIndex: number;
     };
 
+/**
+ * Purpose: GraphInteractionState object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphInteractionState = {
   hovered: GraphInteractionTarget | null;
   selected: GraphInteractionTarget | null;
 };
 
+/**
+ * Purpose: GraphEdgeEditorModel object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphEdgeEditorModel = {
   fromIndex: number;
   toIndex: number;
   value: number;
 };
 
+/**
+ * Purpose: GraphNodeEditorModel object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphNodeEditorModel = {
   nodeIndex: number;
   value: number;
 };
 
+/**
+ * Purpose: GraphInteractionPresentation object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphInteractionPresentation = {
   activeTarget: GraphInteractionTarget | null;
   selectedTarget: GraphInteractionTarget | null;
@@ -116,6 +132,12 @@ export function buildGraphInteractionPresentation(
   };
 }
 
+/**
+ * Purpose: buildSelectedEdgeEditor function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildSelectedEdgeEditor(
   appState: AppState,
   selectedTarget: GraphInteractionTarget | null
@@ -130,6 +152,12 @@ function buildSelectedEdgeEditor(
   };
 }
 
+/**
+ * Purpose: buildSelectedNodeEditor function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildSelectedNodeEditor(
   appState: AppState,
   selectedTarget: GraphInteractionTarget | null
@@ -141,6 +169,12 @@ function buildSelectedNodeEditor(
   };
 }
 
+/**
+ * Purpose: sanitizeTarget function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function sanitizeTarget(
   target: GraphInteractionTarget | null,
   appState: AppState
@@ -155,6 +189,12 @@ function sanitizeTarget(
   return target;
 }
 
+/**
+ * Purpose: isValidIndex function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function isValidIndex(index: number, nodeCount: number): boolean {
   return Number.isInteger(index) && index >= 0 && index < nodeCount;
 }

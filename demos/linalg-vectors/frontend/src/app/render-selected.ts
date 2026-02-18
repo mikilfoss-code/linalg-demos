@@ -3,6 +3,10 @@ import { type DatasetModality } from '../lib/types';
 import { VECTOR_WINDOW } from './constants';
 import { clampOffset } from './state';
 
+/**
+ * Purpose: SelectedRendererDeps object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type SelectedRendererDeps = {
   selectedStatus: HTMLDivElement;
   selectedCard: HTMLDivElement;
@@ -15,6 +19,10 @@ type SelectedRendererDeps = {
   renderSelectedTextContent: (sample: TextSample, meta: DatasetMeta) => void;
 };
 
+/**
+ * Purpose: SelectedRenderer object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type SelectedRenderer = {
   renderSelected: (
     sample: DatasetSample | null,

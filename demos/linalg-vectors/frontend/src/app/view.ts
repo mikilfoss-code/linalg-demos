@@ -20,6 +20,10 @@ import {
  */
 const USE_RECURSIVE_LAYOUT_ENGINE = true;
 
+/**
+ * Purpose: DebugView object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type DebugView = {
   debugStatus: HTMLDivElement;
   debugEndpoint: HTMLDivElement;
@@ -34,6 +38,10 @@ export type DebugView = {
   debugError: HTMLPreElement;
 };
 
+/**
+ * Purpose: AppView object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type AppView = {
   app: HTMLDivElement;
   statusPill: HTMLDivElement;
@@ -108,6 +116,12 @@ ${panels}
 `;
 }
 
+/**
+ * Purpose: createRecursiveShellTemplate function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createRecursiveShellTemplate(
   layoutProfile: ResolvedLayoutProfile<VectorsPanelId>
 ): string {
@@ -140,6 +154,12 @@ function createRecursiveShellTemplate(
 `;
 }
 
+/**
+ * Purpose: createLegacyGridPanel function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createLegacyGridPanel(layoutProfile: ResolvedLayoutProfile<VectorsPanelId>): string {
   const panelStyle = placementToInlineStyle(layoutProfile.placementOf('grid'));
   return `
@@ -164,6 +184,12 @@ function createLegacyGridPanel(layoutProfile: ResolvedLayoutProfile<VectorsPanel
 `;
 }
 
+/**
+ * Purpose: createLegacyVectorPanel function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createLegacyVectorPanel(layoutProfile: ResolvedLayoutProfile<VectorsPanelId>): string {
   const panelStyle = placementToInlineStyle(layoutProfile.placementOf('vector'));
   return `
@@ -227,6 +253,12 @@ function createLegacyVectorPanel(layoutProfile: ResolvedLayoutProfile<VectorsPan
 `;
 }
 
+/**
+ * Purpose: createLegacyDebugPanel function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createLegacyDebugPanel(layoutProfile: ResolvedLayoutProfile<VectorsPanelId>): string {
   const panelStyle = placementToInlineStyle(layoutProfile.placementOf('debug'));
   return `
@@ -284,6 +316,12 @@ function createLegacyDebugPanel(layoutProfile: ResolvedLayoutProfile<VectorsPane
 `;
 }
 
+/**
+ * Purpose: createTemplateElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTemplateElement<T extends HTMLElement>(markup: string): T {
   const template = document.createElement('template');
   template.innerHTML = markup.trim();
@@ -294,6 +332,12 @@ function createTemplateElement<T extends HTMLElement>(markup: string): T {
   return node as T;
 }
 
+/**
+ * Purpose: createGridPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createGridPanelNode(): HTMLElement {
   return createTemplateElement<HTMLDivElement>(`
     <div class="layout-panel layout-panel-grid panel panel-grid">
@@ -317,6 +361,12 @@ function createGridPanelNode(): HTMLElement {
   `);
 }
 
+/**
+ * Purpose: createVectorPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createVectorPanelNode(): LayoutNodeRenderOutput {
   const element = createTemplateElement<HTMLDivElement>(`
     <div class="layout-panel layout-panel-vector panel panel-vector">
@@ -344,6 +394,12 @@ function createVectorPanelNode(): LayoutNodeRenderOutput {
   };
 }
 
+/**
+ * Purpose: createSelectedPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createSelectedPanelNode(): HTMLElement {
   return createTemplateElement<HTMLDivElement>(`
     <div class="selected-card">
@@ -362,6 +418,12 @@ function createSelectedPanelNode(): HTMLElement {
   `);
 }
 
+/**
+ * Purpose: createVectorWindowPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createVectorWindowPanelNode(): LayoutNodeRenderOutput {
   const element = createTemplateElement<HTMLDivElement>(`
     <div class="vector-content">
@@ -378,6 +440,12 @@ function createVectorWindowPanelNode(): LayoutNodeRenderOutput {
   };
 }
 
+/**
+ * Purpose: createSliderPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createSliderPanelNode(): HTMLElement {
   return createTemplateElement<HTMLInputElement>(`
     <input
@@ -394,6 +462,12 @@ function createSliderPanelNode(): HTMLElement {
   `);
 }
 
+/**
+ * Purpose: createComponentsPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createComponentsPanelNode(): HTMLElement {
   return createTemplateElement<HTMLDivElement>(`
     <div
@@ -405,6 +479,12 @@ function createComponentsPanelNode(): HTMLElement {
   `);
 }
 
+/**
+ * Purpose: createDebugPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createDebugPanelNode(): HTMLElement {
   return createTemplateElement<HTMLElement>(`
     <section class="layout-panel layout-panel-debug panel panel-debug" aria-live="polite">

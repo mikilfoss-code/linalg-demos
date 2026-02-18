@@ -356,6 +356,12 @@ export function reducer(state: AppState, action: Action): AppState {
   }
 }
 
+/**
+ * Purpose: withValidation function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function withValidation(state: Omit<AppState, 'validation'>): AppState {
   return {
     ...state,
@@ -363,14 +369,32 @@ function withValidation(state: Omit<AppState, 'validation'>): AppState {
   };
 }
 
+/**
+ * Purpose: isValidIndex function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function isValidIndex(index: number, size: number): boolean {
   return Number.isInteger(index) && index >= 0 && index < size;
 }
 
+/**
+ * Purpose: vectorSum function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function vectorSum(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0);
 }
 
+/**
+ * Purpose: normalizeRowWithFallback function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeRowWithFallback(
   row: number[],
   rowIndex: number,
@@ -395,6 +419,12 @@ function normalizeRowWithFallback(
   return normalizeProbabilityVector(fallback);
 }
 
+/**
+ * Purpose: normalizeVectorWithDefault function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeVectorWithDefault(vector: number[], nodeCount: number): number[] {
   const normalized = normalizeProbabilityVector(vector);
   if (vectorSum(normalized) > Number.EPSILON) {
@@ -403,6 +433,12 @@ function normalizeVectorWithDefault(vector: number[], nodeCount: number): number
   return createDefaultVector(nodeCount);
 }
 
+/**
+ * Purpose: createUniformProbabilityVector function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createUniformProbabilityVector(nodeCount: number): number[] {
   if (nodeCount <= 0) {
     return [];
@@ -411,11 +447,23 @@ function createUniformProbabilityVector(nodeCount: number): number[] {
   return Array.from({ length: nodeCount }, () => uniformValue);
 }
 
+/**
+ * Purpose: createRandomProbabilityVector function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createRandomProbabilityVector(nodeCount: number): number[] {
   const raw = Array.from({ length: nodeCount }, () => Math.random());
   return normalizeVectorWithDefault(raw, nodeCount);
 }
 
+/**
+ * Purpose: normalizeTransitionRows function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeTransitionRows(transitionMatrix: number[][]): number[][] {
   return transitionMatrix.map((row, rowIndex) => {
     const normalized = normalizeProbabilityVector(row);

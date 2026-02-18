@@ -3,12 +3,20 @@ import { type DatasetMeta, type TextSample } from '../lib/dataset';
 const WORD_REGEX = /\b[a-zA-Z]{2,}\b/g;
 const EMAIL_REGEX = /\b[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
+/**
+ * Purpose: TextHighlightingDeps object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type TextHighlightingDeps = {
   vectorList: HTMLDivElement;
   vectorPanel: HTMLDivElement;
   selectedTextContent: HTMLDivElement;
 };
 
+/**
+ * Purpose: TextHighlightingController object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type TextHighlightingController = {
   clearTextHighlight: () => void;
   clearVectorHighlight: () => void;

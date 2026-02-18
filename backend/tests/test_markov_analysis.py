@@ -7,6 +7,13 @@ from backend.main import markov_analyze
 
 
 def test_markov_analyze_returns_expected_shape():
+    """
+    Purpose: verify success payload shape and key numeric invariants.
+
+    Inputs: no direct function inputs; uses a valid Markov request payload.
+    Returns: no return value.
+    Side effects: none.
+    """
     payload = {
         "transitionMatrix": [
             [0.7, 0.2, 0.1],
@@ -32,6 +39,13 @@ def test_markov_analyze_returns_expected_shape():
 
 
 def test_markov_analyze_rejects_non_stochastic_rows():
+    """
+    Purpose: verify non-row-stochastic matrices are rejected with HTTP 400.
+
+    Inputs: no direct function inputs; uses an invalid transition matrix payload.
+    Returns: no return value.
+    Side effects: none.
+    """
     payload = {
         "transitionMatrix": [
             [0.8, 0.3],
@@ -49,6 +63,13 @@ def test_markov_analyze_rejects_non_stochastic_rows():
 
 
 def test_markov_analyze_rejects_invalid_probability_vector():
+    """
+    Purpose: verify invalid probability vectors are rejected with HTTP 400.
+
+    Inputs: no direct function inputs; uses an invalid initial vector payload.
+    Returns: no return value.
+    Side effects: none.
+    """
     payload = {
         "transitionMatrix": [
             [0.7, 0.3],

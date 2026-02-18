@@ -3,6 +3,10 @@ import { isDatasetOption, type Action, type DatasetOption } from './state';
 
 type LayoutUpdateOptions = { syncSamples?: boolean };
 
+/**
+ * Purpose: BootstrapDeps object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type BootstrapDeps = {
   gridEl: HTMLDivElement;
   dispatch: (action: Action) => void;

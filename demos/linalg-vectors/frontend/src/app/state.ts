@@ -12,6 +12,10 @@ export type DatasetOption = { id: DatasetId; label: string; modality: DatasetMod
 
 export type AppStatus = 'loading' | 'ready' | 'error';
 
+/**
+ * Purpose: AppState object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type AppState = {
   status: AppStatus;
   dataset: DatasetId;

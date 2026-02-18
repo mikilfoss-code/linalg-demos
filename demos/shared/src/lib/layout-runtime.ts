@@ -153,6 +153,12 @@ export function logLayoutWarnings(context: string, warnings: readonly string[]):
   });
 }
 
+/**
+ * Purpose: createFallbackProfile function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createFallbackProfile<PanelId extends string>(
   fallbackVariant: LayoutFallbackVariant<PanelId>
 ): Omit<ResolvedLayoutProfile<PanelId>, 'warnings' | 'isFallback'> {
@@ -193,6 +199,12 @@ function createFallbackProfile<PanelId extends string>(
   };
 }
 
+/**
+ * Purpose: buildPlacementsByPanel function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildPlacementsByPanel<PanelId extends string>(
   placements: readonly LayoutPlacement<PanelId>[]
 ): Map<PanelId, LayoutPanelPlacementRuntime<PanelId>> {
@@ -206,10 +218,20 @@ function buildPlacementsByPanel<PanelId extends string>(
   return byPanel;
 }
 
+/**
+ * Purpose: buildPlanRoots function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildPlanRoots<PanelId extends string>(
   panels: readonly LayoutPanelDef<PanelId>[],
   placementsByPanel: ReadonlyMap<PanelId, LayoutPanelPlacementRuntime<PanelId>>
 ): readonly LayoutPlanNode<PanelId>[] {
+  /**
+   * Purpose: MutablePlanNode object contract.
+   * Key fields: Properties declared inside this type definition.
+   */
   type MutablePlanNode = {
     panelId: PanelId;
     order: number;
@@ -283,6 +305,12 @@ function buildPlanRoots<PanelId extends string>(
   return rootNodes.map(toReadOnlyNode);
 }
 
+/**
+ * Purpose: buildNodeMap function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildNodeMap<PanelId extends string>(
   roots: readonly LayoutPlanNode<PanelId>[]
 ): Map<PanelId, LayoutPlanNode<PanelId>> {
@@ -293,6 +321,12 @@ function buildNodeMap<PanelId extends string>(
   return nodeByPanel;
 }
 
+/**
+ * Purpose: normalizeTokenValues function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeTokenValues(
   tokens: Readonly<Record<string, string | number>> | undefined
 ): Readonly<Record<string, string>> {

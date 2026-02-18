@@ -5,11 +5,11 @@
   "scripts": {
     "build": "pnpm --recursive --filter \"@linalg/demo-*\" build",
     "build:vectors": "pnpm --filter @linalg/demo-vectors build",
-    "build:matrix": "pnpm --filter @linalg/demo-matrix-transforms build",
-    "build:markov": "pnpm --filter @linalg/demo-markov-chains build",
+    "build:matrix": "pnpm --filter @linalg/demo-matrix_transforms build",
+    "build:markov": "pnpm --filter @linalg/demo-markov_chains build",
     "dev:vectors": "pnpm --filter @linalg/demo-vectors dev",
-    "dev:matrix": "pnpm --filter @linalg/demo-matrix-transforms dev",
-    "dev:markov": "pnpm --filter @linalg/demo-markov-chains dev",
+    "dev:matrix": "pnpm --filter @linalg/demo-matrix_transforms dev",
+    "dev:markov": "pnpm --filter @linalg/demo-markov_chains dev",
     "typecheck": "pnpm --recursive --filter \"@linalg/demo-*\" exec tsc --noEmit"
   },
   "volta": {

@@ -30,6 +30,17 @@ OPENML_TRAIN_COUNT = 60_000
 
 @dataclass(frozen=True)
 class DatasetSpec:
+    """
+    Dataset registry entry describing loader behavior and split capabilities.
+
+    Key fields:
+        source: Stable dataset id used by API requests.
+        display_name: Human-readable name returned to frontends.
+        default_split: Split used when callers do not specify one.
+        supports_train_test: Whether `train` and `test` are valid split options.
+        modality: Dataset modality (`image` or `text`).
+        loader: Callable that loads and normalizes raw dataset content.
+    """
     source: DatasetName
     display_name: str
     default_split: DatasetSplit
@@ -40,6 +51,16 @@ class DatasetSpec:
 
 @dataclass(frozen=True)
 class RawDataset:
+    """
+    Canonical in-memory dataset payload cached before split-specific slicing.
+
+    Key fields:
+        modality: Determines whether image arrays or text/count matrices are populated.
+        images/texts/counts: Backing sample data for image or text workflows.
+        labels/label_names: Class ids and optional display names.
+        supports_train_test: Split compatibility flag used by split validation.
+        vector_length: Component count per sample vector representation.
+    """
     source: DatasetName
     display_name: str
     modality: DatasetModality
@@ -55,6 +76,16 @@ class RawDataset:
 
 @dataclass(frozen=True)
 class DatasetView:
+    """
+    Split-specific read model returned by `get_dataset` for sampling responses.
+
+    Key fields:
+        split: Resolved split (`train`, `test`, `all`) applied to this view.
+        modality: Active modality used by sampling logic.
+        image_width/image_height: Render dimensions for image modalities.
+        vector_length: Vector component count shared with frontend consumers.
+        total_count: Number of rows available in this split view.
+    """
     source: DatasetName
     display_name: str
     split: DatasetSplit

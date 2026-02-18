@@ -2,6 +2,23 @@
 
 # CODEMAP
 
+## Source Of Truth
+
+- Topic: Global repo structure, shared constants/state/contracts, deployment snapshot. Canonical document: `CODEMAP.md`.
+- Topic: Shared schema-driven layout engine and per-demo layout variants/panel trees. Canonical document: `LAYOUT.md`.
+- Topic: Project-level usage, run/build workflows, and doc map. Canonical document: `README.md`.
+- Topic: Backend architecture, endpoint ownership, invariants, and error policy. Canonical document: `BACKEND.md`.
+- Topic: Vectors demo architecture/state/tokens/contracts. Canonical document: `DEMO-VECTORS.md`.
+- Topic: Matrix demo architecture/contracts. Canonical document: `DEMO-MATRIX_TRANSFORMATIONS.md`.
+- Topic: Markov demo architecture/state/contracts. Canonical document: `DEMO-MARKOV_CHAINS.md`.
+
+## Cross-System Dependency Summary
+
+- Consumer: `demos/linalg-vectors/frontend`. Depends on: `GET /api/v1/datasets`, `GET /api/v1/datasets/samples`. Notes: Primary data-loading path for vectors UX.
+- Consumer: `demos/linalg-matrix_transforms/frontend`. Depends on: `GET /health`. Notes: Button-driven connectivity check in current UX.
+- Consumer: `demos/linalg-markov_chains/frontend`. Depends on: no backend route calls in current runtime. Notes: API base is displayed; simulation is local.
+- Consumer: all demos. Depends on: `demos/shared/src/lib/layout-*`, `demos/shared/src/ui/*`. Notes: Shared layout/runtime/tokens infrastructure.
+
 ## Repo Layout (By Location)
 
 ### Root
@@ -12,6 +29,12 @@
 - `render.yaml` - Render deployment definitions for backend + static demo frontends.
 - `.agent/` - local agent rules, workflows, and skills used for this repo.
 - `CODEMAP.md` - repository map and architecture summary.
+- `LAYOUT.md` - canonical shared layout-system reference.
+- `README.md` - project overview and run/build workflow entrypoint.
+- `BACKEND.md` - backend-specific architecture and API contract reference.
+- `DEMO-VECTORS.md` - vectors demo architecture reference.
+- `DEMO-MATRIX_TRANSFORMATIONS.md` - matrix demo architecture reference.
+- `DEMO-MARKOV_CHAINS.md` - Markov demo architecture reference.
 
 ### backend/
 - `backend/main.py` - FastAPI app entrypoint, middleware wiring, matrix endpoints.
@@ -36,7 +59,6 @@
 
 ### demos/shared/
 - `demos/shared/config/` - shared Vite + TypeScript configuration.
-- `demos/shared/LAYOUT.md` - shared reference for layout modes, schema parameters, runtime behavior, and panel feature extensions.
 - `demos/shared/src/lib/api.ts` - shared typed API client factory.
 - `demos/shared/src/lib/layout-plan.ts` - recursive render-plan contracts and tree helpers.
 - `demos/shared/src/lib/layout-renderer.ts` - shared recursive renderer with panel strategy registry support.
@@ -53,7 +75,7 @@
 - `demos/linalg-vectors/frontend/package.json` - vectors demo scripts and engine constraints.
 - `demos/linalg-vectors/frontend/index.html` - Vite HTML entry.
 - `demos/linalg-vectors/frontend/src/main.ts` - composition root and render/event orchestration.
-- `demos/linalg-vectors/frontend/src/theme.css` - design tokens.
+- `demos/linalg-vectors/frontend/src/theme.css` - vectors demo theme stylesheet (token details in `DEMO-VECTORS.md`).
 - `demos/linalg-vectors/frontend/src/style.css` - component/layout styles.
 - `demos/linalg-vectors/frontend/src/app/` - UI app modules (state, layout, events, rendering, sampling).
 - `demos/linalg-vectors/frontend/src/lib/` - dataset API client and payload normalization.
@@ -94,7 +116,7 @@
   - `POST /api/v1/markov/analyze`
 
 ### Frontend
-- Workspace commands (repo root):
+- Preferred workspace commands (repo root):
   - `pnpm dev:vectors`
   - `pnpm dev:matrix`
   - `pnpm dev:markov`
@@ -129,7 +151,7 @@
 
 ### demos/linalg-vectors/frontend/src/
 - `demos/linalg-vectors/frontend/src/main.ts` - app composition root, reducer dispatch loop, render pass.
-- `demos/linalg-vectors/frontend/src/theme.css` - vectors token aliases + vectors-specific sizing/layout tokens.
+- `demos/linalg-vectors/frontend/src/theme.css` - vectors demo theme source (token inventory maintained in `DEMO-VECTORS.md`).
 - `demos/linalg-vectors/frontend/src/style.css` - visual and layout implementation consuming tokens.
 
 ### demos/linalg-vectors/frontend/src/app/
@@ -149,7 +171,7 @@
 - `view.ts` - app shell template + recursive layout renderer integration + typed DOM reference binding.
 
 ### demos/linalg-vectors/frontend/src/lib/
-- `api.ts` - vectors demo API bindings for dataset endpoints.
+- `api.ts` - vectors demo API layer: dataset catalog/sample endpoints plus shared `health`/`matrixApply`/`eigen` exports from shared API utilities.
 - `dataset.ts` - payload normalization, image conversion, typed sample models.
 - `types.ts` - dataset request/response runtime guards and shared type aliases.
 
@@ -180,6 +202,29 @@
 ### demos/linalg-markov_chains/frontend/src/lib/
 - `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning with source-node-weighted, intra-glob non-overlapping slot offsets.
 - `transition-graph-generator.ts` - strategy-based transition graph generators (random directed/no-self default) returning matrix + state vectors.
+
+## Global Parameters / Constants
+
+- `CORS_ALLOW_ORIGINS` - backend CORS allowlist.
+- `OPENML_TRAIN_COUNT` (`backend/datasets.py`) - train/test split boundary for OpenML datasets.
+- `MAX_DATASET_SAMPLES` (`backend/api/routes/datasets.py`) - dataset sample query upper bound.
+- `VITE_API_BASE_URL` - frontend API base URL override.
+- `VECTOR_WINDOW` (`demos/linalg-vectors/frontend/src/app/constants.ts`) - visible vector component window size.
+- `LAYOUT_SCHEMA_VERSION` (`demos/shared/src/lib/layout-schema.ts`) - active schema version used by layout config validation/resolution.
+- `VECTORS_LAYOUT_MODE` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `INCLUDE_DEBUG_PANEL` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo debug panel include/exclude toggle.
+- `USE_RECURSIVE_LAYOUT_ENGINE` (`demos/linalg-vectors/frontend/src/app/view.ts`) - temporary vectors internal migration toggle between recursive and legacy layout rendering paths.
+- `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor (currently supports up to 8 states).
+- `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
+
+## Global Objects / Shared State
+
+- `backend/main.py::app` (`FastAPI`) - process-lifetime app instance with middleware/routes.
+- `backend/datasets.py::_raw_dataset_cache` and `_split_dataset_cache` - process-lifetime dataset caches.
+- `demos/linalg-vectors/frontend/src/main.ts::state` - browser-lifetime vectors app state.
+- `demos/linalg-markov_chains/frontend/src/main.ts::store` - browser-lifetime Markov app store.
 
 ## Key Functions/Methods (By Location)
 
@@ -300,6 +345,11 @@
 - `loadDatasetSamples(dataset, count, seed?, signal?)` - fetches and normalizes dataset sample payload.
 - `toImageData(sample, imageWidth, imageHeight)` - converts grayscale bytes to `ImageData`.
 
+### demos/linalg-vectors/frontend/src/lib/api.ts
+- `listDatasets()` - fetches and validates dataset catalog metadata.
+- `datasetSamples(dataset, count, seed?, split?, signal?)` - fetches and validates dataset sample payloads.
+- `health`, `matrixApply`, `eigen` - shared backend API bindings re-exported for parity with other demos.
+
 ### demos/linalg-markov_chains/frontend/src/main.ts
 - `render()` - fan-out render pass for graph/state/matrix panels from canonical store state.
 
@@ -329,103 +379,25 @@
 ### demos/linalg-markov_chains/frontend/src/lib/transition-graph-generator.ts
 - `createTransitionGraphGenerator(options?)` - registers generation strategies and produces transition matrices/state vectors for requested node counts.
 
-## Theme And Style Tokens (Vectors Frontend)
+## Theme And Style Tokens
 
-### Token Sources
-- `demos/shared/src/ui/tokens.css` - shared baseline design tokens reused by demo shells and vectors aliases.
-- `demos/shared/src/ui/primitives.css` - shared panel/button primitive selectors reused by demo-specific class names.
-- `demos/linalg-vectors/frontend/src/theme.css` - global design/system tokens (`:root`).
-- `demos/linalg-vectors/frontend/src/style.css` - consumes tokens and defines runtime CSS variables used by UI state.
+### Global Token Sources
+- `demos/shared/src/ui/tokens.css` - canonical shared token definitions used across demos.
+- `demos/shared/src/ui/base-shell.css` - shared shell token aliases (`--ui-*`) that wire shared primitives.
+- `demos/shared/src/ui/primitives.css` - shared primitive selectors that consume `--ui-*` aliases.
+- Demo-specific token inventories are intentionally documented in `DEMO-*.md` files.
 
-### Typography And Spacing Tokens (`theme.css`)
-- `--font-sans`, `--font-mono` - base sans/mono font stacks.
-- `--space-0` .. `--space-9` - spacing scale used for gaps, padding, and margins.
+### Global Base Tokens (`tokens.css`)
+- Typography: `--base-font-sans`, `--base-font-mono`.
+- Spacing scale: `--base-space-0` through `--base-space-9`.
+- Palette: `--base-ink`, `--base-ink-soft`, `--base-paper`, `--base-surface`, `--base-surface-2`, `--base-accent`, `--base-accent-2`, `--base-accent-contrast`.
+- Borders and effects: `--base-border`, `--base-shadow`, `--base-shadow-soft`, `--base-focus-accent`, `--base-focus-teal`, `--base-shadow-accent`, `--base-shadow-accent-soft`.
+- Geometry and shell sizing: `--base-radius`, `--base-panel-radius`, `--base-gap`, `--base-shell-max-width`, `--base-shell-padding`, `--base-shell-min-height`.
+- Background gradients: `--base-bg-radial-1`, `--base-bg-radial-2`, `--base-bg-linear-top`, `--base-bg-linear-bottom`.
 
-### Color / Surface / Effect Tokens (`theme.css`)
-- `--ink`, `--ink-soft` - primary and secondary text colors.
-- `--paper`, `--surface`, `--surface-2` - page and panel background layers.
-- `--accent`, `--accent-2`, `--accent-3`, `--accent-contrast` - primary accent palette.
-- `--vector-outline` - selected image vector-window outline color.
-- `--word-highlight` - RGB source tuple for word/vector highlight overlays.
-- `--grid-line`, `--swatch-border` - border/stroke colors.
-- `--shadow-soft`, `--shadow-panel`, `--shadow-tile`, `--shadow-accent`, `--shadow-accent-soft` - shadow colors.
-- `--focus-accent`, `--focus-teal` - focus ring colors.
-- `--bg-radial-1`, `--bg-radial-2`, `--bg-linear-top`, `--bg-linear-bottom` - page background gradients.
-- `--selected-card-start`, `--selected-card-end`, `--debug-item-bg`, `--debug-log-bg` - panel-specific fills.
-- `--canvas-bg` - grayscale swatch/canvas background fallback.
-
-### Layout Tokens (`theme.css`)
-- `--layout-left-width`, `--layout-right-width`, `--layout-split`, `--layout-gap` - two-panel layout geometry.
-- `--app-max-width`, `--app-padding`, `--section-gap` - shell dimensions.
-- `--panel-radius`, `--panel-padding`, `--panel-header-gap`, `--panel-header-margin-bottom` - panel chrome.
-- `--hero-*` tokens - hero area sizing and spacing.
-
-### Grid Tokens (`theme.css`)
-- `--grid-gap`, `--grid-size` - table spacing and background grid texture size.
-- `--grid-fallback-columns`, `--grid-fallback-rows` - initial table shape before measurement.
-- `--grid-tile-min`, `--grid-tile-max` - responsive image tile sizing bounds.
-- `--grid-max-samples` - upper sampling target bound.
-- `--grid-height-vh` - viewport fraction used for target grid height.
-- `--text-grid-columns` - document-table column count used for text datasets.
-- `--text-tile-min-height` - minimum row height for text dataset cards.
-
-### Selected Card Tokens (`theme.css`)
-- `--selected-card-radius`, `--selected-card-padding`, `--selected-card-gap`, `--selected-card-width` - selected card geometry.
-- `--selected-text-card-width` - text-mode selected card width override.
-- `--selected-card-top-offset` - vertical offset from panel header.
-- `--selected-canvas-radius`, `--selected-canvas-padding`, `--selected-canvas-max-sm` - selected image canvas shape/sizing.
-- `--selected-text-min-height`, `--selected-text-max-height` - selected text content viewport bounds.
-
-### Vector Panel Tokens (`theme.css`)
-- `--vector-shell-gap` - space between selected card and vector controls.
-- `--vector-text-shell-padding-left` - text-mode horizontal offset for selected card + vector controls.
-- `--vector-panel-min-height`, `--vector-panel-min-width`, `--vector-panel-padding`, `--vector-panel-radius` - vector panel geometry.
-- `--vector-list-min-height`, `--vector-list-width`, `--vector-text-list-width` - vector list sizing.
-- `--vector-index-width`, `--vector-index-bracket-gap`, `--vector-bracket-content-gap`, `--vector-value-bracket-gap`, `--vector-bracket-width` - bracket/index/value column geometry.
-- `--vector-value-width`, `--vector-text-count-width` - numeric column widths.
-- `--vector-text-word-width` - word-column width input.
-- `--vector-text-bracket-word-gap`, `--vector-text-word-gap` - word/count spacing.
-- `--vector-header-horizontal-offset` - horizontal nudge for `Components # - #` header.
-- `--vector-slider-width`, `--vector-slider-gap`, `--vector-slider-min-height` - slider geometry.
-- `--vector-swatch-size`, `--vector-swatch-col`, `--vector-swatch-value-gap` - swatch column geometry.
-- `--vector-info-min-width` - combined minimum width for slider + vector list block.
-- `--vector-hint-margin-top`, `--vector-range-width` - vector hint/range sizing helpers.
-
-### Misc Tokens (`theme.css`)
-- `--tile-radius`, `--tile-padding` - grid tile chrome.
-- `--status-pill-padding`, `--status-pill-font-size`, `--status-pill-radius` - status badge sizing.
-- `--panel-footer-margin` - panel footer spacing.
-
-### Runtime Style Variables (Set By TS Or Interaction State)
-- `--grid-columns`, `--grid-rows`, `--grid-row-size` - set by `demos/linalg-vectors/frontend/src/main.ts` for responsive table sizing.
-- `--tile-aspect-ratio` - set per sample tile by `demos/linalg-vectors/frontend/src/app/render-grid.ts`.
-- `--selected-canvas-aspect` - set by `demos/linalg-vectors/frontend/src/app/render-selected.ts` from dataset image dimensions.
-- `--vector-text-word-width-dynamic` - set by `demos/linalg-vectors/frontend/src/app/text-highlighting.ts` from longest vocab token.
-- `--word-highlight-alpha` - set on highlighted text spans in selected text content.
-- `--vector-word-highlight-alpha` - set on highlighted vector rows in text mode.
-
-## Global Parameters / Constants
-
-- `CORS_ALLOW_ORIGINS` - backend CORS allowlist.
-- `OPENML_TRAIN_COUNT` (`backend/datasets.py`) - train/test split boundary for OpenML datasets.
-- `MAX_DATASET_SAMPLES` (`backend/api/routes/datasets.py`) - dataset sample query upper bound.
-- `VITE_API_BASE_URL` - frontend API base URL override.
-- `VECTOR_WINDOW` (`demos/linalg-vectors/frontend/src/app/constants.ts`) - visible vector component window size.
-- `LAYOUT_SCHEMA_VERSION` (`demos/shared/src/lib/layout-schema.ts`) - active schema version used by layout config validation/resolution.
-- `VECTORS_LAYOUT_MODE` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo layout mode toggle (`sideBySide` or `stackedVertical`).
-- `INCLUDE_DEBUG_PANEL` (`demos/linalg-vectors/frontend/src/app/layout-options.ts`) - vectors demo debug panel include/exclude toggle.
-- `USE_RECURSIVE_LAYOUT_ENGINE` (`demos/linalg-vectors/frontend/src/app/view.ts`) - temporary vectors internal migration toggle between recursive and legacy layout rendering paths.
-- `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
-- `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
-- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor (currently supports up to 8 states).
-- `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
-
-## Global Objects / Shared State
-
-- `backend/main.py::app` (`FastAPI`) - process-lifetime app instance with middleware/routes.
-- `backend/datasets.py::_raw_dataset_cache` and `_split_dataset_cache` - process-lifetime dataset caches.
-- `demos/linalg-vectors/frontend/src/main.ts::state` - browser-lifetime vectors app state.
-- `demos/linalg-markov_chains/frontend/src/main.ts::store` - browser-lifetime Markov app store.
+### Global Primitive Alias Tokens (`base-shell.css`)
+- Panel aliases: `--ui-panel-bg`, `--ui-panel-border`, `--ui-panel-radius`, `--ui-panel-padding`, `--ui-panel-shadow`.
+- Button aliases: `--ui-button-bg`, `--ui-button-fg`, `--ui-button-padding`, `--ui-button-radius`, `--ui-button-font-weight`, `--ui-button-hover-shadow`, `--ui-button-focus-ring`.
 
 ## Data Contracts
 
@@ -453,6 +425,7 @@
 
 ### Backend
 - `fastapi`, `uvicorn`
+- `python-multipart`
 - `numpy`, `scipy`
 - `scikit-learn`
 - `pillow`
@@ -462,6 +435,11 @@
 - shared modules in `demos/shared`
 
 ## Deployment Notes (Render)
+
+Current `render.yaml` services define only:
+- `linalg-backend`
+- `demo-linalg-vectors`
+- `demo-linalg-matrix-transforms`
 
 ### `linalg-backend`
 - `rootDir: backend`
@@ -478,8 +456,9 @@
 - build: `npm i -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @linalg/demo-matrix-transforms build`
 - publish: `demos/linalg-matrix_transforms/frontend/dist`
 
-### `demo-linalg-markov-chains`
-- local build: `pnpm --filter @linalg/demo-markov-chains build`
-- publish (if deployed): `demos/linalg-markov_chains/frontend/dist`
+### `demo-linalg-markov_chains`
+- not currently defined as a Render service in `render.yaml`
+- local build: `pnpm --filter @linalg/demo-markov_chains build`
+- static publish path if deployed later: `demos/linalg-markov_chains/frontend/dist`
 
 

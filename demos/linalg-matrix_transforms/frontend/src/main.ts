@@ -79,6 +79,12 @@ btn.addEventListener('click', async () => {
   out.textContent = JSON.stringify(result.value, null, 2);
 });
 
+/**
+ * Purpose: createTemplateElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTemplateElement<T extends HTMLElement>(markup: string): T {
   const template = document.createElement('template');
   template.innerHTML = markup.trim();
@@ -89,6 +95,12 @@ function createTemplateElement<T extends HTMLElement>(markup: string): T {
   return node as T;
 }
 
+/**
+ * Purpose: requireElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (!element) {

@@ -119,6 +119,10 @@ const GRAPH_LAYOUT_ENGINE = createGraphLayoutEngine({
   defaultStrategyId: DEFAULT_GRAPH_LAYOUT_STRATEGY_ID,
 });
 
+/**
+ * Purpose: Point object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type Point = {
   x: number;
   y: number;
@@ -126,6 +130,10 @@ type Point = {
 
 type PanDirection = 'left' | 'right' | 'up' | 'down';
 
+/**
+ * Purpose: Rect object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type Rect = {
   x: number;
   y: number;
@@ -133,18 +141,30 @@ type Rect = {
   height: number;
 };
 
+/**
+ * Purpose: CircleObstacle object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type CircleObstacle = {
   x: number;
   y: number;
   radius: number;
 };
 
+/**
+ * Purpose: PathGeometry object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type PathGeometry = {
   pathData: string;
   labelPoint: Point;
   samplePoints: Point[];
 };
 
+/**
+ * Purpose: CubicCurve object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type CubicCurve = {
   start: Point;
   controlA: Point;
@@ -152,6 +172,10 @@ type CubicCurve = {
   end: Point;
 };
 
+/**
+ * Purpose: RuntimeParticle object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type RuntimeParticle = {
   path: SVGPathElement;
   length: number;
@@ -162,12 +186,20 @@ type RuntimeParticle = {
   offsetNormal: number;
 };
 
+/**
+ * Purpose: EdgeVisualStyle object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type EdgeVisualStyle = {
   stroke: string;
   strokeWidth: number;
   opacity: number;
 };
 
+/**
+ * Purpose: GraphPanelController object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphPanelController = {
   element: HTMLElement;
   render: (state: AppState) => void;
@@ -691,6 +723,12 @@ export function createGraphPanelController(options: {
   };
   return controller;
 
+  /**
+   * Purpose: applyInteractionPresentation function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function applyInteractionPresentation() {
     const renderState = lastRenderedState;
     if (!renderState) return;
@@ -751,6 +789,12 @@ export function createGraphPanelController(options: {
     });
   }
 
+  /**
+   * Purpose: resetViewportToDefault function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function resetViewportToDefault() {
     cancelViewportProjectionAnimation();
     clearGraphStatus();
@@ -758,6 +802,12 @@ export function createGraphPanelController(options: {
     applyViewportTransformImmediate(viewportTransform);
   }
 
+  /**
+   * Purpose: renderInlineAnnotations function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function renderInlineAnnotations(config: {
     state: AppState;
     activeTarget: GraphInteractionTarget | null;
@@ -946,6 +996,12 @@ export function createGraphPanelController(options: {
     }
   }
 
+  /**
+   * Purpose: createValueLabel function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function createValueLabel(config: {
     rect: Rect;
     text: string;
@@ -983,6 +1039,12 @@ export function createGraphPanelController(options: {
     return group;
   }
 
+  /**
+   * Purpose: createInlineEditor function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function createInlineEditor(config: {
     x: number;
     y: number;
@@ -1006,11 +1068,23 @@ export function createGraphPanelController(options: {
     return foreignObject;
   }
 
+  /**
+   * Purpose: updateToggleAllValuesButton function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function updateToggleAllValuesButton() {
     toggleAllValuesButton.textContent = showAllValues ? 'Hide all values' : 'Show all values';
     toggleAllValuesButton.setAttribute('aria-pressed', showAllValues ? 'true' : 'false');
   }
 
+  /**
+   * Purpose: applyViewportAfterResolution function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function applyViewportAfterResolution(
     requested: GraphViewportTransform,
     resolved: GraphViewportTransform,
@@ -1026,11 +1100,23 @@ export function createGraphPanelController(options: {
     animateViewportProjectionTo(resolved, options?.delayBeforeStart ?? false);
   }
 
+  /**
+   * Purpose: applyViewportTransformImmediate function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function applyViewportTransformImmediate(next: GraphViewportTransform) {
     viewportTransform = next;
     viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
   }
 
+  /**
+   * Purpose: cancelViewportProjectionAnimation function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function cancelViewportProjectionAnimation() {
     if (viewportProjectionStartTimeoutId !== null) {
       window.clearTimeout(viewportProjectionStartTimeoutId);
@@ -1044,6 +1130,12 @@ export function createGraphPanelController(options: {
     viewportProjectionTarget = null;
   }
 
+  /**
+   * Purpose: animateViewportProjectionTo function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function animateViewportProjectionTo(target: GraphViewportTransform, delayBeforeStart: boolean) {
     if (reduceMotionQuery.matches) {
       cancelViewportProjectionAnimation();
@@ -1120,6 +1212,12 @@ export function createGraphPanelController(options: {
     viewportProjectionStartTimeoutId = window.setTimeout(startTween, PAN_PROJECTION_START_DELAY_MS);
   }
 
+  /**
+   * Purpose: shouldIgnoreGraphKeyEvent function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function shouldIgnoreGraphKeyEvent(event: KeyboardEvent): boolean {
     const target = event.target;
     if (!(target instanceof Element)) {
@@ -1134,6 +1232,12 @@ export function createGraphPanelController(options: {
     return false;
   }
 
+  /**
+   * Purpose: zoomViewport function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function zoomViewport(zoomFactor: number, focalPoint: Point) {
     if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) {
       return;
@@ -1160,6 +1264,12 @@ export function createGraphPanelController(options: {
     });
   }
 
+  /**
+   * Purpose: panViewport function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function panViewport(delta: Point, direction: PanDirection) {
     if (
       !Number.isFinite(delta.x) ||
@@ -1210,6 +1320,12 @@ export function createGraphPanelController(options: {
     }
   }
 
+  /**
+   * Purpose: handlePanDragMove function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function handlePanDragMove(event: PointerEvent) {
     if (!isPanDragging || panPointerId === null || event.pointerId !== panPointerId) {
       return;
@@ -1243,6 +1359,12 @@ export function createGraphPanelController(options: {
     didPanDuringDrag = true;
   }
 
+  /**
+   * Purpose: finishPanDrag function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function finishPanDrag(pointerId: number) {
     if (!isPanDragging || panPointerId === null || pointerId !== panPointerId) {
       return;
@@ -1253,6 +1375,12 @@ export function createGraphPanelController(options: {
     cancelViewportProjectionAnimation();
   }
 
+  /**
+   * Purpose: inferPanDirection function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function inferPanDirection(delta: Point): PanDirection | null {
     if (Math.abs(delta.x) <= PROBABILITY_EPSILON && Math.abs(delta.y) <= PROBABILITY_EPSILON) {
       return null;
@@ -1263,6 +1391,12 @@ export function createGraphPanelController(options: {
     return delta.y >= 0 ? 'down' : 'up';
   }
 
+  /**
+   * Purpose: normalizeViewportTransformForNodes function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function normalizeViewportTransformForNodes(
     transform: GraphViewportTransform
   ): GraphViewportTransform {
@@ -1276,6 +1410,12 @@ export function createGraphPanelController(options: {
     return projectTransformToNearestVisibleNode(clampedScale, currentNodeCenters.values());
   }
 
+  /**
+   * Purpose: clampViewportScaleBounds function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function clampViewportScaleBounds(transform: GraphViewportTransform): GraphViewportTransform {
     return {
       ...transform,
@@ -1283,6 +1423,12 @@ export function createGraphPanelController(options: {
     };
   }
 
+  /**
+   * Purpose: projectPanToVisibleNodeInDirection function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function projectPanToVisibleNodeInDirection(
     current: GraphViewportTransform,
     requested: GraphViewportTransform,
@@ -1319,6 +1465,12 @@ export function createGraphPanelController(options: {
     return best ?? current;
   }
 
+  /**
+   * Purpose: projectTransformToVisibleNodeForCenter function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function projectTransformToVisibleNodeForCenter(
     transform: GraphViewportTransform,
     center: Point
@@ -1340,6 +1492,12 @@ export function createGraphPanelController(options: {
     };
   }
 
+  /**
+   * Purpose: panAxisProgress function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function panAxisProgress(
     current: GraphViewportTransform,
     next: GraphViewportTransform,
@@ -1357,6 +1515,12 @@ export function createGraphPanelController(options: {
     return next.translateY - current.translateY;
   }
 
+  /**
+   * Purpose: hasPanProgressInDirection function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function hasPanProgressInDirection(
     current: GraphViewportTransform,
     next: GraphViewportTransform,
@@ -1365,6 +1529,12 @@ export function createGraphPanelController(options: {
     return panAxisProgress(current, next, direction) > PROBABILITY_EPSILON;
   }
 
+  /**
+   * Purpose: hasAnyFullyVisibleNode function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function hasAnyFullyVisibleNode(
     transform: GraphViewportTransform,
     centers: Iterable<Point>
@@ -1377,6 +1547,12 @@ export function createGraphPanelController(options: {
     return false;
   }
 
+  /**
+   * Purpose: isNodeFullyVisible function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function isNodeFullyVisible(transform: GraphViewportTransform, center: Point): boolean {
     const radius = NODE_RADIUS * transform.scale;
     const screenX = transform.translateX + center.x * transform.scale;
@@ -1389,6 +1565,12 @@ export function createGraphPanelController(options: {
     );
   }
 
+  /**
+   * Purpose: projectTransformToNearestVisibleNode function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function projectTransformToNearestVisibleNode(
     transform: GraphViewportTransform,
     centers: Iterable<Point>
@@ -1425,6 +1607,12 @@ export function createGraphPanelController(options: {
     return best ?? transform;
   }
 
+  /**
+   * Purpose: showPanBlockedStatus function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function showPanBlockedStatus(direction: PanDirection) {
     if (graphStatusTimeoutId !== null) {
       window.clearTimeout(graphStatusTimeoutId);
@@ -1437,6 +1625,12 @@ export function createGraphPanelController(options: {
     }, PAN_BLOCKED_NOTICE_MS);
   }
 
+  /**
+   * Purpose: toViewportPanDirection function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function toViewportPanDirection(direction: PanDirection): string {
     if (direction === 'left') return 'to the right';
     if (direction === 'right') return 'to the left';
@@ -1444,6 +1638,12 @@ export function createGraphPanelController(options: {
     return 'upward';
   }
 
+  /**
+   * Purpose: clearGraphStatus function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function clearGraphStatus() {
     if (graphStatusTimeoutId !== null) {
       window.clearTimeout(graphStatusTimeoutId);
@@ -1452,6 +1652,12 @@ export function createGraphPanelController(options: {
     graphStatus.textContent = '';
   }
 
+  /**
+   * Purpose: isSameViewportTransform function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function isSameViewportTransform(
     left: GraphViewportTransform,
     right: GraphViewportTransform
@@ -1463,11 +1669,23 @@ export function createGraphPanelController(options: {
     );
   }
 
+  /**
+   * Purpose: estimateLabelWidth function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function estimateLabelWidth(text: string, kind: 'edge' | 'node'): number {
     const base = kind === 'edge' ? 38 : 52;
     return Math.max(base, text.length * 6.8 + 10);
   }
 
+  /**
+   * Purpose: placeRectNearAnchor function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function placeRectNearAnchor(options: {
     anchor: Point;
     width: number;
@@ -1518,6 +1736,12 @@ export function createGraphPanelController(options: {
     );
   }
 
+  /**
+   * Purpose: scoreAnnotationRect function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function scoreAnnotationRect(
     rect: Rect,
     options: {
@@ -1544,6 +1768,12 @@ export function createGraphPanelController(options: {
     return score;
   }
 
+  /**
+   * Purpose: rectIntersectionArea function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function rectIntersectionArea(left: Rect, right: Rect): number {
     const overlapWidth =
       Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
@@ -1556,12 +1786,24 @@ export function createGraphPanelController(options: {
     return overlapWidth * overlapHeight;
   }
 
+  /**
+   * Purpose: distanceFromRectToPoint function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function distanceFromRectToPoint(rect: Rect, point: Point): number {
     const clampedX = clamp(point.x, rect.x, rect.x + rect.width);
     const clampedY = clamp(point.y, rect.y, rect.y + rect.height);
     return Math.hypot(point.x - clampedX, point.y - clampedY);
   }
 
+  /**
+   * Purpose: sanitizeExternalTarget function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function sanitizeExternalTarget(
     target: GraphInteractionTarget | null,
     state: AppState
@@ -1575,6 +1817,12 @@ export function createGraphPanelController(options: {
     ).hovered;
   }
 
+  /**
+   * Purpose: cancelAnimationLoop function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function cancelAnimationLoop() {
     if (animationFrameHandle !== null) {
       cancelAnimationFrame(animationFrameHandle);
@@ -1583,6 +1831,12 @@ export function createGraphPanelController(options: {
     isAnimationRunning = false;
   }
 
+  /**
+   * Purpose: computePathFrame function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function computePathFrame(
     path: SVGPathElement,
     sampleLength: number,
@@ -1620,6 +1874,12 @@ export function createGraphPanelController(options: {
     };
   }
 
+  /**
+   * Purpose: startFlowAnimation function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function startFlowAnimation(config: {
     animation: FlowAnimationState;
     nodeCircles: Map<number, SVGCircleElement>;
@@ -1720,6 +1980,12 @@ export function createGraphPanelController(options: {
   }
 }
 
+/**
+ * Purpose: drawGraph function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function drawGraph(args: {
   state: AppState;
   graphData: GraphRenderData;
@@ -1883,6 +2149,12 @@ function drawGraph(args: {
   );
 }
 
+/**
+ * Purpose: createEdgePath function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createEdgePath(
   fromNode: GraphNodeLayout,
   toNode: GraphNodeLayout,
@@ -1980,6 +2252,12 @@ function createEdgePath(
   );
 }
 
+/**
+ * Purpose: buildEdgeGeometryFromOffset function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildEdgeGeometryFromOffset(options: {
   fromNode: GraphNodeLayout;
   toNode: GraphNodeLayout;
@@ -2058,6 +2336,12 @@ function buildEdgeGeometryFromOffset(options: {
   };
 }
 
+/**
+ * Purpose: createSelfLoopPath function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createSelfLoopPath(options: {
   node: GraphNodeLayout;
   nodeIndex: number;
@@ -2092,6 +2376,12 @@ function createSelfLoopPath(options: {
   return bestGeometry ?? buildSelfLoopGeometry(options.node, options.node.angle, LOOP_BASE_RADIUS);
 }
 
+/**
+ * Purpose: pointAroundNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function pointAroundNode(
   node: GraphNodeLayout,
   angle: number,
@@ -2103,6 +2393,12 @@ function pointAroundNode(
   };
 }
 
+/**
+ * Purpose: chooseDeterministicBendDirection function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function chooseDeterministicBendDirection(
   fromNode: GraphNodeLayout,
   toNode: GraphNodeLayout
@@ -2120,6 +2416,12 @@ function chooseDeterministicBendDirection(
   return (fromNode.index + toNode.index) % 2 === 0 ? 1 : -1;
 }
 
+/**
+ * Purpose: buildSelfLoopGeometry function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildSelfLoopGeometry(node: GraphNodeLayout, angle: number, radius: number): PathGeometry {
   const start = pointAroundNode(node, angle - LOOP_SPREAD, LOOP_START_ANCHOR_RADIUS);
   const end = pointAroundNode(node, angle + LOOP_SPREAD, LOOP_END_ANCHOR_RADIUS);
@@ -2141,6 +2443,12 @@ function buildSelfLoopGeometry(node: GraphNodeLayout, angle: number, radius: num
   };
 }
 
+/**
+ * Purpose: sampleLoopArc function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function sampleLoopArc(options: {
   node: GraphNodeLayout;
   angle: number;
@@ -2160,6 +2468,12 @@ function sampleLoopArc(options: {
   return points;
 }
 
+/**
+ * Purpose: findArrowTipBoundaryT function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function findArrowTipBoundaryT(
   curve: CubicCurve,
   targetCenter: Point,
@@ -2198,6 +2512,12 @@ function findArrowTipBoundaryT(
   return hi;
 }
 
+/**
+ * Purpose: markerTipBoundaryError function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function markerTipBoundaryError(
   curve: CubicCurve,
   t: number,
@@ -2208,6 +2528,12 @@ function markerTipBoundaryError(
   return Math.hypot(markerTip.x - targetCenter.x, markerTip.y - targetCenter.y) - targetRadius;
 }
 
+/**
+ * Purpose: markerTipPointAt function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function markerTipPointAt(curve: CubicCurve, t: number): Point {
   const point = cubicAt(curve.start, curve.controlA, curve.controlB, curve.end, t);
   if (ARROW_TIP_OVERSHOOT <= PROBABILITY_EPSILON) {
@@ -2220,6 +2546,12 @@ function markerTipPointAt(curve: CubicCurve, t: number): Point {
   };
 }
 
+/**
+ * Purpose: cubicTangentAt function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function cubicTangentAt(curve: CubicCurve, t: number): Point {
   const inv = 1 - t;
   const dx =
@@ -2246,6 +2578,12 @@ function cubicTangentAt(curve: CubicCurve, t: number): Point {
   };
 }
 
+/**
+ * Purpose: clipCubicCurve function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function clipCubicCurve(curve: CubicCurve, t: number): CubicCurve {
   const p01 = lerpPoint(curve.start, curve.controlA, t);
   const p12 = lerpPoint(curve.controlA, curve.controlB, t);
@@ -2262,6 +2600,12 @@ function clipCubicCurve(curve: CubicCurve, t: number): CubicCurve {
   };
 }
 
+/**
+ * Purpose: lerpPoint function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function lerpPoint(from: Point, to: Point, t: number): Point {
   return {
     x: from.x + (to.x - from.x) * t,
@@ -2269,6 +2613,12 @@ function lerpPoint(from: Point, to: Point, t: number): Point {
   };
 }
 
+/**
+ * Purpose: buildLoopAngleOffsets function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildLoopAngleOffsets(): number[] {
   const offsets: number[] = [0];
   for (let sweep = 1; sweep <= LOOP_ANGLE_SWEEPS; sweep += 1) {
@@ -2278,6 +2628,12 @@ function buildLoopAngleOffsets(): number[] {
   return offsets;
 }
 
+/**
+ * Purpose: scoreSelfLoopGeometry function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function scoreSelfLoopGeometry(options: {
   candidate: PathGeometry;
   nodeIndex: number;
@@ -2301,6 +2657,12 @@ function scoreSelfLoopGeometry(options: {
   return Math.min(edgeClearance, nodeClearance, boundaryClearance) - anglePenalty - radiusPenalty;
 }
 
+/**
+ * Purpose: minimumDistanceBetweenPointSets function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function minimumDistanceBetweenPointSets(left: readonly Point[], right: readonly Point[]): number {
   if (left.length === 0 || right.length === 0) {
     return 1000;
@@ -2318,6 +2680,12 @@ function minimumDistanceBetweenPointSets(left: readonly Point[], right: readonly
   return minDistance;
 }
 
+/**
+ * Purpose: minimumClearanceToOtherNodes function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function minimumClearanceToOtherNodes(
   samples: readonly Point[],
   allNodes: readonly GraphNodeLayout[],
@@ -2342,6 +2710,12 @@ function minimumClearanceToOtherNodes(
   return minClearance;
 }
 
+/**
+ * Purpose: minimumClearanceToUnrelatedNodes function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function minimumClearanceToUnrelatedNodes(
   samples: readonly Point[],
   allNodes: readonly GraphNodeLayout[],
@@ -2367,6 +2741,12 @@ function minimumClearanceToUnrelatedNodes(
   return Number.isFinite(minClearance) ? minClearance : 1000;
 }
 
+/**
+ * Purpose: minimumBoundaryClearance function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function minimumBoundaryClearance(samples: readonly Point[]): number {
   if (samples.length === 0) {
     return 0;
@@ -2382,6 +2762,12 @@ function minimumBoundaryClearance(samples: readonly Point[]): number {
   return minClearance;
 }
 
+/**
+ * Purpose: cubicAt function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function cubicAt(start: Point, controlA: Point, controlB: Point, end: Point, t: number): Point {
   const inv = 1 - t;
   const x =
@@ -2397,6 +2783,12 @@ function cubicAt(start: Point, controlA: Point, controlB: Point, end: Point, t: 
   return { x, y };
 }
 
+/**
+ * Purpose: sampleCubicCurve function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function sampleCubicCurve(options: {
   start: Point;
   controlA: Point;
@@ -2416,18 +2808,36 @@ function sampleCubicCurve(options: {
   return points;
 }
 
+/**
+ * Purpose: clamp function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function clamp(value: number, min: number, max: number): number {
   if (value <= min) return min;
   if (value >= max) return max;
   return value;
 }
 
+/**
+ * Purpose: clamp01 function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function clamp01(value: number): number {
   if (value <= 0) return 0;
   if (value >= 1) return 1;
   return value;
 }
 
+/**
+ * Purpose: easeInOutCubic function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function easeInOutCubic(value: number): number {
   if (value < 0.5) {
     return 4 * value * value * value;
@@ -2435,6 +2845,12 @@ function easeInOutCubic(value: number): number {
   return 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
+/**
+ * Purpose: colorForHighlightedNodeValue function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function colorForHighlightedNodeValue(value: number): string {
   const normalized = clamp01(value);
   const hue = 3;
@@ -2443,6 +2859,12 @@ function colorForHighlightedNodeValue(value: number): string {
   return `hsl(${hue} ${saturation}% ${lightness.toFixed(1)}%)`;
 }
 
+/**
+ * Purpose: setSvgNodeLabelText function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function setSvgNodeLabelText(label: SVGTextElement, nodeIndex: number, suffix = ''): void {
   label.replaceChildren();
 
@@ -2463,6 +2885,12 @@ function setSvgNodeLabelText(label: SVGTextElement, nodeIndex: number, suffix = 
   }
 }
 
+/**
+ * Purpose: parseEdgeKey function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function parseEdgeKey(key: string): { fromIndex: number; toIndex: number } | null {
   const match = /^edge-(\d+)-(\d+)$/.exec(key);
   if (!match) return null;
@@ -2472,6 +2900,12 @@ function parseEdgeKey(key: string): { fromIndex: number; toIndex: number } | nul
   };
 }
 
+/**
+ * Purpose: normalizeSubgraphSelection function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeSubgraphSelection(
   selection: Partial<GraphSubgraphSelection>,
   fallback: GraphSubgraphSelection
@@ -2501,6 +2935,12 @@ function normalizeSubgraphSelection(
   };
 }
 
+/**
+ * Purpose: isSameSubgraphSelection function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function isSameSubgraphSelection(
   left: GraphSubgraphSelection,
   right: GraphSubgraphSelection
@@ -2512,10 +2952,22 @@ function isSameSubgraphSelection(
   );
 }
 
+/**
+ * Purpose: markerUrl function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function markerUrl(markerId: string): string {
   return `url(#${markerId})`;
 }
 
+/**
+ * Purpose: readGraphTarget function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function readGraphTarget(eventTarget: EventTarget | null): GraphInteractionTarget | null {
   if (!(eventTarget instanceof Element)) {
     return null;
@@ -2550,10 +3002,22 @@ function readGraphTarget(eventTarget: EventTarget | null): GraphInteractionTarge
   return null;
 }
 
+/**
+ * Purpose: createSvgElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createSvgElement<T extends SVGElement>(tagName: string): T {
   return document.createElementNS('http://www.w3.org/2000/svg', tagName) as T;
 }
 
+/**
+ * Purpose: createTemplateElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTemplateElement(markup: string): HTMLElement {
   const template = document.createElement('template');
   template.innerHTML = markup.trim();
@@ -2564,6 +3028,12 @@ function createTemplateElement(markup: string): HTMLElement {
   return node;
 }
 
+/**
+ * Purpose: requireElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (!element) {

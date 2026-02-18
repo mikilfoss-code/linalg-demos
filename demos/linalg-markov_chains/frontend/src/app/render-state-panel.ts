@@ -2,6 +2,10 @@ import type { Action } from './actions';
 import type { AppState } from './types';
 import { formatNodeLabelMarkup } from './node-label';
 
+/**
+ * Purpose: StatePanelController object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type StatePanelController = {
   element: HTMLElement;
   render: (state: AppState) => void;
@@ -207,6 +211,12 @@ export function createStatePanelController(options: {
     },
   };
 
+  /**
+   * Purpose: pulseOneStepButton function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function pulseOneStepButton() {
     highlightOneStepButton = true;
     updateControlButtonStyles();
@@ -221,6 +231,12 @@ export function createStatePanelController(options: {
     }, 200);
   }
 
+  /**
+   * Purpose: updateControlButtonStyles function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function updateControlButtonStyles() {
     stepButton.classList.toggle('is-active', highlightOneStepButton);
     toggleAutoStepButton.classList.toggle('is-active', isAutoStepRunning);
@@ -228,6 +244,12 @@ export function createStatePanelController(options: {
   }
 }
 
+/**
+ * Purpose: buildStateRowsMarkup function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildStateRowsMarkup(state: AppState): string {
   return Array.from({ length: state.nodeCount }, (_, index) => {
     return `
@@ -264,6 +286,12 @@ function buildStateRowsMarkup(state: AppState): string {
   }).join('');
 }
 
+/**
+ * Purpose: createTemplateElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTemplateElement(markup: string): HTMLElement {
   const template = document.createElement('template');
   template.innerHTML = markup.trim();
@@ -274,6 +302,12 @@ function createTemplateElement(markup: string): HTMLElement {
   return node;
 }
 
+/**
+ * Purpose: requireElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (!element) {

@@ -125,6 +125,10 @@ function getCanvasPixelIndex(
   return row * imageWidth + col;
 }
 
+/**
+ * Purpose: AppEventDeps object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type AppEventDeps = {
   gridEl: HTMLDivElement;
   vectorSlider: HTMLInputElement;

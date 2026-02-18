@@ -50,11 +50,23 @@ const AUTO_STEP_TICK_MS = 90;
 
 let isAutoStepRunning = false;
 
+/**
+ * Purpose: setAutoStepRunning function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function setAutoStepRunning(running: boolean) {
   isAutoStepRunning = running;
   statePanel.setAutoStepRunning(running);
 }
 
+/**
+ * Purpose: runAutoStepTick function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function runAutoStepTick() {
   if (!isAutoStepRunning) {
     return;
@@ -198,6 +210,12 @@ window.addEventListener('beforeunload', () => {
   graphPanel.destroy();
 });
 
+/**
+ * Purpose: render function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function render() {
   const state = store.getState();
   graphPanel.render(state);
@@ -205,6 +223,12 @@ function render() {
   matrixPanel.render(state);
 }
 
+/**
+ * Purpose: registerPanelInputGraphHighlighting function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function registerPanelInputGraphHighlighting(
   panelElement: HTMLElement,
   readTarget: (eventTarget: EventTarget | null) => GraphInteractionTarget | null
@@ -233,6 +257,12 @@ function registerPanelInputGraphHighlighting(
   });
 }
 
+/**
+ * Purpose: readNodeTargetFromStateInput function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function readNodeTargetFromStateInput(eventTarget: EventTarget | null): GraphInteractionTarget | null {
   if (!(eventTarget instanceof Element)) {
     return null;
@@ -254,6 +284,12 @@ function readNodeTargetFromStateInput(eventTarget: EventTarget | null): GraphInt
   };
 }
 
+/**
+ * Purpose: readEdgeTargetFromMatrixInput function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function readEdgeTargetFromMatrixInput(eventTarget: EventTarget | null): GraphInteractionTarget | null {
   if (!(eventTarget instanceof Element)) {
     return null;
@@ -280,6 +316,12 @@ function readEdgeTargetFromMatrixInput(eventTarget: EventTarget | null): GraphIn
   };
 }
 
+/**
+ * Purpose: createTopPanelNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTopPanelNode(): LayoutNodeRenderOutput {
   const element = createTemplateElement(`
     <section class="markov-top-panel">
@@ -294,6 +336,12 @@ function createTopPanelNode(): LayoutNodeRenderOutput {
   };
 }
 
+/**
+ * Purpose: createTemplateElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createTemplateElement(markup: string): HTMLElement {
   const template = document.createElement('template');
   template.innerHTML = markup.trim();
@@ -304,6 +352,12 @@ function createTemplateElement(markup: string): HTMLElement {
   return node;
 }
 
+/**
+ * Purpose: requireElement function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function requireElement<T extends Element>(parent: ParentNode, selector: string): T {
   const element = parent.querySelector<T>(selector);
   if (!element) {

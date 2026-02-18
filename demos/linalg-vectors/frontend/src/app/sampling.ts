@@ -13,6 +13,10 @@ function isAbortFailure(message: string): boolean {
   return /abort/i.test(message);
 }
 
+/**
+ * Purpose: SamplingDeps object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type SamplingDeps = {
   getState: () => AppState;
   dispatch: (action: Action) => void;
@@ -30,6 +34,12 @@ export function createSamplingController({ getState, dispatch }: SamplingDeps) {
   let isSampling = false;
   let activeAbort: AbortController | null = null;
 
+  /**
+   * Purpose: nextSampleRequestId function.
+   * Inputs: Parameters declared in the function signature.
+   * Returns: The value produced by this function.
+   * Side effects: May update local state, shared state, or the DOM when applicable.
+   */
   function nextSampleRequestId(): number {
     sampleRequestId += 1;
     return sampleRequestId;

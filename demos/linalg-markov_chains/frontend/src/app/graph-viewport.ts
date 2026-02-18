@@ -1,3 +1,7 @@
+/**
+ * Purpose: GraphViewportTransform object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphViewportTransform = {
   scale: number;
   translateX: number;
@@ -58,6 +62,12 @@ export function toSvgViewportTransform(transform: GraphViewportTransform): strin
   )}) scale(${transform.scale.toFixed(4)})`;
 }
 
+/**
+ * Purpose: clamp function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function clamp(value: number, min: number, max: number): number {
   if (value <= min) return min;
   if (value >= max) return max;

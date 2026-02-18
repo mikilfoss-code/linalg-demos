@@ -16,9 +16,10 @@ These steps are required before any file edit or file-modifying command.
    - `Reasoning`
    - `Style Options`
    - `Trade-Offs`
-4. Ask the user to select an option.
+4. For substantial changes, ask the user to select an option.
 5. If the change is substantial, ask for explicit authorization to proceed.
-6. Only after steps 4 and 5 are satisfied may code edits begin.
+6. For substantial changes, only after steps 4 and 5 are satisfied may code edits begin.
+7. For minor changes, option selection and explicit authorization are not required.
 
 ## Substantial change definition
 
@@ -72,7 +73,7 @@ If the user asks for analysis only (no edits/commands that modify files), steps 
 - Respect the repo’s pinned Node toolchain:
   - locally: use Volta (if present) and prefer `volta pin ...` when setting versions
   - do not assume Volta exists in CI/Render; rely on the repo configuration (e.g., `package.json` engines) for deployment
-- Each demo frontend has its own `package.json` and lockfile.
+- Each demo frontend has its own `package.json`.
 
 ## Git policy
 

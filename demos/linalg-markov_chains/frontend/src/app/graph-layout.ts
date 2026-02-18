@@ -6,11 +6,19 @@ const RADIAL_FALLBACK_STRATEGY_ID = 'radial-fallback';
 const LAYOUT_EPSILON = 1e-6;
 const GRAPH_LAYOUT_CENTER_Y_RATIO = 0.43;
 
+/**
+ * Purpose: Point object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 type Point = {
   x: number;
   y: number;
 };
 
+/**
+ * Purpose: GraphNodeLayout object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphNodeLayout = {
   index: number;
   angle: number;
@@ -18,6 +26,10 @@ export type GraphNodeLayout = {
   y: number;
 };
 
+/**
+ * Purpose: GraphLayoutInput object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphLayoutInput = {
   nodeCount: number;
   transitionMatrix: number[][];
@@ -28,11 +40,19 @@ export type GraphLayoutInput = {
   maxEdgeLength: number;
 };
 
+/**
+ * Purpose: GraphLayoutStrategy object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphLayoutStrategy = {
   id: string;
   computeLayout: (input: GraphLayoutInput) => GraphNodeLayout[];
 };
 
+/**
+ * Purpose: GraphLayoutEngine object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type GraphLayoutEngine = {
   computeLayout: (input: GraphLayoutInput, strategyId?: string) => GraphNodeLayout[];
 };
@@ -83,6 +103,12 @@ export function probabilityToEdgeLength(
   return minLength + (1 - normalized) * (maxLength - minLength);
 }
 
+/**
+ * Purpose: createProbabilityDeterministicStrategy function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createProbabilityDeterministicStrategy(): GraphLayoutStrategy {
   return {
     id: DEFAULT_GRAPH_LAYOUT_STRATEGY_ID,
@@ -131,6 +157,12 @@ function createProbabilityDeterministicStrategy(): GraphLayoutStrategy {
   };
 }
 
+/**
+ * Purpose: createRadialFallbackStrategy function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function createRadialFallbackStrategy(): GraphLayoutStrategy {
   return {
     id: RADIAL_FALLBACK_STRATEGY_ID,
@@ -152,6 +184,12 @@ function createRadialFallbackStrategy(): GraphLayoutStrategy {
   };
 }
 
+/**
+ * Purpose: pickCenterNodeIndex function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function pickCenterNodeIndex(matrix: number[][], nodeCount: number): number {
   let bestIndex = 0;
   let bestScore = Number.NEGATIVE_INFINITY;
@@ -173,6 +211,12 @@ function pickCenterNodeIndex(matrix: number[][], nodeCount: number): number {
   return bestIndex;
 }
 
+/**
+ * Purpose: seedInitialPositions function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function seedInitialPositions(options: {
   input: GraphLayoutInput;
   center: Point;
@@ -207,6 +251,12 @@ function seedInitialPositions(options: {
   });
 }
 
+/**
+ * Purpose: orderOuterNodesByCoupling function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function orderOuterNodesByCoupling(
   matrix: number[][],
   centerNodeIndex: number,
@@ -229,6 +279,12 @@ function orderOuterNodesByCoupling(
   return ordered;
 }
 
+/**
+ * Purpose: pickStrongestCoupledNode function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function pickStrongestCoupledNode(
   matrix: number[][],
   referenceIndex: number,
@@ -250,6 +306,12 @@ function pickStrongestCoupledNode(
   return bestCandidate;
 }
 
+/**
+ * Purpose: buildTargetDistanceMatrix function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function buildTargetDistanceMatrix(input: GraphLayoutInput, centerNodeIndex: number): number[][] {
   const distances = Array.from({ length: input.nodeCount }, () =>
     Array.from({ length: input.nodeCount }, () => input.minEdgeLength)
@@ -269,6 +331,12 @@ function buildTargetDistanceMatrix(input: GraphLayoutInput, centerNodeIndex: num
   return distances;
 }
 
+/**
+ * Purpose: relaxPositions function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function relaxPositions(options: {
   input: GraphLayoutInput;
   center: Point;
@@ -356,6 +424,12 @@ function relaxPositions(options: {
   }
 }
 
+/**
+ * Purpose: enforceNodeSeparation function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function enforceNodeSeparation(options: {
   positions: Point[];
   centerNodeIndex: number;
@@ -399,6 +473,12 @@ function enforceNodeSeparation(options: {
   positions[centerNodeIndex] = { ...center };
 }
 
+/**
+ * Purpose: computeLoopAngle function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function computeLoopAngle(
   index: number,
   centerNodeIndex: number,
@@ -434,6 +514,12 @@ function computeLoopAngle(
   return Math.atan2(node.y - crowdY, node.x - crowdX);
 }
 
+/**
+ * Purpose: pairCoupling function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function pairCoupling(matrix: number[][], left: number, right: number): number {
   if (left === right) return 1;
   const forward = clampProbability(matrix[left]?.[right] ?? 0);
@@ -441,6 +527,12 @@ function pairCoupling(matrix: number[][], left: number, right: number): number {
   return Math.max(forward, backward);
 }
 
+/**
+ * Purpose: clamp function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function clamp(value: number, min: number, max: number): number {
   if (value <= min) return min;
   if (value >= max) return max;

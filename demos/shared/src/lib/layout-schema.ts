@@ -35,11 +35,19 @@ export type LayoutSchema<PanelId extends string> = {
   variants: readonly LayoutVariant<PanelId>[];
 };
 
+/**
+ * Purpose: LayoutValidationIssue object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type LayoutValidationIssue = {
   path: string;
   message: string;
 };
 
+/**
+ * Purpose: LayoutValidationResult object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type LayoutValidationResult = {
   valid: boolean;
   issues: LayoutValidationIssue[];

@@ -78,6 +78,12 @@ export function renderLayoutPlan<PanelId extends string>({
   return mountedPanels;
 }
 
+/**
+ * Purpose: resolveRenderer function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function resolveRenderer<PanelId extends string>(
   context: LayoutNodeRenderContext<PanelId>,
   registry: LayoutRendererRegistry<PanelId>
@@ -99,6 +105,12 @@ function resolveRenderer<PanelId extends string>(
   return defaultKeyedRenderer ?? null;
 }
 
+/**
+ * Purpose: normalizeRenderOutput function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function normalizeRenderOutput<PanelId extends string>(
   output: LayoutNodeRenderOutput,
   panelId: PanelId
@@ -112,6 +124,12 @@ function normalizeRenderOutput<PanelId extends string>(
   return output;
 }
 
+/**
+ * Purpose: applyInlineStyle function.
+ * Inputs: Parameters declared in the function signature.
+ * Returns: The value produced by this function.
+ * Side effects: May update local state, shared state, or the DOM when applicable.
+ */
 function applyInlineStyle(element: HTMLElement, inlineStyle: string): void {
   if (!inlineStyle.trim()) return;
 

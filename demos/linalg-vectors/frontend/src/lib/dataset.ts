@@ -10,6 +10,10 @@ import {
   type WordCountApi,
 } from "./types";
 
+/**
+ * Purpose: DatasetMeta object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type DatasetMeta = {
   source: DatasetId;
   displayName: string;
@@ -22,12 +26,20 @@ export type DatasetMeta = {
   vocab?: string[] | null;
 };
 
+/**
+ * Purpose: WordCount object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type WordCount = {
   index: number;
   count: number;
   weight: number;
 };
 
+/**
+ * Purpose: ImageSample object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type ImageSample = {
   kind: "image";
   index: number;
@@ -37,6 +49,10 @@ export type ImageSample = {
   vector: Float32Array;
 };
 
+/**
+ * Purpose: TextSample object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type TextSample = {
   kind: "text";
   index: number;
@@ -49,6 +65,10 @@ export type TextSample = {
 
 export type DatasetSample = ImageSample | TextSample;
 
+/**
+ * Purpose: DatasetSampleSet object contract.
+ * Key fields: Properties declared inside this type definition.
+ */
 export type DatasetSampleSet = {
   meta: DatasetMeta;
   samples: DatasetSample[];
