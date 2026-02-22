@@ -1,21 +1,28 @@
 export const MIN_NODE_COUNT = 2;
-export const MAX_NODE_COUNT = 8;
+export const MAX_NODE_COUNT = 10;
 export const DEFAULT_NODE_COUNT = 4;
 
 const VALUE_EPSILON = 1e-9;
 const PROBABILITY_SUM_TOLERANCE = 1e-4;
 const PARTICLE_MASS_THRESHOLD = 0.012;
 const FLOW_PARTICLE_RADIUS = 2.2;
-const FLOW_GLOB_MIN_PARTICLES = 2;
-const FLOW_GLOB_MAX_PARTICLES = 12;
+const FLOW_GLOB_MAX_PARTICLES = 16;
+const FLOW_NODE_TOTAL_PARTICLE_BUDGET = 64;
 const FLOW_GLOB_MIN_SEPARATION = 0.35;
 const FLOW_GLOB_STRETCH_ALONG_RATIO = 1.65;
-const FLOW_GLOB_STRETCH_NORMAL_RATIO = 0.5;
+const FLOW_GLOB_STRETCH_NORMAL_RATIO = 0.45;
 const FLOW_GLOB_SOURCE_SIZE_SCALE = 0.95;
 const FLOW_GLOB_EDGE_SPREAD_MIN = 0.34;
-const FLOW_GLOB_EDGE_SPREAD_MAX = 1;
+const FLOW_GLOB_EDGE_SPREAD_MAX = 1.05;
 const FLOW_GLOB_EDGE_SPREAD_EXPONENT = 1.25;
 const FLOW_GLOB_SPREAD_EXPANSION = 0.72;
+const FLOW_GLOB_STEP_SPACING_VARIATION_MIN = 0.92;
+const FLOW_GLOB_STEP_SPACING_VARIATION_MAX = 1.14;
+const FLOW_GLOB_PARTICLE_ALONG_JITTER = 0.22;
+const FLOW_GLOB_PARTICLE_NORMAL_JITTER = 0.34;
+const FLOW_GLOB_PATH_PHASE_STEP = 0.05;
+const FLOW_GLOB_PATH_PHASE_JITTER = 0.08;
+const FLOW_GLOB_MAX_PATH_PHASE = 0.45;
 
 /**
  * Purpose: GlobSlot object contract.
@@ -85,7 +92,7 @@ export type FlowParticle = {
   delayMs: number;
   durationMs: number;
   radius: number;
-  offsetAlong: number;
+  pathPhase: number;
   offsetNormal: number;
 };
 
@@ -103,12 +110,11 @@ export type FlowAnimationState = {
 };
 
 /**
- * Clamp an untrusted numeric value into the probability range [0, 1].
+ * Clamp an untrusted numeric value to a non-negative scalar.
  */
 export function clampProbability(value: number): number {
   if (!Number.isFinite(value)) return 0;
   if (value <= 0) return 0;
-  if (value >= 1) return 1;
   return value;
 }
 
@@ -239,9 +245,9 @@ export function buildValidationSummary(
       if (!Number.isFinite(value)) {
         matrixValid = false;
         errors.push(`P[${rowIndex + 1}, ${colIndex + 1}] must be finite.`);
-      } else if (value < -VALUE_EPSILON || value > 1 + VALUE_EPSILON) {
+      } else if (value < -VALUE_EPSILON) {
         matrixValid = false;
-        errors.push(`P[${rowIndex + 1}, ${colIndex + 1}] must stay in [0, 1].`);
+        errors.push(`P[${rowIndex + 1}, ${colIndex + 1}] must be non-negative.`);
       }
     }
 
@@ -312,47 +318,78 @@ export function createFlowAnimation(
 
   const particles: FlowParticle[] = [];
   let maxTravelMs = 950;
-
-  edges
+  const eligibleEdges = edges
     .filter((edge) => edge.mass >= PARTICLE_MASS_THRESHOLD)
-    .sort((left, right) => right.mass - left.mass)
-    .forEach((edge, edgeIndex) => {
-      const edgeSeed = (id + 17) * (edgeIndex + 11);
-      const sourceValue = clampProbability(fromVector[edge.from] ?? 0);
-      const particleCount =
-        FLOW_GLOB_MIN_PARTICLES +
-        Math.round((FLOW_GLOB_MAX_PARTICLES - FLOW_GLOB_MIN_PARTICLES) * sourceValue);
-      const edgeSpreadScale =
-        FLOW_GLOB_EDGE_SPREAD_MIN +
-        Math.pow(clampProbability(edge.probability), FLOW_GLOB_EDGE_SPREAD_EXPONENT) *
-          (FLOW_GLOB_EDGE_SPREAD_MAX - FLOW_GLOB_EDGE_SPREAD_MIN);
-      const spreadScale =
+    .sort((left, right) => right.mass - left.mass);
+  const particleCountsByPathKey = allocateParticleCountsBySourceNode({
+    animationId: id,
+    fromVector,
+    edges: eligibleEdges,
+  });
+
+  eligibleEdges.forEach((edge, edgeIndex) => {
+    const edgeSeed = (id + 17) * (edgeIndex + 11);
+    const sourceValue = clampProbability(fromVector[edge.from] ?? 0);
+    const particleCount = particleCountsByPathKey.get(edge.pathKey) ?? 0;
+    if (particleCount <= 0) {
+      return;
+    }
+    const edgeSpreadScale =
+      FLOW_GLOB_EDGE_SPREAD_MIN +
+      Math.pow(clampProbability(edge.probability), FLOW_GLOB_EDGE_SPREAD_EXPONENT) *
+        (FLOW_GLOB_EDGE_SPREAD_MAX - FLOW_GLOB_EDGE_SPREAD_MIN);
+    const spreadScale =
+      1 + sourceValue * FLOW_GLOB_SOURCE_SIZE_SCALE + edgeSpreadScale * FLOW_GLOB_SPREAD_EXPANSION;
+    const baseSpacing = FLOW_PARTICLE_RADIUS * 2 + FLOW_GLOB_MIN_SEPARATION;
+    const alongStep = baseSpacing * FLOW_GLOB_STRETCH_ALONG_RATIO * spreadScale;
+    const normalStep = baseSpacing * FLOW_GLOB_STRETCH_NORMAL_RATIO * spreadScale;
+    const alongPhaseScale =
+      alongStep / Math.max(VALUE_EPSILON, baseSpacing * FLOW_GLOB_STRETCH_ALONG_RATIO);
+    const delayMs = 26 + pseudoRandom(edgeSeed + 13) * 168;
+    const durationMs = 520 + pseudoRandom(edgeSeed + 101) * 300;
+    const slotCount = FLOW_GLOB_SLOT_COORDS.length;
+    const slotRotation = Math.floor(pseudoRandom(edgeSeed + 211) * slotCount);
+    const slotStride = 1 + Math.floor(pseudoRandom(edgeSeed + 223) * Math.max(1, slotCount - 1));
+    const slotDirection = pseudoRandom(edgeSeed + 227) < 0.5 ? 1 : -1;
+    const stepSpacingVariation =
+      FLOW_GLOB_STEP_SPACING_VARIATION_MIN +
+      pseudoRandom(edgeSeed + 233) *
+        (FLOW_GLOB_STEP_SPACING_VARIATION_MAX - FLOW_GLOB_STEP_SPACING_VARIATION_MIN);
+    const variedNormalStep = normalStep * stepSpacingVariation;
+    maxTravelMs = Math.max(maxTravelMs, delayMs + durationMs);
+
+    for (let particleIndex = 0; particleIndex < particleCount; particleIndex += 1) {
+      const slotIndex = positiveModulo(
+        slotRotation + slotDirection * particleIndex * slotStride,
+        slotCount
+      );
+      const slot =
+        FLOW_GLOB_SLOT_COORDS[slotIndex] ?? FLOW_GLOB_SLOT_COORDS[FLOW_GLOB_SLOT_COORDS.length - 1];
+      const phaseJitter =
+        (pseudoRandom(edgeSeed + 307 + particleIndex * 17) - 0.5) *
+        FLOW_GLOB_PARTICLE_ALONG_JITTER *
+        FLOW_GLOB_PATH_PHASE_JITTER;
+      const pathPhase = clamp(
+        slot.x * FLOW_GLOB_PATH_PHASE_STEP * alongPhaseScale * stepSpacingVariation + phaseJitter,
+        -FLOW_GLOB_MAX_PATH_PHASE,
+        FLOW_GLOB_MAX_PATH_PHASE
+      );
+      const normalJitter =
         1 +
-        sourceValue * FLOW_GLOB_SOURCE_SIZE_SCALE +
-        edgeSpreadScale * FLOW_GLOB_SPREAD_EXPANSION;
-      const baseSpacing = FLOW_PARTICLE_RADIUS * 2 + FLOW_GLOB_MIN_SEPARATION;
-      const alongStep = baseSpacing * FLOW_GLOB_STRETCH_ALONG_RATIO * spreadScale;
-      const normalStep = baseSpacing * FLOW_GLOB_STRETCH_NORMAL_RATIO * spreadScale;
-      const delayMs = 26 + pseudoRandom(edgeSeed + 13) * 168;
-      const durationMs = 520 + pseudoRandom(edgeSeed + 101) * 300;
-      maxTravelMs = Math.max(maxTravelMs, delayMs + durationMs);
+        (pseudoRandom(edgeSeed + 401 + particleIndex * 19) - 0.5) *
+          FLOW_GLOB_PARTICLE_NORMAL_JITTER;
 
-      for (let particleIndex = 0; particleIndex < particleCount; particleIndex += 1) {
-        const slot =
-          FLOW_GLOB_SLOT_COORDS[particleIndex] ??
-          FLOW_GLOB_SLOT_COORDS[FLOW_GLOB_SLOT_COORDS.length - 1];
-
-        particles.push({
-          id: `particle-${id}-${edge.from}-${edge.to}-${particleIndex}`,
-          pathKey: edge.pathKey,
-          delayMs,
-          durationMs,
-          radius: FLOW_PARTICLE_RADIUS,
-          offsetAlong: slot.x * alongStep,
-          offsetNormal: slot.y * normalStep,
-        });
-      }
-    });
+      particles.push({
+        id: `particle-${id}-${edge.from}-${edge.to}-${particleIndex}`,
+        pathKey: edge.pathKey,
+        delayMs,
+        durationMs,
+        radius: FLOW_PARTICLE_RADIUS,
+        pathPhase,
+        offsetNormal: slot.y * variedNormalStep * normalJitter,
+      });
+    }
+  });
 
   return {
     id,
@@ -362,6 +399,157 @@ export function createFlowAnimation(
     particles,
     durationMs: maxTravelMs + 40,
   };
+}
+
+/**
+ * Purpose: Allocate per-edge particle counts from source-node budgets with per-edge caps.
+ * Inputs: Current animation id, source distribution, and eligible flow edges.
+ * Returns: Map from edge path key to allocated particle count.
+ * Side effects: None (pure computation).
+ */
+function allocateParticleCountsBySourceNode(options: {
+  animationId: number;
+  fromVector: readonly number[];
+  edges: readonly FlowEdge[];
+}): Map<string, number> {
+  const bySourceNode = new Map<number, FlowEdge[]>();
+  options.edges.forEach((edge) => {
+    const existing = bySourceNode.get(edge.from);
+    if (existing) {
+      existing.push(edge);
+    } else {
+      bySourceNode.set(edge.from, [edge]);
+    }
+  });
+
+  const countsByPathKey = new Map<string, number>();
+  bySourceNode.forEach((sourceEdges, sourceNodeIndex) => {
+    const sourceValue = clampProbability(options.fromVector[sourceNodeIndex] ?? 0);
+    if (sourceValue <= VALUE_EPSILON) {
+      return;
+    }
+
+    const rawBudget = Math.round(sourceValue * FLOW_NODE_TOTAL_PARTICLE_BUDGET);
+    if (rawBudget <= 0) {
+      return;
+    }
+
+    const maxBudget = sourceEdges.length * FLOW_GLOB_MAX_PARTICLES;
+    const nodeBudget = Math.min(rawBudget, maxBudget);
+    if (nodeBudget <= 0) {
+      return;
+    }
+
+    const allocations = allocateCappedWeightedCounts({
+      totalCount: nodeBudget,
+      maxPerBucket: FLOW_GLOB_MAX_PARTICLES,
+      weights: sourceEdges.map((edge) => clampProbability(edge.probability)),
+      seed: (options.animationId + 31) * (sourceNodeIndex + 41),
+    });
+
+    allocations.forEach((count, edgeIndex) => {
+      if (count <= 0) {
+        return;
+      }
+      countsByPathKey.set(sourceEdges[edgeIndex].pathKey, count);
+    });
+  });
+
+  return countsByPathKey;
+}
+
+/**
+ * Purpose: Randomly allocate an integer budget across weighted buckets with hard bucket caps.
+ * Inputs: Allocation budget, per-bucket cap, bucket weights, and deterministic seed.
+ * Returns: Integer counts per bucket summing to <= totalCount.
+ * Side effects: None (pure computation).
+ */
+function allocateCappedWeightedCounts(options: {
+  totalCount: number;
+  maxPerBucket: number;
+  weights: readonly number[];
+  seed: number;
+}): number[] {
+  const bucketCount = options.weights.length;
+  const counts = Array.from({ length: bucketCount }, () => 0);
+  if (bucketCount === 0 || options.totalCount <= 0 || options.maxPerBucket <= 0) {
+    return counts;
+  }
+
+  let remaining = options.totalCount;
+  let drawIndex = 0;
+  const random = () => {
+    drawIndex += 1;
+    return pseudoRandom(options.seed + drawIndex * 97);
+  };
+
+  while (remaining > 0) {
+    const availableIndices: number[] = [];
+    const availableWeights: number[] = [];
+    for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+      if (counts[bucketIndex] >= options.maxPerBucket) {
+        continue;
+      }
+      const weight = clampProbability(options.weights[bucketIndex] ?? 0);
+      if (weight <= VALUE_EPSILON) {
+        continue;
+      }
+      availableIndices.push(bucketIndex);
+      availableWeights.push(weight);
+    }
+
+    if (availableIndices.length === 0) {
+      for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+        if (counts[bucketIndex] >= options.maxPerBucket) {
+          continue;
+        }
+        availableIndices.push(bucketIndex);
+        availableWeights.push(1);
+      }
+    }
+
+    if (availableIndices.length === 0) {
+      break;
+    }
+
+    const pickedLocalIndex = sampleWeightedIndex(availableWeights, random());
+    const pickedBucketIndex = availableIndices[pickedLocalIndex];
+    counts[pickedBucketIndex] += 1;
+    remaining -= 1;
+  }
+
+  return counts;
+}
+
+/**
+ * Purpose: Sample a bucket index from normalized or unnormalized non-negative weights.
+ * Inputs: Candidate bucket weights and random scalar in [0, 1).
+ * Returns: Selected bucket index.
+ * Side effects: None (pure computation).
+ */
+function sampleWeightedIndex(weights: readonly number[], randomValue: number): number {
+  if (weights.length === 0) {
+    return 0;
+  }
+
+  let totalWeight = 0;
+  weights.forEach((weight) => {
+    totalWeight += Math.max(0, weight);
+  });
+
+  if (totalWeight <= VALUE_EPSILON) {
+    return Math.floor(clamp(randomValue, 0, 0.999999) * weights.length);
+  }
+
+  let threshold = clamp(randomValue, 0, 0.999999) * totalWeight;
+  for (let index = 0; index < weights.length; index += 1) {
+    threshold -= Math.max(0, weights[index]);
+    if (threshold <= 0) {
+      return index;
+    }
+  }
+
+  return weights.length - 1;
 }
 
 /**
@@ -424,8 +612,8 @@ function validateProbabilityVector(vector: number[], expectedLength: number, lab
       errors.push(`${label} entries must be finite.`);
       continue;
     }
-    if (value < -VALUE_EPSILON || value > 1 + VALUE_EPSILON) {
-      errors.push(`${label} entries must stay in [0, 1].`);
+    if (value < -VALUE_EPSILON) {
+      errors.push(`${label} entries must be non-negative.`);
     }
   }
 
@@ -449,6 +637,36 @@ function validateProbabilityVector(vector: number[], expectedLength: number, lab
  */
 function sumVector(vector: readonly number[]): number {
   return vector.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+}
+
+/**
+ * Purpose: Normalize modulo output into the [0, modulus) range.
+ * Inputs: Raw integer-like value and positive modulus.
+ * Returns: Wrapped non-negative remainder.
+ * Side effects: None (pure computation).
+ */
+function positiveModulo(value: number, modulus: number): number {
+  if (modulus <= 0) {
+    return 0;
+  }
+  const remainder = value % modulus;
+  return remainder < 0 ? remainder + modulus : remainder;
+}
+
+/**
+ * Purpose: Clamp a scalar into an inclusive [min, max] interval.
+ * Inputs: Value and numeric bounds.
+ * Returns: Clamped scalar result.
+ * Side effects: None (pure computation).
+ */
+function clamp(value: number, min: number, max: number): number {
+  if (value <= min) {
+    return min;
+  }
+  if (value >= max) {
+    return max;
+  }
+  return value;
 }
 
 /**

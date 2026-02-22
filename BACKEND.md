@@ -115,6 +115,7 @@ backend/
 - Every row of `transitionMatrix` must sum to 1 within tolerance.
 - `initialVector` and `currentVector` must be non-negative and sum to 1.
 - Markov stepping uses row-vector convention: `x_(t+1) = x_t P`.
+- Displayed transition matrix is the transpose of the transition matrix used for calculations.
 
 ### Dataset Sampling
 

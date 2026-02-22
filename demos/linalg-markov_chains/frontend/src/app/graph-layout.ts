@@ -7,8 +7,8 @@ const LAYOUT_EPSILON = 1e-6;
 const GRAPH_LAYOUT_CENTER_Y_RATIO = 0.43;
 
 /**
- * Purpose: Point object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define a 2D coordinate used for graph geometry and viewport math.
+ * Key fields: See the declared properties in this type definition.
  */
 type Point = {
   x: number;
@@ -16,8 +16,8 @@ type Point = {
 };
 
 /**
- * Purpose: GraphNodeLayout object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define per-node layout coordinates and loop angle for graph rendering.
+ * Key fields: Node index, x/y coordinates, and preferred self-loop angle.
  */
 export type GraphNodeLayout = {
   index: number;
@@ -27,8 +27,8 @@ export type GraphNodeLayout = {
 };
 
 /**
- * Purpose: GraphLayoutInput object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define numeric layout inputs consumed by layout strategies.
+ * Key fields: Node count, transition matrix, viewport size, and edge-length bounds.
  */
 export type GraphLayoutInput = {
   nodeCount: number;
@@ -41,8 +41,8 @@ export type GraphLayoutInput = {
 };
 
 /**
- * Purpose: GraphLayoutStrategy object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define one pluggable strategy used to compute graph node positions.
+ * Key fields: See the declared properties in this type definition.
  */
 export type GraphLayoutStrategy = {
   id: string;
@@ -50,8 +50,8 @@ export type GraphLayoutStrategy = {
 };
 
 /**
- * Purpose: GraphLayoutEngine object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define the strategy-driven engine interface used by graph rendering.
+ * Key fields: See the declared properties in this type definition.
  */
 export type GraphLayoutEngine = {
   computeLayout: (input: GraphLayoutInput, strategyId?: string) => GraphNodeLayout[];
@@ -104,10 +104,10 @@ export function probabilityToEdgeLength(
 }
 
 /**
- * Purpose: createProbabilityDeterministicStrategy function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Create the default force-relaxed graph layout strategy seeded by transition coupling.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function createProbabilityDeterministicStrategy(): GraphLayoutStrategy {
   return {
@@ -158,10 +158,10 @@ function createProbabilityDeterministicStrategy(): GraphLayoutStrategy {
 }
 
 /**
- * Purpose: createRadialFallbackStrategy function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Create a deterministic radial fallback layout when the primary strategy is unavailable.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function createRadialFallbackStrategy(): GraphLayoutStrategy {
   return {
@@ -185,10 +185,10 @@ function createRadialFallbackStrategy(): GraphLayoutStrategy {
 }
 
 /**
- * Purpose: pickCenterNodeIndex function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Pick the most coupled node to anchor at layout center.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function pickCenterNodeIndex(matrix: number[][], nodeCount: number): number {
   let bestIndex = 0;
@@ -212,10 +212,10 @@ function pickCenterNodeIndex(matrix: number[][], nodeCount: number): number {
 }
 
 /**
- * Purpose: seedInitialPositions function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Seed node coordinates before iterative relaxation starts.
+ * Inputs: Layout input, center anchor, center-node index, and mutable position buffer.
+ * Returns: No value (`void`).
+ * Side effects: Mutates `positions` with deterministic initial node coordinates.
  */
 function seedInitialPositions(options: {
   input: GraphLayoutInput;
@@ -252,10 +252,10 @@ function seedInitialPositions(options: {
 }
 
 /**
- * Purpose: orderOuterNodesByCoupling function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Order non-center nodes by coupling so initial placement is stable.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function orderOuterNodesByCoupling(
   matrix: number[][],
@@ -280,10 +280,10 @@ function orderOuterNodesByCoupling(
 }
 
 /**
- * Purpose: pickStrongestCoupledNode function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Pick the candidate node with strongest pairwise coupling to the reference node.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function pickStrongestCoupledNode(
   matrix: number[][],
@@ -307,10 +307,10 @@ function pickStrongestCoupledNode(
 }
 
 /**
- * Purpose: buildTargetDistanceMatrix function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build desired pairwise distances from transition probabilities.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function buildTargetDistanceMatrix(input: GraphLayoutInput, centerNodeIndex: number): number[][] {
   const distances = Array.from({ length: input.nodeCount }, () =>
@@ -332,10 +332,10 @@ function buildTargetDistanceMatrix(input: GraphLayoutInput, centerNodeIndex: num
 }
 
 /**
- * Purpose: relaxPositions function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Iteratively relax node positions using spring, repulsion, and center-pull forces.
+ * Inputs: Layout context plus mutable `positions` and `velocities` buffers.
+ * Returns: No value (`void`).
+ * Side effects: Mutates `positions` and `velocities` during iterative force simulation.
  */
 function relaxPositions(options: {
   input: GraphLayoutInput;
@@ -425,10 +425,10 @@ function relaxPositions(options: {
 }
 
 /**
- * Purpose: enforceNodeSeparation function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Resolve overlaps so node centers stay above the minimum spacing threshold.
+ * Inputs: Mutable position buffer, spacing constraints, and center-node metadata.
+ * Returns: No value (`void`).
+ * Side effects: Mutates node coordinates in `positions` to enforce minimum separation.
  */
 function enforceNodeSeparation(options: {
   positions: Point[];
@@ -474,10 +474,10 @@ function enforceNodeSeparation(options: {
 }
 
 /**
- * Purpose: computeLoopAngle function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute the preferred self-loop angle from node direction and crowding.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function computeLoopAngle(
   index: number,
@@ -515,10 +515,10 @@ function computeLoopAngle(
 }
 
 /**
- * Purpose: pairCoupling function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute symmetric coupling strength for a node pair.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function pairCoupling(matrix: number[][], left: number, right: number): number {
   if (left === right) return 1;
@@ -528,13 +528,15 @@ function pairCoupling(matrix: number[][], left: number, right: number): number {
 }
 
 /**
- * Purpose: clamp function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Clamp a numeric value into an inclusive [min, max] range.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function clamp(value: number, min: number, max: number): number {
   if (value <= min) return min;
   if (value >= max) return max;
   return value;
 }
+
+

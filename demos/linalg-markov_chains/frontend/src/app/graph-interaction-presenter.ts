@@ -12,6 +12,10 @@ export type GraphInteractionTarget =
   | {
       kind: 'node';
       nodeIndex: number;
+    }
+  | {
+      kind: 'incoming-node';
+      nodeIndex: number;
     };
 
 /**
@@ -75,7 +79,10 @@ export function isSameGraphInteractionTarget(
   if (left === right) return true;
   if (!left || !right) return false;
   if (left.kind !== right.kind) return false;
-  if (left.kind === 'node' && right.kind === 'node') {
+  if (
+    (left.kind === 'node' && right.kind === 'node') ||
+    (left.kind === 'incoming-node' && right.kind === 'incoming-node')
+  ) {
     return left.nodeIndex === right.nodeIndex;
   }
   if (left.kind === 'edge' && right.kind === 'edge') {
@@ -120,6 +127,14 @@ export function buildGraphInteractionPresentation(
         highlightedEdgeKeys.add(edgePathKey(activeTarget.nodeIndex, toIndex));
       }
     });
+  } else if (activeTarget?.kind === 'incoming-node') {
+    highlightedNodeIndices.add(activeTarget.nodeIndex);
+    appState.transitionMatrix.forEach((row, fromIndex) => {
+      const value = row?.[activeTarget.nodeIndex] ?? 0;
+      if (value > PROBABILITY_EPSILON) {
+        highlightedEdgeKeys.add(edgePathKey(fromIndex, activeTarget.nodeIndex));
+      }
+    });
   }
 
   return {
@@ -162,7 +177,12 @@ function buildSelectedNodeEditor(
   appState: AppState,
   selectedTarget: GraphInteractionTarget | null
 ): GraphNodeEditorModel | null {
-  if (!selectedTarget || selectedTarget.kind !== 'node') return null;
+  if (
+    !selectedTarget ||
+    (selectedTarget.kind !== 'node' && selectedTarget.kind !== 'incoming-node')
+  ) {
+    return null;
+  }
   return {
     nodeIndex: selectedTarget.nodeIndex,
     value: appState.currentVector[selectedTarget.nodeIndex] ?? 0,
@@ -180,7 +200,7 @@ function sanitizeTarget(
   appState: AppState
 ): GraphInteractionTarget | null {
   if (!target) return null;
-  if (target.kind === 'node') {
+  if (target.kind === 'node' || target.kind === 'incoming-node') {
     return isValidIndex(target.nodeIndex, appState.nodeCount) ? target : null;
   }
 

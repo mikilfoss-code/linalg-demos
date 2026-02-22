@@ -1,6 +1,7 @@
 import type { FlowAnimationState, ValidationSummary } from '../lib/markov';
+import type { EditHighlightTarget, EditSessionState } from './edit-session';
 
-export type MarkovSourceMode = 'manual';
+export type MarkovSourceMode = 'manual' | 'dataset';
 
 /**
  * Purpose: AppState object contract.
@@ -17,4 +18,9 @@ export type AppState = {
   flowAnimation: FlowAnimationState | null;
   nextAnimationId: number;
   hasPendingMatrixEdits: boolean;
+  editSession: EditSessionState;
+  interaction: {
+    hoverTarget: EditHighlightTarget | null;
+    selectedTarget: EditHighlightTarget | null;
+  };
 };

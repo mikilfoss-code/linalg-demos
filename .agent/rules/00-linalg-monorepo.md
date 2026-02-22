@@ -14,7 +14,7 @@ These steps are required before any file edit or file-modifying command.
 2. Read `CODEMAP.md` in the repo root.
 3. For substantial changes, post a response containing all three sections:
    - `Reasoning`
-   - `Style Options`
+   - `Solution Options`
    - `Trade-Offs`
 4. For substantial changes, ask the user to select an option.
 5. If the change is substantial, ask for explicit authorization to proceed.
@@ -77,12 +77,12 @@ If the user asks for analysis only (no edits/commands that modify files), steps 
 
 ## Git policy
 
-- Never commit `node_modules\`, build outputs, or local env files.
+- Never commit `node_modules/`, build outputs, or local env files.
 - Ensure the repo has a `.gitignore` that excludes:
-  - `**\node_modules\`
-  - `**\dist\`, `**\.vite\`
+  - `**/node_modules/`
+  - `**/dist/`, `**/.vite/`
   - `.env`, `.env.*`
-  - `__pycache__\`, `*.pyc`
+  - `__pycache__/`, `*.pyc`
 
 ## Verification
 

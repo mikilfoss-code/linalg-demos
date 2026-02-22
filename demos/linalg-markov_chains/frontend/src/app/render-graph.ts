@@ -1,4 +1,10 @@
+import type { Action } from './actions';
 import type { AppState } from './types';
+import {
+  formatEditableInputValue,
+  readNonNegativeDraftInputValue,
+} from './edit-value-input';
+import { selectDisplayedNodeValue, selectDisplayedTransitionCell } from './selectors';
 import {
   DEFAULT_GRAPH_SUBGRAPH_SELECTION,
   buildGraphRenderData,
@@ -25,7 +31,6 @@ import {
   type GraphInteractionTarget,
 } from './graph-interaction-presenter';
 import {
-  colorForStateValue,
   edgePathKey,
   formatProbability,
   lerp,
@@ -42,11 +47,14 @@ const PROBABILITY_EPSILON = 1e-6;
 const MIN_EDGE_LENGTH = 80;
 const MAX_EDGE_LENGTH = 316;
 const EDGE_LABEL_TAIL_BIAS = 0.33;
-const ARROW_HEAD_WIDTH = 16;
-const ARROW_HEAD_HEIGHT = 12;
-const ARROW_HEAD_REF_X = 5.1;
-const ARROW_HEAD_REF_Y = ARROW_HEAD_HEIGHT / 2;
-const ARROW_TIP_OVERSHOOT = Math.max(0, ARROW_HEAD_WIDTH - ARROW_HEAD_REF_X);
+const ARROW_HEAD_BASE_WIDTH = 16;
+const ARROW_HEAD_BASE_HEIGHT = 12;
+const ARROW_HEAD_BASE_REF_X = 5.1;
+const ARROW_TIP_OVERSHOOT = Math.max(0, ARROW_HEAD_BASE_WIDTH - ARROW_HEAD_BASE_REF_X);
+const ARROW_HEAD_STROKE_BASELINE = 1.2;
+const ARROW_HEAD_GROWTH_PER_STROKE = 0.08;
+const ARROW_HEAD_MAX_SCALE = 1.6;
+const ARROW_HEAD_SIZE_BUCKET_STEP = 0.25;
 const LOOP_BASE_RADIUS = NODE_RADIUS * 1.2;
 const LOOP_RADIUS_STEPS = [0, 2, 4, 6];
 const LOOP_ANGLE_STEP = Math.PI / 10;
@@ -56,22 +64,22 @@ const LOOP_START_ANCHOR_RADIUS = NODE_RADIUS;
 const LOOP_END_ANCHOR_RADIUS = NODE_RADIUS + ARROW_TIP_OVERSHOOT;
 const EDGE_CUBIC_START_HANDLE = 0.34;
 const EDGE_CUBIC_END_HANDLE = 0.46;
-const EDGE_REVERSE_BASE_OFFSET = 12;
+const EDGE_REVERSE_BASE_OFFSET = 15;
 const EDGE_SINGLE_BASE_OFFSET = 9;
-const EDGE_CUBIC_MAX_OFFSET_SCALE = 0.68;
+const EDGE_CUBIC_MAX_OFFSET_SCALE = 0.58;
 const EDGE_MAX_AVOIDANCE_OFFSET_SCALE = 1;
 const EDGE_NODE_CLEARANCE_MARGIN = 0.2;
-const EDGE_BEND_SCALE_CANDIDATES = [1, 1.3, 1.6, 1.9, 2.2, 2.5] as const;
-const EDGE_DEFAULT_MARKER_ID = 'markov-arrow-head';
-const EDGE_HIGHLIGHT_MARKER_ID = 'markov-arrow-head-highlight';
+const EDGE_BEND_SCALE_CANDIDATES = [0.6, 0.8, 1, 1.3, 1.6, 1.9, 2.2, 2.5] as const;
+const EDGE_DEFAULT_MARKER_ID_PREFIX = 'markov-arrow-head';
+const EDGE_HIGHLIGHT_MARKER_ID_PREFIX = 'markov-arrow-head-highlight';
 const EDGE_HIGHLIGHT_STROKE = 'hsl(2 72% 46%)';
 const NODE_HIGHLIGHT_STROKE = 'hsl(2 72% 46%)';
 const NODE_DEFAULT_STROKE = 'rgba(9, 39, 63, 0.45)';
 const NODE_DEFAULT_STROKE_WIDTH = 1.4;
 const NODE_HIGHLIGHT_STROKE_WIDTH = 3;
-const INLINE_EDGE_EDITOR_WIDTH = 122;
+const INLINE_EDGE_EDITOR_WIDTH = 70;
 const INLINE_EDGE_EDITOR_HEIGHT = 34;
-const INLINE_NODE_EDITOR_WIDTH = 122;
+const INLINE_NODE_EDITOR_WIDTH = 70;
 const INLINE_NODE_EDITOR_HEIGHT = 34;
 const VALUE_LABEL_BASE_HEIGHT = 16;
 const VALUE_LABEL_CELL_PADDING_X = 4;
@@ -120,8 +128,8 @@ const GRAPH_LAYOUT_ENGINE = createGraphLayoutEngine({
 });
 
 /**
- * Purpose: Point object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define a 2D coordinate used for graph geometry and viewport math.
+ * Key fields: See the declared properties in this type definition.
  */
 type Point = {
   x: number;
@@ -131,8 +139,8 @@ type Point = {
 type PanDirection = 'left' | 'right' | 'up' | 'down';
 
 /**
- * Purpose: Rect object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define an axis-aligned rectangle used for annotation placement and overlap scoring.
+ * Key fields: See the declared properties in this type definition.
  */
 type Rect = {
   x: number;
@@ -142,8 +150,8 @@ type Rect = {
 };
 
 /**
- * Purpose: CircleObstacle object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define a circular obstacle used in edge and loop clearance scoring.
+ * Key fields: See the declared properties in this type definition.
  */
 type CircleObstacle = {
   x: number;
@@ -152,8 +160,8 @@ type CircleObstacle = {
 };
 
 /**
- * Purpose: PathGeometry object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define SVG path geometry plus sampled points used for labels and collision checks.
+ * Key fields: See the declared properties in this type definition.
  */
 type PathGeometry = {
   pathData: string;
@@ -162,8 +170,8 @@ type PathGeometry = {
 };
 
 /**
- * Purpose: CubicCurve object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define cubic Bezier control points used for directed edge geometry.
+ * Key fields: See the declared properties in this type definition.
  */
 type CubicCurve = {
   start: Point;
@@ -173,8 +181,8 @@ type CubicCurve = {
 };
 
 /**
- * Purpose: RuntimeParticle object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define runtime flow-particle state for edge animation playback.
+ * Key fields: Path references, timing metadata, and along/normal offsets.
  */
 type RuntimeParticle = {
   path: SVGPathElement;
@@ -182,13 +190,13 @@ type RuntimeParticle = {
   element: SVGCircleElement;
   delayMs: number;
   durationMs: number;
-  offsetAlong: number;
+  pathPhase: number;
   offsetNormal: number;
 };
 
 /**
- * Purpose: EdgeVisualStyle object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define stroke styling applied to normal vs highlighted edges.
+ * Key fields: See the declared properties in this type definition.
  */
 type EdgeVisualStyle = {
   stroke: string;
@@ -197,8 +205,8 @@ type EdgeVisualStyle = {
 };
 
 /**
- * Purpose: GraphPanelController object contract.
- * Key fields: Properties declared inside this type definition.
+ * Purpose: Define the controller contract exposed by the graph panel module.
+ * Key fields: Root element reference plus render/highlight/viewport control methods.
  */
 export type GraphPanelController = {
   element: HTMLElement;
@@ -212,19 +220,28 @@ export type GraphPanelController = {
 };
 
 /**
+ * Snapshot of graph interaction + viewport context used to coordinate matrix/state panels.
+ */
+export type GraphPanelContextSnapshot = {
+  renderedNodeIndices: number[];
+  viewportVisibleNodeIndices: number[];
+  activeTarget: GraphInteractionTarget | null;
+  selectedTarget: GraphInteractionTarget | null;
+};
+
+/**
  * Create the graph panel and run edge-flow animation for each step transition.
  */
 export function createGraphPanelController(options: {
+  dispatch: (action: Action) => void;
   onFlowAnimationComplete: (animationId: number) => void;
   onSetNodeCount: (nodeCount: number) => void;
   onGenerateRandomDirectedGraph: () => void;
-  onSetTransitionCell: (rowIndex: number, colIndex: number, value: number) => void;
-  onSetCurrentCell: (index: number, value: number) => void;
+  onContextChange?: (context: GraphPanelContextSnapshot) => void;
 }): GraphPanelController {
   const element = createTemplateElement(`
     <section class="base-panel markov-panel markov-panel-graph">
       <h2 class="base-panel-title">Transition Graph</h2>
-      <p class="base-subtitle">Edge direction follows P<sub>ij</sub>. Self-transition probabilities draw loop arrows.</p>
       <div class="markov-graph-controls">
         <div class="markov-controls-block">
           <label class="markov-control-label" for="graph-node-count-range">Node count</label>
@@ -269,30 +286,7 @@ export function createGraphPanelController(options: {
         role="img"
         aria-label="Directed Markov transition graph"
       >
-        <defs>
-          <marker
-            id="${EDGE_DEFAULT_MARKER_ID}"
-            markerWidth="${ARROW_HEAD_WIDTH}"
-            markerHeight="${ARROW_HEAD_HEIGHT}"
-            refX="${ARROW_HEAD_REF_X}"
-            refY="${ARROW_HEAD_REF_Y}"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L ${ARROW_HEAD_WIDTH} ${ARROW_HEAD_REF_Y} L 0 ${ARROW_HEAD_HEIGHT} z" fill="#0f4c81" />
-          </marker>
-          <marker
-            id="${EDGE_HIGHLIGHT_MARKER_ID}"
-            markerWidth="${ARROW_HEAD_WIDTH}"
-            markerHeight="${ARROW_HEAD_HEIGHT}"
-            refX="${ARROW_HEAD_REF_X}"
-            refY="${ARROW_HEAD_REF_Y}"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L ${ARROW_HEAD_WIDTH} ${ARROW_HEAD_REF_Y} L 0 ${ARROW_HEAD_HEIGHT} z" fill="${EDGE_HIGHLIGHT_STROKE}" />
-          </marker>
-        </defs>
+        <defs id="arrow-marker-defs"></defs>
         <g id="viewport-layer">
           <g id="edge-layer"></g>
           <g id="particle-layer"></g>
@@ -309,6 +303,7 @@ export function createGraphPanelController(options: {
   `);
 
   const graphSvg = requireElement<SVGSVGElement>(element, '#markov-graph');
+  const markerDefs = requireElement<SVGDefsElement>(element, '#arrow-marker-defs');
   const viewportLayer = requireElement<SVGGElement>(element, '#viewport-layer');
   const edgeLayer = requireElement<SVGGElement>(element, '#edge-layer');
   const particleLayer = requireElement<SVGGElement>(element, '#particle-layer');
@@ -321,6 +316,7 @@ export function createGraphPanelController(options: {
     '#toggle-all-values-button'
   );
   const graphStatus = requireElement<HTMLElement>(element, '#markov-graph-status');
+  const arrowMarkerCache = new Map<string, string>();
 
   nodeCountRange.addEventListener('input', (event) => {
     const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
@@ -349,24 +345,11 @@ export function createGraphPanelController(options: {
     }
   });
 
-  element.addEventListener('change', (event) => {
+  element.addEventListener('input', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
-
-    const action = target.dataset.action;
-    if (action === 'graph-set-edge-weight') {
-      const fromIndex = Number.parseInt(target.dataset.fromIndex ?? '', 10);
-      const toIndex = Number.parseInt(target.dataset.toIndex ?? '', 10);
-      const value = Number.parseFloat(target.value);
-      options.onSetTransitionCell(fromIndex, toIndex, value);
-      return;
-    }
-
-    if (action === 'graph-set-node-value') {
-      const nodeIndex = Number.parseInt(target.dataset.nodeIndex ?? '', 10);
-      const value = Number.parseFloat(target.value);
-      options.onSetCurrentCell(nodeIndex, value);
-    }
+    if (!target.dataset.action?.startsWith('graph-set-')) return;
+    stageGraphEditorDraftFromInput(target, { preserveFocus: true });
   });
 
   graphSvg.addEventListener(
@@ -416,6 +399,9 @@ export function createGraphPanelController(options: {
   });
 
   graphSvg.addEventListener('pointermove', (event) => {
+    if (focusedGraphEditorInput || externalFocusTarget) {
+      return;
+    }
     if (isPanDragging) {
       handlePanDragMove(event);
       return;
@@ -432,6 +418,9 @@ export function createGraphPanelController(options: {
   });
 
   graphSvg.addEventListener('pointerleave', () => {
+    if (focusedGraphEditorInput || externalFocusTarget) {
+      return;
+    }
     if (!interactionState.hovered) return;
     interactionState = {
       ...interactionState,
@@ -455,6 +444,12 @@ export function createGraphPanelController(options: {
     if (isSameGraphInteractionTarget(interactionState.selected, clickedTarget)) {
       return;
     }
+    pendingGraphEditorFocusTarget = clickedTarget
+      ? {
+          target: clickedTarget,
+          armOverwrite: true,
+        }
+      : null;
     interactionState = {
       ...interactionState,
       selected: clickedTarget,
@@ -462,20 +457,107 @@ export function createGraphPanelController(options: {
     applyInteractionPresentation();
   });
 
-  element.addEventListener('keydown', (event) => {
+  element.addEventListener('focusin', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
     if (!target.dataset.action?.startsWith('graph-set-')) return;
-    if (event.key !== 'Enter') return;
-
-    target.blur();
-    if (interactionState.selected) {
+    const editorTarget = readGraphEditorTarget(target);
+    if (
+      editorTarget &&
+      !isSameGraphInteractionTarget(interactionState.selected, editorTarget)
+    ) {
+      pendingGraphEditorFocusTarget = {
+        target: editorTarget,
+        armOverwrite: true,
+      };
       interactionState = {
         ...interactionState,
-        selected: null,
+        hovered: null,
+        selected: editorTarget,
       };
+      dispatchGraphEditFocus(editorTarget, 'focus');
       applyInteractionPresentation();
+      return;
     }
+    if (editorTarget) {
+      dispatchGraphEditFocus(editorTarget, 'focus');
+    }
+    interactionState = {
+      ...interactionState,
+      hovered: null,
+    };
+    armGraphEditorForDestructiveOverwrite(target);
+    focusedGraphEditorInput = target;
+    emitGraphContextChange();
+  });
+
+  element.addEventListener('focusout', (event) => {
+    if (!(event instanceof FocusEvent)) return;
+    const related = event.relatedTarget;
+    if (
+      related instanceof HTMLInputElement &&
+      related.dataset.action?.startsWith('graph-set-')
+    ) {
+      return;
+    }
+    if (focusedGraphEditorInput) {
+      focusedGraphEditorInput.classList.remove('markov-input-caret-red', 'markov-input-caret-blue');
+    }
+    focusedGraphEditorInput = null;
+    overwriteArmedGraphEditorInput = null;
+  });
+
+  element.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.dataset.action?.startsWith('graph-set-')) return;
+    const isAlreadyActiveInput = document.activeElement === target;
+    const editorTarget = readGraphEditorTarget(target);
+    if (
+      editorTarget &&
+      !isSameGraphInteractionTarget(interactionState.selected, editorTarget)
+    ) {
+      pendingGraphEditorFocusTarget = {
+        target: editorTarget,
+        armOverwrite: true,
+      };
+      interactionState = {
+        ...interactionState,
+        hovered: null,
+        selected: editorTarget,
+      };
+      dispatchGraphEditFocus(editorTarget, 'click');
+      applyInteractionPresentation();
+      return;
+    }
+    if (editorTarget && !isAlreadyActiveInput) {
+      dispatchGraphEditFocus(editorTarget, 'click');
+    }
+    interactionState = {
+      ...interactionState,
+      hovered: null,
+    };
+    focusedGraphEditorInput = target;
+    if (isAlreadyActiveInput) {
+      if (overwriteArmedGraphEditorInput === target) {
+        disarmGraphEditorForInsertMode(target);
+      } else {
+        armGraphEditorForDestructiveOverwrite(target);
+      }
+    } else {
+      armGraphEditorForDestructiveOverwrite(target);
+    }
+    emitGraphContextChange();
+  });
+
+  element.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.dataset.action?.startsWith('graph-set-')) return;
+    handleGraphEditorInputKeyDown(event, target);
   });
 
   const handleWindowKeyDown = (event: KeyboardEvent) => {
@@ -533,6 +615,27 @@ export function createGraphPanelController(options: {
   };
   window.addEventListener('keydown', handleWindowKeyDown);
 
+  const handleWindowGraphEditorKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    if (event.key !== 'Tab' && event.key !== 'Enter' && event.key !== 'Escape') {
+      return;
+    }
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement)) {
+      return;
+    }
+    if (!element.contains(active)) {
+      return;
+    }
+    if (!active.dataset.action?.startsWith('graph-set-')) {
+      return;
+    }
+    handleGraphEditorInputKeyDown(event, active);
+  };
+  window.addEventListener('keydown', handleWindowGraphEditorKeyDown, true);
+
   const handleWindowKeyUp = (event: KeyboardEvent) => {
     if (
       event.key !== 'ArrowLeft' &&
@@ -557,19 +660,45 @@ export function createGraphPanelController(options: {
   window.addEventListener('blur', handleWindowBlur);
 
   const handleWindowPointerDown = (event: PointerEvent) => {
-    if (!interactionState.selected) {
-      return;
-    }
-
     const target = event.target;
     if (!(target instanceof Element)) {
       return;
     }
 
+    const isNormalizeButtonClick = Boolean(target.closest('[data-action="normalize-matrix"]'));
+    if (isNormalizeButtonClick) {
+      closeActiveGraphEditor();
+      if (hasPendingGraphDrafts()) {
+        commitGraphDraftsAndNormalize('normalize_button');
+      } else {
+        applyInteractionPresentation();
+      }
+      return;
+    }
+
     const isGraphInput =
       target instanceof HTMLInputElement && target.dataset.action?.startsWith('graph-set-');
+    const isSameFocusedGraphInput =
+      Boolean(focusedGraphEditorInput) && target === focusedGraphEditorInput;
+
+    if (focusedGraphEditorInput && !isSameFocusedGraphInput) {
+      discardGraphDrafts('outside_click');
+      if (focusedGraphEditorInput.isConnected) {
+        focusedGraphEditorInput.blur();
+      }
+    }
+
+    if (hasPendingGraphDrafts() && !isGraphInput) {
+      discardGraphDrafts('outside_click');
+    }
+
     const graphTarget = readGraphTarget(target);
     const isInsideGraph = graphSvg.contains(target);
+
+    if (!interactionState.selected) {
+      return;
+    }
+
     if (isInsideGraph && (Boolean(graphTarget) || isGraphInput)) {
       return;
     }
@@ -598,6 +727,13 @@ export function createGraphPanelController(options: {
   let externalFocusTarget: GraphInteractionTarget | null = null;
   let lastRenderedState: AppState | null = null;
   let lastGraphData: GraphRenderData | null = null;
+  let pendingGraphEditorFocusTarget: {
+    target: GraphInteractionTarget;
+    armOverwrite: boolean;
+  } | null = null;
+  let focusedGraphEditorInput: HTMLInputElement | null = null;
+  let overwriteArmedGraphEditorInput: HTMLInputElement | null = null;
+  let lastAutoCenteredEditTargetKey: string | null = null;
   let showAllValues = false;
   let isAnimationRunning = false;
   let isPanDragging = false;
@@ -610,6 +746,8 @@ export function createGraphPanelController(options: {
   let viewportProjectionStartTimeoutId: number | null = null;
   let viewportProjectionAnimationToken = 0;
   let viewportProjectionTarget: GraphViewportTransform | null = null;
+  let lastEmittedContext: GraphPanelContextSnapshot | null = null;
+  let hasRenderedAtLeastOnce = false;
   let subgraphSelection: GraphSubgraphSelection = {
     ...DEFAULT_GRAPH_SUBGRAPH_SELECTION,
   };
@@ -621,6 +759,7 @@ export function createGraphPanelController(options: {
   const controller: GraphPanelController = {
     element,
     render(state) {
+      hasRenderedAtLeastOnce = true;
       lastRenderedState = state;
       lastGraphData = buildGraphRenderData(state, subgraphSelection);
       applyViewportTransformImmediate(viewportTransform);
@@ -643,6 +782,8 @@ export function createGraphPanelController(options: {
         currentEdgeBaseStyles,
         currentEdgeLabelPoints,
         currentNodeCenters,
+        markerDefs,
+        arrowMarkerCache,
       });
       viewportTransform = normalizeViewportTransformForNodes(viewportTransform);
       applyViewportTransformImmediate(viewportTransform);
@@ -713,6 +854,7 @@ export function createGraphPanelController(options: {
       cancelViewportProjectionAnimation();
       window.removeEventListener('pointerdown', handleWindowPointerDown, true);
       window.removeEventListener('keydown', handleWindowKeyDown);
+      window.removeEventListener('keydown', handleWindowGraphEditorKeyDown, true);
       window.removeEventListener('keyup', handleWindowKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
       if (graphStatusTimeoutId !== null) {
@@ -724,22 +866,78 @@ export function createGraphPanelController(options: {
   return controller;
 
   /**
-   * Purpose: applyInteractionPresentation function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Apply hover/selection presentation state to node and edge SVG elements.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function applyInteractionPresentation() {
     const renderState = lastRenderedState;
-    if (!renderState) return;
+    if (!renderState) {
+      emitGraphContextChange();
+      return;
+    }
+
+    const graphEditTarget = graphInteractionTargetFromEditTarget(
+      renderState.editSession.mode === 'editing' && renderState.editSession.ownerPanel === 'graph'
+        ? renderState.editSession.activeTarget
+        : null
+    );
+    if (graphEditTarget && !isSameGraphInteractionTarget(interactionState.selected, graphEditTarget)) {
+      interactionState = {
+        ...interactionState,
+        hovered: null,
+        selected: graphEditTarget,
+      };
+    }
 
     interactionState = sanitizeGraphInteractionState(interactionState, renderState);
     externalHoverTarget = sanitizeExternalTarget(externalHoverTarget, renderState);
     externalFocusTarget = sanitizeExternalTarget(externalFocusTarget, renderState);
+    const displayedNodeValues =
+      isAnimationRunning && renderState.flowAnimation
+        ? renderState.flowAnimation.fromVector
+        : renderState.currentVector;
     const presentation = buildGraphInteractionPresentation(renderState, {
-      hovered: externalHoverTarget ?? externalFocusTarget ?? interactionState.hovered,
+      hovered:
+        externalFocusTarget ??
+        (focusedGraphEditorInput ? null : externalHoverTarget ?? interactionState.hovered),
       selected: interactionState.selected,
     });
+    const shouldAutoCenterForEditing = isInputEditTargetLocked();
+    const activeEditTargetKey = interactionTargetKey(presentation.activeTarget);
+    if (
+      shouldAutoCenterForEditing &&
+      presentation.activeTarget &&
+      activeEditTargetKey &&
+      activeEditTargetKey !== lastAutoCenteredEditTargetKey
+    ) {
+      ensureActiveEditTargetVisibility({
+        activeTarget: presentation.activeTarget,
+        highlightedNodeIndices: presentation.highlightedNodeIndices,
+        highlightedEdgeKeys: presentation.highlightedEdgeKeys,
+      });
+      lastAutoCenteredEditTargetKey = activeEditTargetKey;
+    } else if (!shouldAutoCenterForEditing) {
+      lastAutoCenteredEditTargetKey = null;
+    }
+
+    const selectedEdgeEditor = presentation.selectedEdgeEditor
+      ? {
+          ...presentation.selectedEdgeEditor,
+          value: selectDisplayedTransitionCell(
+            renderState,
+            presentation.selectedEdgeEditor.fromIndex,
+            presentation.selectedEdgeEditor.toIndex
+          ),
+        }
+      : null;
+    const selectedNodeEditor = presentation.selectedNodeEditor
+      ? {
+          ...presentation.selectedNodeEditor,
+          value: selectDisplayedNodeValue(renderState, presentation.selectedNodeEditor.nodeIndex),
+        }
+      : null;
     currentHighlightedNodeIndices = new Set(presentation.highlightedNodeIndices);
 
     currentPathByKey.forEach((path, key) => {
@@ -747,17 +945,21 @@ export function createGraphPanelController(options: {
       if (!baseStyle) return;
 
       if (presentation.highlightedEdgeKeys.has(key)) {
+        const highlightedMarkerId =
+          path.dataset.highlightMarkerId ?? `${EDGE_HIGHLIGHT_MARKER_ID_PREFIX}-fallback`;
         path.style.stroke = EDGE_HIGHLIGHT_STROKE;
         path.style.opacity = baseStyle.opacity.toFixed(3);
         path.style.strokeWidth = baseStyle.strokeWidth.toFixed(3);
-        path.setAttribute('marker-end', markerUrl(EDGE_HIGHLIGHT_MARKER_ID));
+        path.setAttribute('marker-end', markerUrl(highlightedMarkerId));
         return;
       }
 
+      const defaultMarkerId =
+        path.dataset.defaultMarkerId ?? `${EDGE_DEFAULT_MARKER_ID_PREFIX}-fallback`;
       path.style.stroke = baseStyle.stroke;
       path.style.opacity = baseStyle.opacity.toFixed(3);
       path.style.strokeWidth = baseStyle.strokeWidth.toFixed(3);
-      path.setAttribute('marker-end', markerUrl(EDGE_DEFAULT_MARKER_ID));
+      path.setAttribute('marker-end', markerUrl(defaultMarkerId));
     });
 
     currentNodeCircles.forEach((circle, index) => {
@@ -765,8 +967,8 @@ export function createGraphPanelController(options: {
         circle.style.stroke = NODE_HIGHLIGHT_STROKE;
         circle.style.strokeWidth = String(NODE_HIGHLIGHT_STROKE_WIDTH);
         circle.style.filter = 'drop-shadow(0 0 5px rgba(178, 35, 35, 0.35))';
-        const value = renderState.currentVector[index] ?? 0;
-        circle.setAttribute('fill', colorForHighlightedNodeValue(value));
+        const value = displayedNodeValues[index] ?? 0;
+        circle.setAttribute('fill', colorForGraphHighlightedNodeValue(value));
         return;
       }
       circle.style.stroke = NODE_DEFAULT_STROKE;
@@ -774,7 +976,7 @@ export function createGraphPanelController(options: {
       circle.style.filter = 'none';
       if (!isAnimationRunning) {
         const value = renderState.currentVector[index] ?? 0;
-        circle.setAttribute('fill', colorForStateValue(value));
+        circle.setAttribute('fill', colorForGraphNodeValue(value));
       }
     });
 
@@ -784,16 +986,844 @@ export function createGraphPanelController(options: {
       selectedTarget: presentation.selectedTarget,
       highlightedEdgeKeys: presentation.highlightedEdgeKeys,
       highlightedNodeIndices: presentation.highlightedNodeIndices,
-      selectedEdgeEditor: presentation.selectedEdgeEditor,
-      selectedNodeEditor: presentation.selectedNodeEditor,
+      selectedEdgeEditor,
+      selectedNodeEditor,
+    });
+    applyPendingGraphEditorFocus();
+
+    emitGraphContextChange();
+  }
+
+  /**
+   * Purpose: Detect when edit-target highlighting should stay locked to an active input target.
+   * Inputs: No direct parameters.
+   * Returns: `true` when matrix/state/graph inputs or pending graph editor focus are active.
+   * Side effects: None (pure computation).
+   */
+  function isInputEditTargetLocked(): boolean {
+    if (focusedGraphEditorInput || pendingGraphEditorFocusTarget) {
+      return true;
+    }
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement)) {
+      return false;
+    }
+    if (active.dataset.action?.startsWith('graph-set-')) {
+      return true;
+    }
+    return (
+      active.classList.contains('markov-number-input--matrix') ||
+      active.classList.contains('markov-number-input--state')
+    );
+  }
+
+  /**
+   * Purpose: Convert graph interaction targets into reducer edit targets.
+   * Inputs: Graph interaction target.
+   * Returns: Matching reducer edit target or `null` when unsupported.
+   * Side effects: None (pure computation).
+   */
+  function toEditTarget(target: GraphInteractionTarget): {
+    kind: 'edge';
+    fromIndex: number;
+    toIndex: number;
+  } | {
+    kind: 'node';
+    index: number;
+  } | null {
+    if (target.kind === 'edge') {
+      return {
+        kind: 'edge',
+        fromIndex: target.fromIndex,
+        toIndex: target.toIndex,
+      };
+    }
+    if (target.kind === 'node') {
+      return {
+        kind: 'node',
+        index: target.nodeIndex,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Purpose: Ensure graph inline editor focus is mirrored into reducer edit-session state.
+   * Inputs: Graph target and source event hint.
+   * Returns: No value (`void`).
+   * Side effects: Dispatches reducer begin/focus actions for graph-owned editing.
+   */
+  function dispatchGraphEditFocus(
+    target: GraphInteractionTarget,
+    source: 'focus' | 'click' | 'tab'
+  ) {
+    const state = lastRenderedState;
+    if (!state) {
+      return;
+    }
+    const editTarget = toEditTarget(target);
+    if (!editTarget) {
+      return;
+    }
+    const focusTarget = {
+      target,
+      armOverwrite: true,
+    };
+    const session = state.editSession;
+    if (session.mode !== 'editing') {
+      pendingGraphEditorFocusTarget = focusTarget;
+      options.dispatch({
+        type: 'EDIT_BEGIN',
+        panel: 'graph',
+        target: editTarget,
+      });
+      return;
+    }
+
+    if (
+      session.ownerPanel === 'graph' &&
+      source !== 'click' &&
+      ((session.activeTarget?.kind === 'edge' &&
+        editTarget.kind === 'edge' &&
+        session.activeTarget.fromIndex === editTarget.fromIndex &&
+        session.activeTarget.toIndex === editTarget.toIndex) ||
+        (session.activeTarget?.kind === 'node' &&
+          editTarget.kind === 'node' &&
+          session.activeTarget.index === editTarget.index))
+    ) {
+      return;
+    }
+
+    pendingGraphEditorFocusTarget = focusTarget;
+    options.dispatch({
+      type: 'EDIT_FOCUS_TARGET',
+      panel: 'graph',
+      target: editTarget,
     });
   }
 
   /**
-   * Purpose: resetViewportToDefault function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Ensure highlighted objects for the active edit target are fully visible.
+   * Inputs: Active target plus highlighted edge/node collections.
+   * Returns: No value (`void`).
+   * Side effects: Pans or zooms the viewport when highlighted objects are clipped.
+   */
+  function ensureActiveEditTargetVisibility(config: {
+    activeTarget: GraphInteractionTarget;
+    highlightedNodeIndices: ReadonlySet<number>;
+    highlightedEdgeKeys: ReadonlySet<string>;
+  }) {
+    if (
+      areHighlightedObjectsFullyVisible({
+        highlightedNodeIndices: config.highlightedNodeIndices,
+        highlightedEdgeKeys: config.highlightedEdgeKeys,
+      })
+    ) {
+      return;
+    }
+
+    const bounds =
+      computeHighlightedObjectsWorldBounds({
+        highlightedNodeIndices: config.highlightedNodeIndices,
+        highlightedEdgeKeys: config.highlightedEdgeKeys,
+      }) ?? resolveTargetFallbackBounds(config.activeTarget);
+    if (!bounds) {
+      return;
+    }
+
+    const padding = 24;
+    const availableWidth = Math.max(1, GRAPH_WIDTH - padding * 2);
+    const availableHeight = Math.max(1, GRAPH_HEIGHT - padding * 2);
+    const boundsWidth = Math.max(1, bounds.maxX - bounds.minX);
+    const boundsHeight = Math.max(1, bounds.maxY - bounds.minY);
+    const fitScale = Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight);
+    const nextScale = clamp(Math.min(viewportTransform.scale, fitScale), MIN_GRAPH_SCALE, MAX_GRAPH_SCALE);
+    const center = {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
+    const candidate = normalizeGraphViewportTransform(
+      {
+        scale: nextScale,
+        translateX: GRAPH_WIDTH / 2 - center.x * nextScale,
+        translateY: GRAPH_HEIGHT / 2 - center.y * nextScale,
+      },
+      viewportTransform
+    );
+    const resolved = normalizeViewportTransformForNodes(candidate);
+    applyViewportAfterResolution(candidate, resolved, {
+      delayBeforeStart: false,
+    });
+  }
+
+  /**
+   * Purpose: Resolve a world-space center point for node/incoming-node/edge targets.
+   * Inputs: Graph interaction target.
+   * Returns: Center point for viewport centering or `null` when unavailable.
+   * Side effects: None (pure computation).
+   */
+  function resolveTargetCenter(target: GraphInteractionTarget): Point | null {
+    if (target.kind === 'node' || target.kind === 'incoming-node') {
+      return currentNodeCenters.get(target.nodeIndex) ?? null;
+    }
+    if (target.kind !== 'edge') {
+      return null;
+    }
+
+    const key = edgePathKey(target.fromIndex, target.toIndex);
+    const path = currentPathByKey.get(key);
+    if (path) {
+      try {
+        const midpoint = path.getPointAtLength(path.getTotalLength() * 0.5);
+        return {
+          x: midpoint.x,
+          y: midpoint.y,
+        };
+      } catch {
+        // Some browsers can throw for degenerate paths; continue to fallbacks below.
+      }
+    }
+
+    const labelPoint = currentEdgeLabelPoints.get(key);
+    if (labelPoint) {
+      return labelPoint;
+    }
+
+    const fromCenter = currentNodeCenters.get(target.fromIndex);
+    const toCenter = currentNodeCenters.get(target.toIndex);
+    if (!fromCenter || !toCenter) {
+      return null;
+    }
+    return {
+      x: (fromCenter.x + toCenter.x) / 2,
+      y: (fromCenter.y + toCenter.y) / 2,
+    };
+  }
+
+  /**
+   * Purpose: Check whether all highlighted nodes and edges are fully visible.
+   * Inputs: Highlighted node-index set and edge-key set.
+   * Returns: `true` when every highlighted object is fully inside viewport bounds.
+   * Side effects: None (pure computation).
+   */
+  function areHighlightedObjectsFullyVisible(config: {
+    highlightedNodeIndices: ReadonlySet<number>;
+    highlightedEdgeKeys: ReadonlySet<string>;
+  }): boolean {
+    for (const nodeIndex of config.highlightedNodeIndices) {
+      const center = currentNodeCenters.get(nodeIndex);
+      if (!center || !isNodeFullyVisible(viewportTransform, center)) {
+        return false;
+      }
+    }
+
+    for (const edgeKey of config.highlightedEdgeKeys) {
+      const path = currentPathByKey.get(edgeKey);
+      if (!path || !isEdgePathFullyVisible(path, viewportTransform)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Purpose: Build world-space bounds covering all highlighted nodes and edges.
+   * Inputs: Highlighted node-index set and edge-key set.
+   * Returns: Bounding box or `null` when no highlighted geometry is available.
+   * Side effects: None (pure computation).
+   */
+  function computeHighlightedObjectsWorldBounds(config: {
+    highlightedNodeIndices: ReadonlySet<number>;
+    highlightedEdgeKeys: ReadonlySet<string>;
+  }): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null {
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    const includeBounds = (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => {
+      minX = Math.min(minX, bounds.minX);
+      minY = Math.min(minY, bounds.minY);
+      maxX = Math.max(maxX, bounds.maxX);
+      maxY = Math.max(maxY, bounds.maxY);
+    };
+
+    for (const nodeIndex of config.highlightedNodeIndices) {
+      const center = currentNodeCenters.get(nodeIndex);
+      if (!center) {
+        continue;
+      }
+      includeBounds({
+        minX: center.x - NODE_RADIUS,
+        minY: center.y - NODE_RADIUS,
+        maxX: center.x + NODE_RADIUS,
+        maxY: center.y + NODE_RADIUS,
+      });
+    }
+
+    for (const edgeKey of config.highlightedEdgeKeys) {
+      const path = currentPathByKey.get(edgeKey);
+      if (!path) {
+        continue;
+      }
+      const pathBounds = worldBoundsForEdgePath(path);
+      if (!pathBounds) {
+        continue;
+      }
+      includeBounds(pathBounds);
+    }
+
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY)
+    ) {
+      return null;
+    }
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+    };
+  }
+
+  /**
+   * Purpose: Create fallback bounds from a target center when highlighted geometry is unavailable.
+   * Inputs: Active graph interaction target.
+   * Returns: World-space bounds centered on the target, or `null`.
+   * Side effects: None (pure computation).
+   */
+  function resolveTargetFallbackBounds(target: GraphInteractionTarget): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null {
+    const center = resolveTargetCenter(target);
+    if (!center) {
+      return null;
+    }
+    const radius = NODE_RADIUS * 1.2;
+    return {
+      minX: center.x - radius,
+      minY: center.y - radius,
+      maxX: center.x + radius,
+      maxY: center.y + radius,
+    };
+  }
+
+  /**
+   * Purpose: Check if an edge path's rendered bounds are fully visible in viewport coordinates.
+   * Inputs: Edge path element and active viewport transform.
+   * Returns: `true` when the full rendered edge path is visible.
+   * Side effects: None (pure computation).
+   */
+  function isEdgePathFullyVisible(path: SVGPathElement, transform: GraphViewportTransform): boolean {
+    const bounds = worldBoundsForEdgePath(path);
+    if (!bounds) {
+      return false;
+    }
+    const minX = bounds.minX * transform.scale + transform.translateX;
+    const maxX = bounds.maxX * transform.scale + transform.translateX;
+    const minY = bounds.minY * transform.scale + transform.translateY;
+    const maxY = bounds.maxY * transform.scale + transform.translateY;
+    return minX >= 0 && maxX <= GRAPH_WIDTH && minY >= 0 && maxY <= GRAPH_HEIGHT;
+  }
+
+  /**
+   * Purpose: Read world-space bounds for an edge path with a small stroke-aware margin.
+   * Inputs: Edge path element.
+   * Returns: World-space bounds or `null` when unavailable.
+   * Side effects: None (pure computation).
+   */
+  function worldBoundsForEdgePath(path: SVGPathElement): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null {
+    try {
+      const bbox = path.getBBox();
+      const strokeWidth = Number.parseFloat(path.style.strokeWidth || '0');
+      const worldMargin = (Number.isFinite(strokeWidth) ? strokeWidth : 0) * 0.6 + 2;
+      return {
+        minX: bbox.x - worldMargin,
+        minY: bbox.y - worldMargin,
+        maxX: bbox.x + bbox.width + worldMargin,
+        maxY: bbox.y + bbox.height + worldMargin,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Purpose: Determine whether the graph panel owns an active edit session.
+   * Inputs: No direct parameters.
+   * Returns: `true` when edit mode is active and owned by the graph panel.
+   * Side effects: None (pure computation).
+   */
+  function isGraphEditingSessionActive(): boolean {
+    const session = lastRenderedState?.editSession;
+    return session?.mode === 'editing' && session.ownerPanel === 'graph';
+  }
+
+  /**
+   * Purpose: Determine whether graph-owned edit drafts are pending commit.
+   * Inputs: No direct parameters.
+   * Returns: `true` when graph-owned edge/node draft buffers are non-empty.
+   * Side effects: None (pure computation).
+   */
+  function hasPendingGraphDrafts(): boolean {
+    const state = lastRenderedState;
+    if (!state || !isGraphEditingSessionActive()) {
+      return false;
+    }
+    const drafts = state.editSession.drafts;
+    return (
+      Object.keys(drafts.edgeByKey).length > 0 || Object.keys(drafts.nodeByIndex).length > 0
+    );
+  }
+
+  /**
+   * Purpose: Cancel graph-owned staged edits and restore snapshot values.
+   * Inputs: Optional cancellation reason.
+   * Returns: No value (`void`).
+   * Side effects: Dispatches reducer cancellation action.
+   */
+  function discardGraphDrafts(reason: 'escape' | 'outside_click' = 'outside_click') {
+    if (!isGraphEditingSessionActive()) {
+      return;
+    }
+    options.dispatch({
+      type: 'EDIT_CANCEL',
+      reason,
+    });
+  }
+
+  /**
+   * Purpose: Handle keyboard editing commands for graph inline editors.
+   * Inputs: Keyboard event and active inline editor input.
+   * Returns: `true` when the key was handled.
+   * Side effects: Updates drafts, focus target, and commit/cancel behavior.
+   */
+  function handleGraphEditorInputKeyDown(
+    event: KeyboardEvent,
+    target: HTMLInputElement
+  ): boolean {
+    if (overwriteArmedGraphEditorInput === target && shouldUseDestructiveOverwrite(event)) {
+      target.value = '';
+      overwriteArmedGraphEditorInput = null;
+    }
+
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      event.stopPropagation();
+      stageGraphEditorDraftFromInput(target, {
+        commitOnTrailingDecimal: true,
+      });
+      const currentTarget = readGraphEditorTarget(target);
+      if (!currentTarget) {
+        armGraphEditorForDestructiveOverwrite(target);
+        return true;
+      }
+      const nextTarget = resolveNextGraphEditorTarget(currentTarget, event.shiftKey);
+      if (!nextTarget) {
+        armGraphEditorForDestructiveOverwrite(target);
+        return true;
+      }
+      interactionState = {
+        ...interactionState,
+        hovered: null,
+        selected: nextTarget,
+      };
+      dispatchGraphEditFocus(nextTarget, 'tab');
+      return true;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeActiveGraphEditor();
+      discardGraphDrafts('escape');
+      return true;
+    }
+
+    if (event.key !== 'Enter') {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    stageGraphEditorDraftFromInput(target, {
+      commitOnTrailingDecimal: true,
+    });
+    closeActiveGraphEditor();
+    commitGraphDraftsAndNormalize('enter');
+    return true;
+  }
+
+  /**
+   * Purpose: Close the currently active graph inline editor and clear selection-backed editor UI.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Clears pending graph editor focus, blurs focused input, and removes selected target.
+   */
+  function closeActiveGraphEditor() {
+    pendingGraphEditorFocusTarget = null;
+    overwriteArmedGraphEditorInput = null;
+    if (focusedGraphEditorInput && focusedGraphEditorInput.isConnected) {
+      focusedGraphEditorInput.blur();
+    }
+    focusedGraphEditorInput = null;
+    if (interactionState.selected) {
+      interactionState = {
+        ...interactionState,
+        selected: null,
+      };
+    }
+  }
+
+  /**
+   * Purpose: Stage an edge/node draft from the currently focused graph editor input.
+   * Inputs: Graph inline input element.
+   * Returns: No value (`void`).
+   * Side effects: Dispatches reducer draft updates.
+   */
+  function stageGraphEditorDraftFromInput(
+    input: HTMLInputElement,
+    config: {
+      preserveFocus?: boolean;
+      commitOnTrailingDecimal?: boolean;
+    } = {}
+  ) {
+    const graphTarget = readGraphEditorTarget(input);
+    if (!graphTarget) {
+      return;
+    }
+    const draft = readNonNegativeDraftInputValue(input, {
+      deferTrailingDecimal: !(config.commitOnTrailingDecimal ?? false),
+      deferZeroOnlyFraction: !(config.commitOnTrailingDecimal ?? false),
+    });
+    if (!draft.shouldDispatch || draft.value === null) {
+      return;
+    }
+    const editTarget = toEditTarget(graphTarget);
+    if (!editTarget) {
+      return;
+    }
+    if (config.preserveFocus) {
+      pendingGraphEditorFocusTarget = {
+        target: graphTarget,
+        armOverwrite: false,
+      };
+    }
+    options.dispatch({
+      type: 'EDIT_CHANGE_VALUE',
+      target: editTarget,
+      value: draft.value,
+    });
+  }
+
+  /**
+   * Purpose: Commit graph-owned staged edits via reducer-backed normalized actions.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Dispatches reducer commit action.
+   */
+  function commitGraphDraftsAndNormalize(reason: 'enter' | 'normalize_button') {
+    if (!isGraphEditingSessionActive()) {
+      return;
+    }
+    options.dispatch({
+      type: 'EDIT_COMMIT',
+      reason,
+    });
+  }
+
+  /**
+   * Purpose: Resolve the interaction target represented by a graph inline editor input.
+   * Inputs: Graph inline input element.
+   * Returns: Graph interaction target or `null` when unrecognized.
+   * Side effects: None (pure computation).
+   */
+  function readGraphEditorTarget(input: HTMLInputElement): GraphInteractionTarget | null {
+    const action = input.dataset.action;
+    if (action === 'graph-set-edge-weight') {
+      const fromIndex = Number.parseInt(input.dataset.fromIndex ?? '', 10);
+      const toIndex = Number.parseInt(input.dataset.toIndex ?? '', 10);
+      if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
+        return null;
+      }
+      return {
+        kind: 'edge',
+        fromIndex,
+        toIndex,
+      };
+    }
+
+    if (action === 'graph-set-node-value') {
+      const nodeIndex = Number.parseInt(input.dataset.nodeIndex ?? '', 10);
+      if (!Number.isInteger(nodeIndex)) {
+        return null;
+      }
+      return {
+        kind: 'node',
+        nodeIndex,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Purpose: Resolve the next graph editor target when cycling with the tab key.
+   * Inputs: Current target and reverse-cycle flag.
+   * Returns: Next target in cyclic traversal order, or `null`.
+   * Side effects: None (pure computation).
+   */
+  function resolveNextGraphEditorTarget(
+    currentTarget: GraphInteractionTarget,
+    reverse: boolean
+  ): GraphInteractionTarget | null {
+    const orderedNodes = resolveOrderedGraphNodeIndices();
+    const orderedEdges = resolveOrderedGraphEdgeTargets();
+
+    if (currentTarget.kind === 'node') {
+      const nodePosition = orderedNodes.indexOf(currentTarget.nodeIndex);
+      if (nodePosition < 0) {
+        return orderedNodes.length > 0
+          ? { kind: 'node', nodeIndex: orderedNodes[0] }
+          : orderedEdges[0] ?? null;
+      }
+
+      if (!reverse) {
+        if (nodePosition < orderedNodes.length - 1) {
+          return {
+            kind: 'node',
+            nodeIndex: orderedNodes[nodePosition + 1],
+          };
+        }
+        return orderedEdges[0] ?? { kind: 'node', nodeIndex: orderedNodes[0] };
+      }
+
+      if (nodePosition > 0) {
+        return {
+          kind: 'node',
+          nodeIndex: orderedNodes[nodePosition - 1],
+        };
+      }
+      return orderedEdges[orderedEdges.length - 1] ?? {
+        kind: 'node',
+        nodeIndex: orderedNodes[orderedNodes.length - 1],
+      };
+    }
+
+    if (currentTarget.kind === 'edge') {
+      const edgePosition = orderedEdges.findIndex(
+        (edge) =>
+          edge.fromIndex === currentTarget.fromIndex && edge.toIndex === currentTarget.toIndex
+      );
+      if (edgePosition < 0) {
+        return orderedEdges[0] ?? (orderedNodes.length > 0 ? { kind: 'node', nodeIndex: orderedNodes[0] } : null);
+      }
+
+      if (!reverse) {
+        if (edgePosition < orderedEdges.length - 1) {
+          return orderedEdges[edgePosition + 1];
+        }
+        return orderedNodes.length > 0
+          ? { kind: 'node', nodeIndex: orderedNodes[0] }
+          : orderedEdges[0];
+      }
+
+      if (edgePosition > 0) {
+        return orderedEdges[edgePosition - 1];
+      }
+      return orderedNodes.length > 0
+        ? { kind: 'node', nodeIndex: orderedNodes[orderedNodes.length - 1] }
+        : orderedEdges[orderedEdges.length - 1];
+    }
+
+    return null;
+  }
+
+  /**
+   * Purpose: Build ordered node traversal indices for graph inline editors.
+   * Inputs: No direct parameters.
+   * Returns: Sorted node-index list for editor focus traversal.
+   * Side effects: None (pure computation).
+   */
+  function resolveOrderedGraphNodeIndices(): number[] {
+    if (lastGraphData?.nodeIndices && lastGraphData.nodeIndices.length > 0) {
+      return [...lastGraphData.nodeIndices];
+    }
+    return [...currentNodeCenters.keys()].sort((left, right) => left - right);
+  }
+
+  /**
+   * Purpose: Build ordered edge traversal targets for graph inline editors.
+   * Inputs: No direct parameters.
+   * Returns: Edge-target list for editor focus traversal.
+   * Side effects: None (pure computation).
+   */
+  function resolveOrderedGraphEdgeTargets(): Array<{
+    kind: 'edge';
+    fromIndex: number;
+    toIndex: number;
+  }> {
+    return [...currentPathByKey.keys()]
+      .sort((left, right) => left.localeCompare(right))
+      .map((key) => parseEdgeKey(key))
+      .filter(
+        (
+          parsed
+        ): parsed is {
+          fromIndex: number;
+          toIndex: number;
+        } => Boolean(parsed)
+      )
+      .map((parsed) => ({
+        kind: 'edge' as const,
+        fromIndex: parsed.fromIndex,
+        toIndex: parsed.toIndex,
+      }));
+  }
+
+  /**
+   * Purpose: Focus a pending graph editor target after annotation rerenders.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Focuses graph inline editor inputs when available.
+   */
+  function applyPendingGraphEditorFocus() {
+    if (!pendingGraphEditorFocusTarget) {
+      return;
+    }
+    const pending = pendingGraphEditorFocusTarget;
+    const pendingTarget = pending.target;
+
+    let selector = '';
+    if (pendingTarget.kind === 'node') {
+      selector = `input[data-action="graph-set-node-value"][data-node-index="${pendingTarget.nodeIndex}"]`;
+    } else if (pendingTarget.kind === 'edge') {
+      selector = `input[data-action="graph-set-edge-weight"][data-from-index="${pendingTarget.fromIndex}"][data-to-index="${pendingTarget.toIndex}"]`;
+    }
+    if (!selector) {
+      pendingGraphEditorFocusTarget = null;
+      return;
+    }
+
+    const input = annotationLayer.querySelector<HTMLInputElement>(selector);
+    if (!input) {
+      return;
+    }
+    pendingGraphEditorFocusTarget = null;
+    input.focus({ preventScroll: true });
+    focusedGraphEditorInput = input;
+    input.classList.add('markov-input-caret-red');
+    input.classList.remove('markov-input-caret-blue');
+    if (pending.armOverwrite) {
+      armGraphEditorForDestructiveOverwrite(input);
+    } else {
+      overwriteArmedGraphEditorInput = null;
+      moveCaretToEnd(input);
+    }
+  }
+
+  /**
+   * Purpose: Arm focused graph editors so the next printable key overwrites the value.
+   * Inputs: Graph inline editor input.
+   * Returns: No value (`void`).
+   * Side effects: Enables overwrite-on-next-key behavior and selects current input text.
+   */
+  function armGraphEditorForDestructiveOverwrite(input: HTMLInputElement) {
+    overwriteArmedGraphEditorInput = input;
+    input.classList.add('markov-input-caret-red');
+    input.classList.remove('markov-input-caret-blue');
+    try {
+      input.select();
+    } catch {
+      // Number inputs may ignore text selection in some browsers.
+    }
+  }
+
+  /**
+   * Purpose: Switch a focused graph inline editor to insert mode.
+   * Inputs: Active graph input element.
+   * Returns: No value (`void`).
+   * Side effects: Clears overwrite arming, updates caret class, and collapses selection.
+   */
+  function disarmGraphEditorForInsertMode(input: HTMLInputElement) {
+    overwriteArmedGraphEditorInput = null;
+    input.classList.remove('markov-input-caret-red');
+    input.classList.add('markov-input-caret-blue');
+    try {
+      const caret = input.selectionEnd ?? input.selectionStart ?? input.value.length;
+      input.setSelectionRange(caret, caret);
+    } catch {
+      // Ignore browsers that disallow selection control for this input type.
+    }
+  }
+
+  /**
+   * Purpose: Emit graph viewport/interaction context updates for matrix/state panel coordination.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Invokes external callback when the emitted context changes.
+   */
+  function emitGraphContextChange() {
+    if (!hasRenderedAtLeastOnce) {
+      return;
+    }
+    if (!options.onContextChange) {
+      return;
+    }
+
+    const renderState = lastRenderedState;
+    const sanitizedHovered = renderState
+      ? sanitizeExternalTarget(
+          externalFocusTarget ??
+            (focusedGraphEditorInput ? null : externalHoverTarget ?? interactionState.hovered),
+          renderState
+        )
+      : null;
+    const sanitizedSelected = renderState
+      ? sanitizeExternalTarget(interactionState.selected, renderState)
+      : null;
+    const nextContext: GraphPanelContextSnapshot = {
+      renderedNodeIndices: [
+        ...(lastGraphData?.nodeIndices ??
+          (renderState ? Array.from({ length: renderState.nodeCount }, (_, index) => index) : [])),
+      ],
+      viewportVisibleNodeIndices: computeViewportVisibleNodeIndices(
+        viewportTransform,
+        currentNodeCenters
+      ),
+      activeTarget: sanitizedHovered ?? sanitizedSelected,
+      selectedTarget: sanitizedSelected,
+    };
+
+    if (isSameGraphPanelContext(lastEmittedContext, nextContext)) {
+      return;
+    }
+
+    lastEmittedContext = nextContext;
+    options.onContextChange(nextContext);
+  }
+
+  /**
+   * Purpose: Reset zoom/pan transform back to the canonical default viewport.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Clears status text, updates viewport state, and reapplies SVG transform.
    */
   function resetViewportToDefault() {
     cancelViewportProjectionAnimation();
@@ -803,10 +1833,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: renderInlineAnnotations function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Render on-graph value labels and inline editors for selected nodes/edges.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function renderInlineAnnotations(config: {
     state: AppState;
@@ -944,14 +1974,14 @@ export function createGraphPanelController(options: {
             inputMarkup: `
               <input
                 class="markov-number-input markov-number-input--graph-inline"
-                type="number"
-                min="0"
-                max="1"
-                step="0.01"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                spellcheck="false"
                 data-action="graph-set-edge-weight"
                 data-from-index="${config.selectedEdgeEditor.fromIndex}"
                 data-to-index="${config.selectedEdgeEditor.toIndex}"
-                value="${config.selectedEdgeEditor.value.toFixed(4)}"
+                value="${formatEditableInputValue(config.selectedEdgeEditor.value)}"
               />
             `,
           })
@@ -980,13 +2010,13 @@ export function createGraphPanelController(options: {
             inputMarkup: `
               <input
                 class="markov-number-input markov-number-input--graph-inline"
-                type="number"
-                min="0"
-                max="1"
-                step="0.01"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                spellcheck="false"
                 data-action="graph-set-node-value"
                 data-node-index="${config.selectedNodeEditor.nodeIndex}"
-                value="${config.selectedNodeEditor.value.toFixed(4)}"
+                value="${formatEditableInputValue(config.selectedNodeEditor.value)}"
               />
             `,
           })
@@ -994,13 +2024,14 @@ export function createGraphPanelController(options: {
         occupiedRects.push(rect);
       }
     }
+
   }
 
   /**
-   * Purpose: createValueLabel function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Create a positioned SVG value label for node or edge probability text.
+   * Inputs: Label rectangle, text payload, label kind, and optional node/highlight metadata.
+   * Returns: A fully configured SVG group containing the value-cell background and label text.
+   * Side effects: Creates detached SVG elements.
    */
   function createValueLabel(config: {
     rect: Rect;
@@ -1040,10 +2071,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: createInlineEditor function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Create and position an inline numeric editor near the selected graph target.
+   * Inputs: Target rectangle coordinates/dimensions and the inline input markup.
+   * Returns: An SVG `foreignObject` wrapping the inline editor content.
+   * Side effects: Creates detached DOM/SVG nodes.
    */
   function createInlineEditor(config: {
     x: number;
@@ -1069,10 +2100,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: updateToggleAllValuesButton function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Sync the toggle-all-values control text and pressed state.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Updates toggle button text and `aria-pressed` state.
    */
   function updateToggleAllValuesButton() {
     toggleAllValuesButton.textContent = showAllValues ? 'Hide all values' : 'Show all values';
@@ -1080,10 +2111,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: applyViewportAfterResolution function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Apply normalized viewport transforms after visible-node constraints are resolved.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function applyViewportAfterResolution(
     requested: GraphViewportTransform,
@@ -1101,21 +2132,22 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: applyViewportTransformImmediate function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Apply a viewport transform immediately to the SVG viewport group.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function applyViewportTransformImmediate(next: GraphViewportTransform) {
     viewportTransform = next;
     viewportLayer.setAttribute('transform', toSvgViewportTransform(viewportTransform));
+    emitGraphContextChange();
   }
 
   /**
-   * Purpose: cancelViewportProjectionAnimation function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Cancel any in-flight viewport projection tween.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function cancelViewportProjectionAnimation() {
     if (viewportProjectionStartTimeoutId !== null) {
@@ -1131,10 +2163,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: animateViewportProjectionTo function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Animate viewport transform to a projected target transform.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function animateViewportProjectionTo(target: GraphViewportTransform, delayBeforeStart: boolean) {
     if (reduceMotionQuery.matches) {
@@ -1213,10 +2245,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: shouldIgnoreGraphKeyEvent function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Filter key events that should not trigger graph viewport actions.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function shouldIgnoreGraphKeyEvent(event: KeyboardEvent): boolean {
     const target = event.target;
@@ -1233,10 +2265,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: zoomViewport function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Zoom the graph viewport around a focal point while preserving visible-node constraints.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function zoomViewport(zoomFactor: number, focalPoint: Point) {
     if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) {
@@ -1265,10 +2297,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: panViewport function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Pan the graph viewport in a direction while enforcing visibility constraints.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function panViewport(delta: Point, direction: PanDirection) {
     if (
@@ -1321,10 +2353,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: handlePanDragMove function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Update viewport panning while drag interaction is active.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function handlePanDragMove(event: PointerEvent) {
     if (!isPanDragging || panPointerId === null || event.pointerId !== panPointerId) {
@@ -1360,10 +2392,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: finishPanDrag function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Finalize drag-pan interaction and release pointer capture.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function finishPanDrag(pointerId: number) {
     if (!isPanDragging || panPointerId === null || pointerId !== panPointerId) {
@@ -1376,10 +2408,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: inferPanDirection function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Infer dominant pan direction from drag delta.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function inferPanDirection(delta: Point): PanDirection | null {
     if (Math.abs(delta.x) <= PROBABILITY_EPSILON && Math.abs(delta.y) <= PROBABILITY_EPSILON) {
@@ -1392,10 +2424,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: normalizeViewportTransformForNodes function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Normalize transforms so at least one node remains fully visible when possible.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function normalizeViewportTransformForNodes(
     transform: GraphViewportTransform
@@ -1411,10 +2443,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: clampViewportScaleBounds function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Clamp viewport scale to configured min/max bounds.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function clampViewportScaleBounds(transform: GraphViewportTransform): GraphViewportTransform {
     return {
@@ -1424,10 +2456,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: projectPanToVisibleNodeInDirection function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Project a directional pan toward the nearest transform with a visible node.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function projectPanToVisibleNodeInDirection(
     current: GraphViewportTransform,
@@ -1466,10 +2498,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: projectTransformToVisibleNodeForCenter function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Project transform toward center-preserving visible-node placement.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function projectTransformToVisibleNodeForCenter(
     transform: GraphViewportTransform,
@@ -1493,10 +2525,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: panAxisProgress function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Measure signed progress along one pan axis for direction checks.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function panAxisProgress(
     current: GraphViewportTransform,
@@ -1516,10 +2548,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: hasPanProgressInDirection function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Check whether a projected transform progresses in the requested pan direction.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: Boolean condition result.
+   * Side effects: None (pure computation).
    */
   function hasPanProgressInDirection(
     current: GraphViewportTransform,
@@ -1530,10 +2562,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: hasAnyFullyVisibleNode function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Check whether any graph node is fully visible under a transform.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: Boolean condition result.
+   * Side effects: None (pure computation).
    */
   function hasAnyFullyVisibleNode(
     transform: GraphViewportTransform,
@@ -1548,10 +2580,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: isNodeFullyVisible function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Check whether a node center and radius are fully within viewport bounds.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: Boolean condition result.
+   * Side effects: None (pure computation).
    */
   function isNodeFullyVisible(transform: GraphViewportTransform, center: Point): boolean {
     const radius = NODE_RADIUS * transform.scale;
@@ -1566,10 +2598,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: projectTransformToNearestVisibleNode function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Search for the nearest transform that keeps at least one node visible.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function projectTransformToNearestVisibleNode(
     transform: GraphViewportTransform,
@@ -1608,10 +2640,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: showPanBlockedStatus function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Show transient status feedback when panning cannot progress further.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function showPanBlockedStatus(direction: PanDirection) {
     if (graphStatusTimeoutId !== null) {
@@ -1626,10 +2658,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: toViewportPanDirection function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Map local pan direction names to viewport utility direction strings.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function toViewportPanDirection(direction: PanDirection): string {
     if (direction === 'left') return 'to the right';
@@ -1639,10 +2671,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: clearGraphStatus function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Clear transient graph status text.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function clearGraphStatus() {
     if (graphStatusTimeoutId !== null) {
@@ -1653,10 +2685,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: isSameViewportTransform function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Compare viewport transforms with epsilon tolerance.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: Boolean condition result.
+   * Side effects: None (pure computation).
    */
   function isSameViewportTransform(
     left: GraphViewportTransform,
@@ -1670,10 +2702,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: estimateLabelWidth function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Estimate annotation label width from text length and label kind.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function estimateLabelWidth(text: string, kind: 'edge' | 'node'): number {
     const base = kind === 'edge' ? 38 : 52;
@@ -1681,10 +2713,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: placeRectNearAnchor function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Choose a candidate rectangle placement around an anchor point.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function placeRectNearAnchor(options: {
     anchor: Point;
@@ -1737,10 +2769,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: scoreAnnotationRect function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Score annotation placement candidates by overlap and distance penalties.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function scoreAnnotationRect(
     rect: Rect,
@@ -1769,10 +2801,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: rectIntersectionArea function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Compute intersection area between two axis-aligned rectangles.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function rectIntersectionArea(left: Rect, right: Rect): number {
     const overlapWidth =
@@ -1787,10 +2819,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: distanceFromRectToPoint function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Compute Euclidean distance from a rectangle to a point.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function distanceFromRectToPoint(rect: Rect, point: Point): number {
     const clampedX = clamp(point.x, rect.x, rect.x + rect.width);
@@ -1799,10 +2831,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: sanitizeExternalTarget function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Drop stale external hover/focus targets when indices are out of range.
+   * Inputs: Raw event targets or serialized values declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function sanitizeExternalTarget(
     target: GraphInteractionTarget | null,
@@ -1818,10 +2850,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: cancelAnimationLoop function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Stop active flow-particle animation frame loops and timers.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function cancelAnimationLoop() {
     if (animationFrameHandle !== null) {
@@ -1832,10 +2864,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: computePathFrame function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Compute particle frame position/tangent for a path progress value.
+   * Inputs: Numeric, structural, or model parameters declared in the signature.
+   * Returns: A derived value computed from the provided inputs.
+   * Side effects: None (pure computation).
    */
   function computePathFrame(
     path: SVGPathElement,
@@ -1875,10 +2907,10 @@ export function createGraphPanelController(options: {
   }
 
   /**
-   * Purpose: startFlowAnimation function.
-   * Inputs: Parameters declared in the function signature.
-   * Returns: The value produced by this function.
-   * Side effects: May update local state, shared state, or the DOM when applicable.
+   * Purpose: Start per-edge flow-particle animation for the current transition step.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
   function startFlowAnimation(config: {
     animation: FlowAnimationState;
@@ -1911,7 +2943,7 @@ export function createGraphPanelController(options: {
         element: dot,
         delayMs: particle.delayMs,
         durationMs: particle.durationMs,
-        offsetAlong: particle.offsetAlong,
+        pathPhase: particle.pathPhase,
         offsetNormal: particle.offsetNormal,
       });
     });
@@ -1920,34 +2952,20 @@ export function createGraphPanelController(options: {
 
     const renderFrame = (now: number) => {
       const elapsed = now - startTime;
-      const progress = clamp01(elapsed / config.animation.durationMs);
-      const easedProgress = easeInOutCubic(progress);
-
-      config.nodeCircles.forEach((circle, index) => {
-        const from = config.animation.fromVector[index] ?? 0;
-        const to = config.animation.toVector[index] ?? 0;
-        const interpolated = lerp(from, to, easedProgress);
-        if (currentHighlightedNodeIndices.has(index)) {
-          circle.setAttribute('fill', colorForHighlightedNodeValue(interpolated));
-        } else {
-          circle.setAttribute('fill', colorForStateValue(interpolated));
-        }
-      });
 
       runtimeParticles.forEach((particle) => {
         const localProgress = (elapsed - particle.delayMs) / particle.durationMs;
-        if (localProgress <= 0 || localProgress >= 1) {
+        const phasedProgress = localProgress + particle.pathPhase;
+        if (phasedProgress <= 0 || phasedProgress >= 1) {
           particle.element.setAttribute('visibility', 'hidden');
           return;
         }
 
-        const pathProgress = clamp01(localProgress);
+        const pathProgress = clamp01(phasedProgress);
         const sampleLength = pathProgress * particle.length;
         const frame = computePathFrame(particle.path, sampleLength, particle.length);
-        const offsetX =
-          frame.tangent.x * particle.offsetAlong + frame.normal.x * particle.offsetNormal;
-        const offsetY =
-          frame.tangent.y * particle.offsetAlong + frame.normal.y * particle.offsetNormal;
+        const offsetX = frame.normal.x * particle.offsetNormal;
+        const offsetY = frame.normal.y * particle.offsetNormal;
 
         particle.element.setAttribute('visibility', 'visible');
         particle.element.setAttribute('cx', (frame.point.x + offsetX).toFixed(2));
@@ -1964,9 +2982,9 @@ export function createGraphPanelController(options: {
       config.nodeCircles.forEach((circle, index) => {
         const to = config.animation.toVector[index] ?? 0;
         if (currentHighlightedNodeIndices.has(index)) {
-          circle.setAttribute('fill', colorForHighlightedNodeValue(to));
+          circle.setAttribute('fill', colorForGraphHighlightedNodeValue(to));
         } else {
-          circle.setAttribute('fill', colorForStateValue(to));
+          circle.setAttribute('fill', colorForGraphNodeValue(to));
         }
       });
       config.particleLayer.replaceChildren();
@@ -1981,10 +2999,10 @@ export function createGraphPanelController(options: {
 }
 
 /**
- * Purpose: drawGraph function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Render all graph edges, labels, nodes, and interaction affordances into SVG layers.
+ * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+ * Returns: No value (`void`).
+ * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
  */
 function drawGraph(args: {
   state: AppState;
@@ -1998,6 +3016,8 @@ function drawGraph(args: {
   currentEdgeBaseStyles: Map<string, EdgeVisualStyle>;
   currentEdgeLabelPoints: Map<string, Point>;
   currentNodeCenters: Map<number, Point>;
+  markerDefs: SVGDefsElement;
+  arrowMarkerCache: Map<string, string>;
 }) {
   args.edgeLayer.replaceChildren();
   args.annotationLayer.replaceChildren();
@@ -2018,10 +3038,6 @@ function drawGraph(args: {
     maxEdgeLength: MAX_EDGE_LENGTH,
   });
   const edgeKeySet = new Set(args.graphData.edgeKeys);
-  const flowMassByPath = new Map<string, number>();
-  args.state.flowAnimation?.edges.forEach((edge) => {
-    flowMassByPath.set(edge.pathKey, edge.mass);
-  });
 
   const nonSelfGeometryByKey = new Map<string, PathGeometry>();
   const collisionPoints: Point[] = [];
@@ -2060,7 +3076,6 @@ function drawGraph(args: {
       const toIndex = args.graphData.nodeIndices[toLocalIndex] ?? toLocalIndex;
       const key = edgePathKey(fromIndex, toIndex);
       if (!edgeKeySet.has(key)) continue;
-      const flowMass = flowMassByPath.get(key) ?? 0;
       const edgePath = createSvgElement<SVGPathElement>('path');
       const geometry =
         fromLocalIndex === toLocalIndex
@@ -2089,7 +3104,6 @@ function drawGraph(args: {
 
       edgePath.setAttribute('d', geometry.pathData);
       edgePath.setAttribute('fill', 'none');
-      edgePath.setAttribute('marker-end', markerUrl(EDGE_DEFAULT_MARKER_ID));
       edgePath.classList.add('markov-edge');
       edgePath.setAttribute('data-graph-target-kind', 'edge');
       edgePath.setAttribute('data-from-index', String(fromIndex));
@@ -2097,21 +3111,35 @@ function drawGraph(args: {
 
       const strokeWidth = 1.2 + probability * 7.6;
       const baseOpacity = 0.14 + probability * 0.86;
-      const emphasis = Math.min(1, flowMass * 11);
-      const hue = 208 - emphasis * 34;
-      const lightness = 34 - emphasis * 8;
+      const hue = 208;
+      const lightness = 34;
       const stroke = `hsl(${hue.toFixed(1)} 72% ${lightness.toFixed(1)}%)`;
+      const defaultMarkerId = getOrCreateArrowMarkerId({
+        markerDefs: args.markerDefs,
+        markerCache: args.arrowMarkerCache,
+        variant: 'default',
+        strokeWidth,
+      });
+      const highlightedMarkerId = getOrCreateArrowMarkerId({
+        markerDefs: args.markerDefs,
+        markerCache: args.arrowMarkerCache,
+        variant: 'highlight',
+        strokeWidth,
+      });
 
       edgePath.style.stroke = stroke;
       edgePath.style.strokeWidth = strokeWidth.toFixed(3);
-      edgePath.style.opacity = Math.min(1, baseOpacity + emphasis * 0.2).toFixed(3);
+      edgePath.style.opacity = baseOpacity.toFixed(3);
+      edgePath.dataset.defaultMarkerId = defaultMarkerId;
+      edgePath.dataset.highlightMarkerId = highlightedMarkerId;
+      edgePath.setAttribute('marker-end', markerUrl(defaultMarkerId));
 
       args.edgeLayer.appendChild(edgePath);
       args.currentPathByKey.set(key, edgePath);
       args.currentEdgeBaseStyles.set(key, {
         stroke,
         strokeWidth,
-        opacity: Math.min(1, baseOpacity + emphasis * 0.2),
+        opacity: baseOpacity,
       });
       args.currentEdgeLabelPoints.set(key, geometry.labelPoint);
     }
@@ -2128,7 +3156,11 @@ function drawGraph(args: {
     circle.setAttribute('cx', node.x.toFixed(2));
     circle.setAttribute('cy', node.y.toFixed(2));
     circle.setAttribute('r', String(NODE_RADIUS));
-    circle.setAttribute('fill', colorForStateValue(args.graphData.currentVector[node.index] ?? 0));
+    const displayNodeValue =
+      args.state.flowAnimation?.fromVector[nodeIndex] ??
+      args.graphData.currentVector[node.index] ??
+      0;
+    circle.setAttribute('fill', colorForGraphNodeValue(displayNodeValue));
     circle.classList.add('markov-node-circle');
 
     const label = createSvgElement<SVGTextElement>('text');
@@ -2150,10 +3182,10 @@ function drawGraph(args: {
 }
 
 /**
- * Purpose: createEdgePath function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build edge path geometry and label anchor for a directed transition edge.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function createEdgePath(
   fromNode: GraphNodeLayout,
@@ -2253,10 +3285,10 @@ function createEdgePath(
 }
 
 /**
- * Purpose: buildEdgeGeometryFromOffset function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build cubic edge geometry from bend/offset parameters.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function buildEdgeGeometryFromOffset(options: {
   fromNode: GraphNodeLayout;
@@ -2337,10 +3369,10 @@ function buildEdgeGeometryFromOffset(options: {
 }
 
 /**
- * Purpose: createSelfLoopPath function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build path geometry for self-loop edges with collision-aware scoring.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function createSelfLoopPath(options: {
   node: GraphNodeLayout;
@@ -2377,10 +3409,10 @@ function createSelfLoopPath(options: {
 }
 
 /**
- * Purpose: pointAroundNode function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute a point on a circle around a node center.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function pointAroundNode(
   node: GraphNodeLayout,
@@ -2394,10 +3426,10 @@ function pointAroundNode(
 }
 
 /**
- * Purpose: chooseDeterministicBendDirection function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Choose a stable bend direction for bidirectional edge pairs.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function chooseDeterministicBendDirection(
   fromNode: GraphNodeLayout,
@@ -2417,10 +3449,10 @@ function chooseDeterministicBendDirection(
 }
 
 /**
- * Purpose: buildSelfLoopGeometry function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build loop control points and sampled points for one loop angle/radius.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function buildSelfLoopGeometry(node: GraphNodeLayout, angle: number, radius: number): PathGeometry {
   const start = pointAroundNode(node, angle - LOOP_SPREAD, LOOP_START_ANCHOR_RADIUS);
@@ -2444,10 +3476,10 @@ function buildSelfLoopGeometry(node: GraphNodeLayout, angle: number, radius: num
 }
 
 /**
- * Purpose: sampleLoopArc function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Sample points along a self-loop arc for collision scoring.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function sampleLoopArc(options: {
   node: GraphNodeLayout;
@@ -2469,10 +3501,10 @@ function sampleLoopArc(options: {
 }
 
 /**
- * Purpose: findArrowTipBoundaryT function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Solve the cubic parameter where arrow tip reaches node boundary clearance.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function findArrowTipBoundaryT(
   curve: CubicCurve,
@@ -2513,10 +3545,10 @@ function findArrowTipBoundaryT(
 }
 
 /**
- * Purpose: markerTipBoundaryError function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Measure boundary error for a candidate arrow-tip parameter value.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function markerTipBoundaryError(
   curve: CubicCurve,
@@ -2529,10 +3561,10 @@ function markerTipBoundaryError(
 }
 
 /**
- * Purpose: markerTipPointAt function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute marker-tip point on the cubic at parameter t.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function markerTipPointAt(curve: CubicCurve, t: number): Point {
   const point = cubicAt(curve.start, curve.controlA, curve.controlB, curve.end, t);
@@ -2547,10 +3579,10 @@ function markerTipPointAt(curve: CubicCurve, t: number): Point {
 }
 
 /**
- * Purpose: cubicTangentAt function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute tangent vector of a cubic Bezier at parameter t.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function cubicTangentAt(curve: CubicCurve, t: number): Point {
   const inv = 1 - t;
@@ -2579,10 +3611,10 @@ function cubicTangentAt(curve: CubicCurve, t: number): Point {
 }
 
 /**
- * Purpose: clipCubicCurve function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Clip a cubic Bezier segment at parameter t.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function clipCubicCurve(curve: CubicCurve, t: number): CubicCurve {
   const p01 = lerpPoint(curve.start, curve.controlA, t);
@@ -2601,10 +3633,10 @@ function clipCubicCurve(curve: CubicCurve, t: number): CubicCurve {
 }
 
 /**
- * Purpose: lerpPoint function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Linearly interpolate between two points.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function lerpPoint(from: Point, to: Point, t: number): Point {
   return {
@@ -2614,10 +3646,10 @@ function lerpPoint(from: Point, to: Point, t: number): Point {
 }
 
 /**
- * Purpose: buildLoopAngleOffsets function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build deterministic angular offset candidates for self-loop search.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function buildLoopAngleOffsets(): number[] {
   const offsets: number[] = [0];
@@ -2629,10 +3661,10 @@ function buildLoopAngleOffsets(): number[] {
 }
 
 /**
- * Purpose: scoreSelfLoopGeometry function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Score self-loop geometry against overlap/clearance heuristics.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function scoreSelfLoopGeometry(options: {
   candidate: PathGeometry;
@@ -2658,10 +3690,10 @@ function scoreSelfLoopGeometry(options: {
 }
 
 /**
- * Purpose: minimumDistanceBetweenPointSets function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute minimum pairwise distance between two sampled point sets.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function minimumDistanceBetweenPointSets(left: readonly Point[], right: readonly Point[]): number {
   if (left.length === 0 || right.length === 0) {
@@ -2681,10 +3713,10 @@ function minimumDistanceBetweenPointSets(left: readonly Point[], right: readonly
 }
 
 /**
- * Purpose: minimumClearanceToOtherNodes function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute minimum loop clearance against non-self node circles.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function minimumClearanceToOtherNodes(
   samples: readonly Point[],
@@ -2711,10 +3743,10 @@ function minimumClearanceToOtherNodes(
 }
 
 /**
- * Purpose: minimumClearanceToUnrelatedNodes function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute minimum edge clearance against nodes not incident to the edge.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function minimumClearanceToUnrelatedNodes(
   samples: readonly Point[],
@@ -2742,10 +3774,10 @@ function minimumClearanceToUnrelatedNodes(
 }
 
 /**
- * Purpose: minimumBoundaryClearance function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compute minimum clearance from sampled points to SVG bounds.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function minimumBoundaryClearance(samples: readonly Point[]): number {
   if (samples.length === 0) {
@@ -2763,10 +3795,10 @@ function minimumBoundaryClearance(samples: readonly Point[]): number {
 }
 
 /**
- * Purpose: cubicAt function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Evaluate a cubic Bezier point at parameter t.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function cubicAt(start: Point, controlA: Point, controlB: Point, end: Point, t: number): Point {
   const inv = 1 - t;
@@ -2784,10 +3816,10 @@ function cubicAt(start: Point, controlA: Point, controlB: Point, end: Point, t: 
 }
 
 /**
- * Purpose: sampleCubicCurve function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Sample points along a cubic Bezier curve for scoring and collision checks.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function sampleCubicCurve(options: {
   start: Point;
@@ -2809,10 +3841,10 @@ function sampleCubicCurve(options: {
 }
 
 /**
- * Purpose: clamp function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Clamp a numeric value into an inclusive [min, max] range.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function clamp(value: number, min: number, max: number): number {
   if (value <= min) return min;
@@ -2821,10 +3853,10 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * Purpose: clamp01 function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Clamp a numeric value into [0, 1].
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function clamp01(value: number): number {
   if (value <= 0) return 0;
@@ -2833,10 +3865,10 @@ function clamp01(value: number): number {
 }
 
 /**
- * Purpose: easeInOutCubic function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Apply cubic ease-in-out easing to normalized animation progress.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function easeInOutCubic(value: number): number {
   if (value < 0.5) {
@@ -2846,24 +3878,38 @@ function easeInOutCubic(value: number): number {
 }
 
 /**
- * Purpose: colorForHighlightedNodeValue function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Map a node value to the non-highlight graph fill color scale.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
-function colorForHighlightedNodeValue(value: number): string {
+function colorForGraphNodeValue(value: number): string {
   const normalized = clamp01(value);
-  const hue = 3;
-  const saturation = 84;
-  const lightness = 93 - normalized * 52;
+  const hue = 206;
+  const saturation = 60;
+  const lightness = 93 - normalized * 46;
+  return `hsl(${hue.toFixed(1)} ${saturation}% ${lightness.toFixed(1)}%)`;
+}
+
+/**
+ * Purpose: Map a highlighted node value to an HSL display color.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
+ */
+function colorForGraphHighlightedNodeValue(value: number): string {
+  const normalized = clamp01(value);
+  const hue = 10;
+  const saturation = 65;
+  const lightness = 93 - normalized * 42;
   return `hsl(${hue} ${saturation}% ${lightness.toFixed(1)}%)`;
 }
 
 /**
- * Purpose: setSvgNodeLabelText function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Render node labels with subscript suffixes in SVG text/tspan nodes.
+ * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+ * Returns: No value (`void`).
+ * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
  */
 function setSvgNodeLabelText(label: SVGTextElement, nodeIndex: number, suffix = ''): void {
   label.replaceChildren();
@@ -2886,10 +3932,10 @@ function setSvgNodeLabelText(label: SVGTextElement, nodeIndex: number, suffix = 
 }
 
 /**
- * Purpose: parseEdgeKey function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Parse a serialized edge key into source and target node indices.
+ * Inputs: Raw event targets or serialized values declared in the signature.
+ * Returns: Parsed/derived value, or `null` when mapping is not possible.
+ * Side effects: None (pure computation).
  */
 function parseEdgeKey(key: string): { fromIndex: number; toIndex: number } | null {
   const match = /^edge-(\d+)-(\d+)$/.exec(key);
@@ -2901,10 +3947,10 @@ function parseEdgeKey(key: string): { fromIndex: number; toIndex: number } | nul
 }
 
 /**
- * Purpose: normalizeSubgraphSelection function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Normalize partial subgraph selection updates into safe bounded values.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function normalizeSubgraphSelection(
   selection: Partial<GraphSubgraphSelection>,
@@ -2936,10 +3982,10 @@ function normalizeSubgraphSelection(
 }
 
 /**
- * Purpose: isSameSubgraphSelection function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Compare subgraph selection objects for structural equality.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: Boolean condition result.
+ * Side effects: None (pure computation).
  */
 function isSameSubgraphSelection(
   left: GraphSubgraphSelection,
@@ -2953,20 +3999,240 @@ function isSameSubgraphSelection(
 }
 
 /**
- * Purpose: markerUrl function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Build a local SVG marker URL reference.
+ * Inputs: Numeric, structural, or model parameters declared in the signature.
+ * Returns: A derived value computed from the provided inputs.
+ * Side effects: None (pure computation).
  */
 function markerUrl(markerId: string): string {
   return `url(#${markerId})`;
 }
 
 /**
- * Purpose: readGraphTarget function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Convert reducer edit targets to graph interaction targets when possible.
+ * Inputs: Reducer edit target or `null`.
+ * Returns: Equivalent graph interaction target, or `null` for unsupported targets.
+ * Side effects: None (pure computation).
+ */
+function graphInteractionTargetFromEditTarget(
+  target:
+    | {
+        kind: 'edge';
+        fromIndex: number;
+        toIndex: number;
+      }
+    | {
+        kind: 'node';
+        index: number;
+      }
+    | {
+        kind: 'initial';
+        index: number;
+      }
+    | null
+): GraphInteractionTarget | null {
+  if (!target) {
+    return null;
+  }
+  if (target.kind === 'edge') {
+    return {
+      kind: 'edge',
+      fromIndex: target.fromIndex,
+      toIndex: target.toIndex,
+    };
+  }
+  if (target.kind === 'node') {
+    return {
+      kind: 'node',
+      nodeIndex: target.index,
+    };
+  }
+  return null;
+}
+
+/**
+ * Purpose: Build a stable semantic key for graph interaction targets.
+ * Inputs: Optional interaction target.
+ * Returns: Stable key string or `null`.
+ * Side effects: None (pure computation).
+ */
+function interactionTargetKey(target: GraphInteractionTarget | null): string | null {
+  if (!target) {
+    return null;
+  }
+  if (target.kind === 'node') {
+    return `node:${target.nodeIndex}`;
+  }
+  if (target.kind === 'incoming-node') {
+    return `incoming-node:${target.nodeIndex}`;
+  }
+  return `edge:${target.fromIndex}->${target.toIndex}`;
+}
+
+/**
+ * Purpose: Resolve an SVG marker id for a stroke width, creating the marker when needed.
+ * Inputs: Marker registry state, marker variant, and edge stroke width.
+ * Returns: Marker id string for `marker-end`.
+ * Side effects: Appends new marker definitions to the graph `<defs>` section.
+ */
+function getOrCreateArrowMarkerId(options: {
+  markerDefs: SVGDefsElement;
+  markerCache: Map<string, string>;
+  variant: 'default' | 'highlight';
+  strokeWidth: number;
+}): string {
+  const quantizedStrokeWidth = quantizeArrowStrokeWidth(options.strokeWidth);
+  const cacheKey = `${options.variant}:${quantizedStrokeWidth.toFixed(2)}`;
+  const cachedMarkerId = options.markerCache.get(cacheKey);
+  if (cachedMarkerId) {
+    return cachedMarkerId;
+  }
+
+  const size = resolveArrowHeadSize(quantizedStrokeWidth);
+  const markerIdPrefix =
+    options.variant === 'highlight'
+      ? EDGE_HIGHLIGHT_MARKER_ID_PREFIX
+      : EDGE_DEFAULT_MARKER_ID_PREFIX;
+  const markerId = `${markerIdPrefix}-${Math.round(quantizedStrokeWidth * 100)}`;
+  const marker = createSvgElement<SVGMarkerElement>('marker');
+  marker.setAttribute('id', markerId);
+  marker.setAttribute('markerWidth', size.width.toFixed(3));
+  marker.setAttribute('markerHeight', size.height.toFixed(3));
+  marker.setAttribute('refX', size.refX.toFixed(3));
+  marker.setAttribute('refY', size.refY.toFixed(3));
+  marker.setAttribute('orient', 'auto');
+  marker.setAttribute('markerUnits', 'userSpaceOnUse');
+
+  const path = createSvgElement<SVGPathElement>('path');
+  path.setAttribute(
+    'd',
+    `M 0 0 L ${size.width.toFixed(3)} ${size.refY.toFixed(3)} L 0 ${size.height.toFixed(3)} z`
+  );
+  path.setAttribute('fill', options.variant === 'highlight' ? EDGE_HIGHLIGHT_STROKE : '#0f4c81');
+  marker.appendChild(path);
+
+  options.markerDefs.appendChild(marker);
+  options.markerCache.set(cacheKey, markerId);
+  return markerId;
+}
+
+/**
+ * Purpose: Quantize stroke width to stable marker-size buckets.
+ * Inputs: Edge stroke width.
+ * Returns: Bucketed stroke width value used by marker cache keys.
+ * Side effects: None (pure computation).
+ */
+function quantizeArrowStrokeWidth(strokeWidth: number): number {
+  const safeStrokeWidth = Math.max(0, strokeWidth);
+  const bucketed =
+    Math.round(safeStrokeWidth / ARROW_HEAD_SIZE_BUCKET_STEP) * ARROW_HEAD_SIZE_BUCKET_STEP;
+  return Math.max(ARROW_HEAD_STROKE_BASELINE, bucketed);
+}
+
+/**
+ * Purpose: Compute arrowhead width/height/ref anchors from edge stroke width.
+ * Inputs: Bucketed edge stroke width.
+ * Returns: Arrow marker geometry dimensions.
+ * Side effects: None (pure computation).
+ */
+function resolveArrowHeadSize(strokeWidth: number): {
+  width: number;
+  height: number;
+  refX: number;
+  refY: number;
+} {
+  const scale = clamp(
+    1 + (strokeWidth - ARROW_HEAD_STROKE_BASELINE) * ARROW_HEAD_GROWTH_PER_STROKE,
+    1,
+    ARROW_HEAD_MAX_SCALE
+  );
+  const width = ARROW_HEAD_BASE_WIDTH * scale;
+  const height = ARROW_HEAD_BASE_HEIGHT * scale;
+  const refX = Math.max(0.1, width - ARROW_TIP_OVERSHOOT);
+  const refY = height / 2;
+  return {
+    width,
+    height,
+    refX,
+    refY,
+  };
+}
+
+/**
+ * Purpose: Compute node indices that remain at least partially visible in the current viewport.
+ * Inputs: Viewport transform and node center map keyed by global node index.
+ * Returns: Sorted list of visible node indices.
+ * Side effects: None (pure computation).
+ */
+function computeViewportVisibleNodeIndices(
+  transform: GraphViewportTransform,
+  nodeCenters: ReadonlyMap<number, Point>
+): number[] {
+  const visible: number[] = [];
+  nodeCenters.forEach((center, index) => {
+    const screenX = center.x * transform.scale + transform.translateX;
+    const screenY = center.y * transform.scale + transform.translateY;
+    const radius = NODE_RADIUS * transform.scale;
+    const intersects =
+      screenX + radius >= 0 &&
+      screenX - radius <= GRAPH_WIDTH &&
+      screenY + radius >= 0 &&
+      screenY - radius <= GRAPH_HEIGHT;
+    if (intersects) {
+      visible.push(index);
+    }
+  });
+  visible.sort((left, right) => left - right);
+  return visible;
+}
+
+/**
+ * Purpose: Compare graph context snapshots to avoid redundant external panel updates.
+ * Inputs: Previous and next context snapshots.
+ * Returns: `true` when all fields are semantically equal.
+ * Side effects: None (pure computation).
+ */
+function isSameGraphPanelContext(
+  left: GraphPanelContextSnapshot | null,
+  right: GraphPanelContextSnapshot
+): boolean {
+  if (!left) {
+    return false;
+  }
+
+  return (
+    isSameNumberArray(left.renderedNodeIndices, right.renderedNodeIndices) &&
+    isSameNumberArray(left.viewportVisibleNodeIndices, right.viewportVisibleNodeIndices) &&
+    isSameGraphInteractionTarget(left.activeTarget, right.activeTarget) &&
+    isSameGraphInteractionTarget(left.selectedTarget, right.selectedTarget)
+  );
+}
+
+/**
+ * Purpose: Compare numeric arrays by length and ordered values.
+ * Inputs: Two readonly numeric arrays.
+ * Returns: `true` when lengths and values are identical.
+ * Side effects: None (pure computation).
+ */
+function isSameNumberArray(left: readonly number[], right: readonly number[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Purpose: Read the graph interaction target from a DOM event target.
+ * Inputs: Raw event targets or serialized values declared in the signature.
+ * Returns: Parsed/derived value, or `null` when mapping is not possible.
+ * Side effects: None (pure computation).
  */
 function readGraphTarget(eventTarget: EventTarget | null): GraphInteractionTarget | null {
   if (!(eventTarget instanceof Element)) {
@@ -3003,20 +4269,63 @@ function readGraphTarget(eventTarget: EventTarget | null): GraphInteractionTarge
 }
 
 /**
- * Purpose: createSvgElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Determine if a key press should replace the currently focused editor value.
+ * Inputs: Keyboard event from a graph inline editor input.
+ * Returns: `true` for printable keys without modifier chords.
+ * Side effects: None (pure computation).
+ */
+function shouldUseDestructiveOverwrite(event: KeyboardEvent): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return false;
+  }
+  return event.key.length === 1;
+}
+
+/**
+ * Purpose: Create an SVG element in the SVG namespace.
+ * Inputs: SVG tag name to instantiate.
+ * Returns: A new SVG element typed to `T`.
+ * Side effects: Creates a detached SVG node.
  */
 function createSvgElement<T extends SVGElement>(tagName: string): T {
   return document.createElementNS('http://www.w3.org/2000/svg', tagName) as T;
 }
 
 /**
- * Purpose: createTemplateElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Move caret to the end of an input value after focus restoration.
+ * Inputs: Target input element.
+ * Returns: No value (`void`).
+ * Side effects: Adjusts selection/caret when supported by browser/input type.
+ */
+function moveCaretToEnd(input: HTMLInputElement): void {
+  const length = input.value.length;
+  try {
+    input.setSelectionRange(length, length);
+    return;
+  } catch {
+    // Number inputs can reject setSelectionRange in some browsers.
+  }
+  try {
+    if (input.type !== 'number') {
+      return;
+    }
+    const value = input.value;
+    input.type = 'text';
+    input.value = value;
+    const textLength = input.value.length;
+    input.setSelectionRange(textLength, textLength);
+    input.type = 'number';
+    input.value = value;
+  } catch {
+    // Ignore browsers that disallow caret control for this input type.
+  }
+}
+
+/**
+ * Purpose: Create a single HTMLElement from markup and validate root shape.
+ * Inputs: HTML markup string expected to yield one root element.
+ * Returns: The parsed root `HTMLElement`.
+ * Side effects: Creates detached DOM nodes and throws when the parsed root is missing/invalid.
  */
 function createTemplateElement(markup: string): HTMLElement {
   const template = document.createElement('template');
@@ -3029,10 +4338,10 @@ function createTemplateElement(markup: string): HTMLElement {
 }
 
 /**
- * Purpose: requireElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
+ * Purpose: Query for a required element and fail fast when it is missing.
+ * Inputs: Query root and selector.
+ * Returns: The matching element cast to type `T`.
+ * Side effects: Reads DOM state and throws when the element cannot be found.
  */
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);

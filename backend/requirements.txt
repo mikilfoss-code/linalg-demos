@@ -14,7 +14,7 @@ colorama==0.4.6
     # via
     #   click
     #   uvicorn
-fastapi==0.129.0
+fastapi==0.129.2
     # via -r backend/requirements.in
 h11==0.16.0
     # via uvicorn
@@ -61,7 +61,7 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
-uvicorn==0.40.0
+uvicorn==0.41.0
     # via -r backend/requirements.in
 watchfiles==1.1.1
     # via uvicorn

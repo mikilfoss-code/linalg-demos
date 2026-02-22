@@ -216,7 +216,7 @@
 - `USE_RECURSIVE_LAYOUT_ENGINE` (`demos/linalg-vectors/frontend/src/app/view.ts`) - temporary vectors internal migration toggle between recursive and legacy layout rendering paths.
 - `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
-- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor (currently supports up to 8 states).
+- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor (currently supports up to 10 states).
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
 
 ## Global Objects / Shared State

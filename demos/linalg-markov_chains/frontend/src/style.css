@@ -365,6 +365,18 @@ code {
   outline-offset: 1px;
 }
 
+.markov-number-input.markov-input-caret-red {
+  caret-color: #ba1e2f;
+  border-color: rgba(186, 30, 47, 0.78);
+  box-shadow: 0 0 0 2px rgba(186, 30, 47, 0.22);
+}
+
+.markov-number-input.markov-input-caret-blue {
+  caret-color: #1f6fa9;
+  border-color: rgba(31, 111, 169, 0.72);
+  box-shadow: 0 0 0 2px rgba(31, 111, 169, 0.2);
+}
+
 .markov-error-list {
   margin: 0;
   color: #9f2c2c;
@@ -385,6 +397,119 @@ code {
   flex-wrap: wrap;
 }
 
+.markov-scope-toggle {
+  display: inline-flex;
+  gap: 0.32rem;
+}
+
+.markov-scope-toggle-button {
+  padding: 0.34rem 0.62rem;
+  font-size: 0.82rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.markov-scope-toggle-button.is-active {
+  background: #0f4c81;
+  color: #f5f9ff;
+  border-color: #0f4c81;
+}
+
+.markov-matrix-stage {
+  display: grid;
+  gap: var(--base-space-2);
+}
+
+.markov-matrix-col-slider-wrap {
+  display: grid;
+  gap: 0.3rem;
+  margin-left: 2.45rem;
+  border: 1px solid rgba(14, 65, 108, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.4rem 0.52rem;
+}
+
+.markov-matrix-col-slider-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.markov-matrix-col-slider-row .markov-control-label {
+  white-space: nowrap;
+}
+
+.markov-matrix-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--base-space-2);
+  align-items: stretch;
+}
+
+.markov-matrix-row-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 2.45rem;
+  box-sizing: border-box;
+  border: 1px solid rgba(14, 65, 108, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.42rem 0.28rem;
+}
+
+.markov-matrix-row-slider-wrap .markov-window-slider--vertical {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.markov-matrix-row-slider-wrap[hidden],
+.markov-matrix-col-slider-wrap[hidden],
+.markov-state-window-controls[hidden] {
+  display: none !important;
+}
+
+.markov-state-view {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--base-space-2);
+  align-items: start;
+}
+
+.markov-state-window-controls {
+  display: grid;
+  justify-items: center;
+  gap: 0.32rem;
+  width: 2.45rem;
+  border: 1px solid rgba(14, 65, 108, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.42rem 0.28rem;
+}
+
+.markov-window-slider {
+  width: 100%;
+  min-width: 0;
+}
+
+.markov-window-slider--vertical {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 1.2rem;
+  height: 8.4rem;
+  min-height: 8.4rem;
+}
+
+.markov-window-range-label {
+  font-family: var(--base-font-mono);
+  font-size: 0.78rem;
+  color: var(--base-ink-soft);
+}
+
 .markov-matrix-wrap {
   overflow-x: auto;
 }
@@ -392,6 +517,19 @@ code {
 .markov-row-sum {
   font-family: var(--base-font-mono);
   color: rgba(15, 45, 71, 0.9);
+}
+
+.markov-readonly-value {
+  display: inline-block;
+  min-width: 7ch;
+  font-family: var(--base-font-mono);
+}
+
+.markov-window-empty {
+  margin: 0;
+  color: var(--base-ink-soft);
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 @media (max-width: 1080px) {
