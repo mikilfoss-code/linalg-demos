@@ -190,6 +190,12 @@
 - `actions.ts` - reducer action union for matrix/vector edits, graph-inline node/edge edits, state-vector Enter-commit reset/normalization actions, and stepping.
 - `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, pre-step pending-matrix row normalization, and flow-animation metadata generation on each step.
 - `store.ts` - minimal reducer-driven store with subscribe/dispatch APIs.
+- `edit-session.ts` - edit-target types and edit mode/session state contracts shared across panels.
+- `edit-value-input.ts` - shared numeric draft parsing/formatting plus overwrite-mode keyboard/caret helpers.
+- `panel-context.ts` - graph-derived context contract consumed by matrix/state panels.
+- `selectors.ts` - derived accessors that resolve committed values vs in-progress draft edits.
+- `dom-helpers.ts` - shared template/query DOM helpers for panel/controller creation.
+- `panel-shared.ts` - shared matrix/state panel helpers for scope windowing, target keys, and highlight colors.
 - `graph-layout.ts` - strategy-based graph layout engine with deterministic probability-aware positioning and fallback radial strategy.
 - `graph-data.ts` - graph render-data adapter for full-graph and top-state-mass subgraph extraction.
 - `graph-interaction-presenter.ts` - pure presenter utilities for graph hover/selection, highlight sets, and selected node/edge edit-model derivation.
@@ -197,7 +203,7 @@
 - `node-label.ts` - shared node-label format helpers (`N` with subscript index) reused by multiple panels.
 - `render-graph.ts` - SVG directed-graph rendering with constrained cubic edge geometry, arc-based self-loops, probability-aware styling, graph-local controls, interaction highlighting, inline on-graph value overlays/editors, subgraph-aware drawing, constrained viewport transform support (Ctrl+wheel and +/- zoom, arrow/right-drag pan with visible-node guarantees), editor-dismiss behavior (`Enter` or off-target click), and edge-aligned clustered flow-particle ("glob") animation.
 - `render-state-panel.ts` - right-side controls for state vectors, auto-step toggle, and Enter-to-commit reset/normalization workflows.
-- `render-matrix-panel.ts` - transition-matrix table rendering as a transposed view (`P^T`) with column normalization controls and displayed-column sum diagnostics.
+- `render-matrix-panel.ts` - transition-matrix table rendering as a transposed view (`P^T`) with column normalization controls and windowed row/column navigation.
 
 ### demos/linalg-markov_chains/frontend/src/lib/
 - `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning with source-node-weighted, intra-glob non-overlapping slot offsets.
@@ -356,6 +362,20 @@
 ### demos/linalg-markov_chains/frontend/src/app/reducer.ts
 - `createInitialState() -> AppState` - initializes default transition matrix/state vectors and validation.
 - `reducer(state, action) -> AppState` - handles all edits, generated-graph apply, graph-inline edge/node edit rules, state-vector Enter-commit reset/normalization actions, deferred matrix normalization tracking, and stepping.
+
+### demos/linalg-markov_chains/frontend/src/app/selectors.ts
+- `selectDisplayedTransitionCell(state, fromIndex, toIndex)` - resolves edge values from draft edits when present, else committed matrix values.
+- `selectDisplayedInitialValue(state, index)` / `selectDisplayedNodeValue(state, index)` - resolve panel-visible values during edit sessions.
+
+### demos/linalg-markov_chains/frontend/src/app/edit-value-input.ts
+- `readNonNegativeDraftInputValue(input, options?)` - shared sanitization/parsing flow for all numeric edit inputs.
+- `formatEditableInputValue(value)` - compact value formatter for editable panel/inline input controls.
+- `shouldUseDestructiveOverwrite(event)` - detects printable key presses that should replace currently selected input content.
+
+### demos/linalg-markov_chains/frontend/src/app/panel-shared.ts
+- `resolveScopedNodeIndices(context)` - computes panel node scope for `full-extracted` vs `visible-only` modes.
+- `alignWindowStartToIncludeIndex(...)` - keeps slider windows aligned to active/selected targets.
+- `colorForPanelBlue(value, alpha)` / `colorForPanelRed(value, alpha)` - shared panel highlight color mapping.
 
 ### demos/linalg-markov_chains/frontend/src/app/graph-layout.ts
 - `createGraphLayoutEngine(options?)` - registers layout strategies and resolves active strategy at render time.

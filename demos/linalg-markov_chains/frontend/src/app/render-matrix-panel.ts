@@ -6,9 +6,22 @@ import type { AppState } from './types';
 import { formatNodeLabelMarkup } from './node-label';
 import {
   formatEditableInputValue,
+  moveCaretToEnd,
   readNonNegativeDraftInputValue,
+  shouldUseDestructiveOverwrite,
 } from './edit-value-input';
-import { colorForStateValue } from '../lib/markov';
+import { createTemplateElement, requireElement } from './dom-helpers';
+import {
+  alignWindowStartToIncludeIndex,
+  clamp01,
+  clampWindowStart,
+  colorForPanelBlue,
+  colorForPanelRed,
+  formatWindowRange,
+  graphTargetKey,
+  resolveScopedNodeIndices,
+  toStyleAttribute,
+} from './panel-shared';
 import type { GraphInteractionTarget } from './graph-interaction-presenter';
 
 const MATRIX_ROW_WINDOW_SIZE = 8;
@@ -1186,92 +1199,6 @@ function buildMatrixMarkup(config: {
 }
 
 /**
- * Purpose: Resolve the node scope used for panel rows/columns.
- * Inputs: Shared panel render context.
- * Returns: Ordered node indices for current scope mode.
- * Side effects: None (pure computation).
- */
-function resolveScopedNodeIndices(context: PanelRenderContext): number[] {
-  const extracted = dedupeAndSortNodeIndices(context.extractedNodeIndices);
-  if (context.scopeMode === 'full-extracted') {
-    return extracted;
-  }
-
-  const visibleSet = new Set(context.viewportVisibleNodeIndices);
-  return extracted.filter((nodeIndex) => visibleSet.has(nodeIndex));
-}
-
-/**
- * Purpose: Keep window start indices within slider bounds.
- * Inputs: Requested start index and current maximum valid start.
- * Returns: A clamped start index.
- * Side effects: None (pure computation).
- */
-function clampWindowStart(start: number, maxStart: number): number {
-  if (!Number.isFinite(start)) return 0;
-  if (start <= 0) return 0;
-  if (start >= maxStart) return maxStart;
-  return Math.floor(start);
-}
-
-/**
- * Purpose: Move a matrix/state window so a target index is included.
- * Inputs: Current window start, target index, and scoped size.
- * Returns: Updated window start index.
- * Side effects: None (pure computation).
- */
-function alignWindowStartToIncludeIndex(
-  windowStart: number,
-  targetIndex: number,
-  scopedSize: number,
-  windowSize: number
-): number {
-  const boundedWindowSize = Math.max(1, Math.min(windowSize, scopedSize));
-  const maxStart = Math.max(0, scopedSize - boundedWindowSize);
-  let next = clampWindowStart(windowStart, maxStart);
-  if (targetIndex < next) {
-    next = targetIndex;
-  } else if (targetIndex >= next + boundedWindowSize) {
-    next = targetIndex - boundedWindowSize + 1;
-  }
-  return clampWindowStart(next, maxStart);
-}
-
-/**
- * Purpose: Build a short window-range label for slider controls.
- * Inputs: Window start, fixed window size, and scoped total count.
- * Returns: Human-readable range summary.
- * Side effects: None (pure computation).
- */
-function formatWindowRange(start: number, windowSize: number, total: number): string {
-  if (total <= 0) {
-    return '0-0 / 0';
-  }
-  const first = start + 1;
-  const last = Math.min(total, start + windowSize);
-  return `${first}-${last} / ${total}`;
-}
-
-/**
- * Purpose: Create deterministic semantic key for a graph interaction target.
- * Inputs: Optional interaction target.
- * Returns: Stable key string or `null`.
- * Side effects: None (pure computation).
- */
-function graphTargetKey(target: GraphInteractionTarget | null): string | null {
-  if (!target) {
-    return null;
-  }
-  if (target.kind === 'node') {
-    return `node:${target.nodeIndex}`;
-  }
-  if (target.kind === 'incoming-node') {
-    return `incoming-node:${target.nodeIndex}`;
-  }
-  return `edge:${target.fromIndex}->${target.toIndex}`;
-}
-
-/**
  * Purpose: Create deterministic edge-key strings.
  * Inputs: Source and destination node indices.
  * Returns: Edge key string.
@@ -1279,16 +1206,6 @@ function graphTargetKey(target: GraphInteractionTarget | null): string | null {
  */
 function edgeKey(fromIndex: number, toIndex: number): string {
   return `${fromIndex}->${toIndex}`;
-}
-
-/**
- * Purpose: Build an inline style attribute string for optional cell highlights.
- * Inputs: Optional CSS color.
- * Returns: Serialized inline style or empty string.
- * Side effects: None (pure computation).
- */
-function toStyleAttribute(color: string | null): string {
-  return color ? `style="background-color: ${color};"` : '';
 }
 
 /**
@@ -1370,145 +1287,4 @@ function colorForMatrixEntryByEdgeWeight(edgeWeight: number): string {
   const normalizedWeight = clamp01(edgeWeight);
   const alpha = 0.12 + normalizedWeight * 0.5;
   return colorForPanelRed(normalizedWeight, alpha);
-}
-
-/**
- * Purpose: Compute blue highlight shades aligned with graph node-color mapping.
- * Inputs: Node probability and alpha.
- * Returns: CSS color string.
- * Side effects: None (pure computation).
- */
-function colorForPanelBlue(value: number, alpha: number): string {
-  return withAlphaChannel(colorForStateValue(value), alpha);
-}
-
-/**
- * Purpose: Compute red highlight shades aligned with graph highlighted-node mapping.
- * Inputs: Node probability and alpha.
- * Returns: CSS color string.
- * Side effects: None (pure computation).
- */
-function colorForPanelRed(value: number, alpha: number): string {
-  const normalized = clamp01(value);
-  const hue = 3;
-  const saturation = 84;
-  const lightness = 93 - normalized * 52;
-  return `hsl(${hue} ${saturation}% ${lightness.toFixed(1)}% / ${alpha.toFixed(3)})`;
-}
-
-/**
- * Purpose: Convert HSL color strings to HSL with alpha while preserving hue/sat/lightness.
- * Inputs: Base HSL color and alpha.
- * Returns: CSS color string with alpha channel.
- * Side effects: None (pure computation).
- */
-function withAlphaChannel(hslColor: string, alpha: number): string {
-  const match = /^hsl\(([^)]+)\)$/.exec(hslColor.trim());
-  if (!match) {
-    return hslColor;
-  }
-  const base = match[1];
-  return `hsl(${base} / ${alpha.toFixed(3)})`;
-}
-
-/**
- * Purpose: Clamp numeric values into [0, 1] for color interpolation.
- * Inputs: Numeric value.
- * Returns: Value clamped to [0, 1].
- * Side effects: None (pure computation).
- */
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value <= 0) return 0;
-  if (value >= 1) return 1;
-  return value;
-}
-
-/**
- * Purpose: Normalize and sort node indices.
- * Inputs: Candidate node index list.
- * Returns: Sorted unique integer indices.
- * Side effects: None (pure computation).
- */
-function dedupeAndSortNodeIndices(indices: readonly number[]): number[] {
-  const unique = new Set<number>();
-  indices.forEach((index) => {
-    if (Number.isInteger(index) && index >= 0) {
-      unique.add(index);
-    }
-  });
-  return [...unique].sort((left, right) => left - right);
-}
-
-/**
- * Purpose: Determine whether a key press should replace the currently focused value.
- * Inputs: Keyboard event from an editable input.
- * Returns: `true` for printable content keys without modifier chords.
- * Side effects: None (pure computation).
- */
-function shouldUseDestructiveOverwrite(event: KeyboardEvent): boolean {
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return false;
-  }
-  return event.key.length === 1;
-}
-
-/**
- * Purpose: Move caret to the end of an input value after focus restoration.
- * Inputs: Target input element.
- * Returns: No value (`void`).
- * Side effects: Adjusts selection/caret when supported by browser/input type.
- */
-function moveCaretToEnd(input: HTMLInputElement): void {
-  const length = input.value.length;
-  try {
-    input.setSelectionRange(length, length);
-    return;
-  } catch {
-    // Number inputs can reject setSelectionRange in some browsers.
-  }
-  try {
-    if (input.type !== 'number') {
-      return;
-    }
-    const value = input.value;
-    input.type = 'text';
-    input.value = value;
-    const textLength = input.value.length;
-    input.setSelectionRange(textLength, textLength);
-    input.type = 'number';
-    input.value = value;
-  } catch {
-    // Ignore browsers that disallow caret control for this input type.
-  }
-}
-
-/**
- * Purpose: Create a single HTMLElement from markup and validate root shape.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
- */
-function createTemplateElement(markup: string): HTMLElement {
-  const template = document.createElement('template');
-  template.innerHTML = markup.trim();
-  const node = template.content.firstElementChild;
-  if (!(node instanceof HTMLElement)) {
-    throw new Error('Expected a single root HTMLElement for matrix panel.');
-  }
-  return node;
-}
-
-/**
- * Purpose: requireElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
- */
-function requireElement<T extends Element>(root: ParentNode, selector: string): T {
-  const element = root.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing required element: ${selector}`);
-  }
-  return element;
 }

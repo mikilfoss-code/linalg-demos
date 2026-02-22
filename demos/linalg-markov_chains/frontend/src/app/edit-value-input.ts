@@ -91,6 +91,43 @@ export function readNonNegativeDraftInputValue(
 }
 
 /**
+ * Determine whether a key press should replace the currently focused draft value.
+ */
+export function shouldUseDestructiveOverwrite(event: KeyboardEvent): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return false;
+  }
+  return event.key.length === 1;
+}
+
+/**
+ * Move caret to the end of an input value after focus restoration.
+ */
+export function moveCaretToEnd(input: HTMLInputElement): void {
+  const length = input.value.length;
+  try {
+    input.setSelectionRange(length, length);
+    return;
+  } catch {
+    // Number-like inputs can reject setSelectionRange in some browsers.
+  }
+  try {
+    if (input.type !== 'number') {
+      return;
+    }
+    const value = input.value;
+    input.type = 'text';
+    input.value = value;
+    const textLength = input.value.length;
+    input.setSelectionRange(textLength, textLength);
+    input.type = 'number';
+    input.value = value;
+  } catch {
+    // Ignore browsers that disallow caret control for this input type.
+  }
+}
+
+/**
  * Purpose: Format editable numeric values without forcing fixed-width decimal padding.
  * Inputs: Numeric value to display in editable inputs.
  * Returns: Input-friendly decimal string.

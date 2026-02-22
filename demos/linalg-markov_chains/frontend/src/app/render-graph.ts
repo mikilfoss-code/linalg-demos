@@ -2,8 +2,11 @@ import type { Action } from './actions';
 import type { AppState } from './types';
 import {
   formatEditableInputValue,
+  moveCaretToEnd,
   readNonNegativeDraftInputValue,
+  shouldUseDestructiveOverwrite,
 } from './edit-value-input';
+import { createTemplateElement, requireElement } from './dom-helpers';
 import { selectDisplayedNodeValue, selectDisplayedTransitionCell } from './selectors';
 import {
   DEFAULT_GRAPH_SUBGRAPH_SELECTION,
@@ -4269,19 +4272,6 @@ function readGraphTarget(eventTarget: EventTarget | null): GraphInteractionTarge
 }
 
 /**
- * Purpose: Determine if a key press should replace the currently focused editor value.
- * Inputs: Keyboard event from a graph inline editor input.
- * Returns: `true` for printable keys without modifier chords.
- * Side effects: None (pure computation).
- */
-function shouldUseDestructiveOverwrite(event: KeyboardEvent): boolean {
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return false;
-  }
-  return event.key.length === 1;
-}
-
-/**
  * Purpose: Create an SVG element in the SVG namespace.
  * Inputs: SVG tag name to instantiate.
  * Returns: A new SVG element typed to `T`.
@@ -4289,64 +4279,4 @@ function shouldUseDestructiveOverwrite(event: KeyboardEvent): boolean {
  */
 function createSvgElement<T extends SVGElement>(tagName: string): T {
   return document.createElementNS('http://www.w3.org/2000/svg', tagName) as T;
-}
-
-/**
- * Purpose: Move caret to the end of an input value after focus restoration.
- * Inputs: Target input element.
- * Returns: No value (`void`).
- * Side effects: Adjusts selection/caret when supported by browser/input type.
- */
-function moveCaretToEnd(input: HTMLInputElement): void {
-  const length = input.value.length;
-  try {
-    input.setSelectionRange(length, length);
-    return;
-  } catch {
-    // Number inputs can reject setSelectionRange in some browsers.
-  }
-  try {
-    if (input.type !== 'number') {
-      return;
-    }
-    const value = input.value;
-    input.type = 'text';
-    input.value = value;
-    const textLength = input.value.length;
-    input.setSelectionRange(textLength, textLength);
-    input.type = 'number';
-    input.value = value;
-  } catch {
-    // Ignore browsers that disallow caret control for this input type.
-  }
-}
-
-/**
- * Purpose: Create a single HTMLElement from markup and validate root shape.
- * Inputs: HTML markup string expected to yield one root element.
- * Returns: The parsed root `HTMLElement`.
- * Side effects: Creates detached DOM nodes and throws when the parsed root is missing/invalid.
- */
-function createTemplateElement(markup: string): HTMLElement {
-  const template = document.createElement('template');
-  template.innerHTML = markup.trim();
-  const node = template.content.firstElementChild;
-  if (!(node instanceof HTMLElement)) {
-    throw new Error('Expected a single root HTMLElement for graph panel.');
-  }
-  return node;
-}
-
-/**
- * Purpose: Query for a required element and fail fast when it is missing.
- * Inputs: Query root and selector.
- * Returns: The matching element cast to type `T`.
- * Side effects: Reads DOM state and throws when the element cannot be found.
- */
-function requireElement<T extends Element>(root: ParentNode, selector: string): T {
-  const element = root.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing required element: ${selector}`);
-  }
-  return element;
 }

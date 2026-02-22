@@ -26,6 +26,12 @@ demos/linalg-markov_chains/frontend/
   src/app/
     types.ts
     actions.ts
+    panel-context.ts
+    selectors.ts
+    edit-session.ts
+    edit-value-input.ts
+    dom-helpers.ts
+    panel-shared.ts
     reducer.ts
     store.ts
     render-graph.ts
@@ -75,6 +81,7 @@ Primary browser-lifetime object:
   - `stepCount`
   - `sourceMode`
   - `validation`
+  - `editSession`
   - `flowAnimation`
   - `nextAnimationId`
   - `hasPendingMatrixEdits`
@@ -97,6 +104,16 @@ Additional long-lived runtime objects in `src/main.ts`:
   - action union contract for store dispatch
 - `src/app/store.ts`
   - small observable store abstraction
+- `src/app/selectors.ts`
+  - shared "displayed value" selectors for committed vs draft edit values
+- `src/app/edit-value-input.ts`
+  - shared input sanitization/parsing and overwrite-mode keyboard/caret helpers
+- `src/app/panel-context.ts`
+  - scope + highlight context shared by matrix/state panel renderers
+- `src/app/panel-shared.ts`
+  - shared windowing/highlight helpers reused by state and matrix panels
+- `src/app/dom-helpers.ts`
+  - shared template/query DOM utilities used by panel controllers
 - `src/app/render-graph.ts`
   - graph rendering, interactions, inline edits, flow animation
 - `src/app/render-state-panel.ts`
@@ -115,8 +132,12 @@ Additional long-lived runtime objects in `src/main.ts`:
 - `createInitialState()` / `reducer(...)` (`src/app/reducer.ts`):
   core state machine.
 - `createStore(...)` (`src/app/store.ts`): state container + subscriptions.
+- `selectDisplayedTransitionCell(...)` / `selectDisplayedInitialValue(...)`
+  (`src/app/selectors.ts`): panel-visible values during edit sessions.
 - `createGraphPanelController(...)` (`src/app/render-graph.ts`):
   graph panel runtime orchestration.
+- `readNonNegativeDraftInputValue(...)` (`src/app/edit-value-input.ts`):
+  shared parser/sanitizer for matrix/state/graph numeric inputs.
 - `buildValidationSummary(...)` (`src/lib/markov.ts`):
   step/validity gate diagnostics.
 - `stepVector(...)` (`src/lib/markov.ts`):
