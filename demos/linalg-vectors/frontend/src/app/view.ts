@@ -588,10 +588,7 @@ export function createAppView(rootSelector = '#app'): AppView {
       shouldRenderPanel: ({ panelId }) => INCLUDE_DEBUG_PANEL || panelId !== 'debug',
     });
   } else {
-    app.innerHTML = createLegacyAppTemplate(
-      ACTIVE_VECTORS_LAYOUT_PROFILE,
-      INCLUDE_DEBUG_PANEL
-    );
+    app.innerHTML = createLegacyAppTemplate(ACTIVE_VECTORS_LAYOUT_PROFILE, INCLUDE_DEBUG_PANEL);
   }
 
   applyLayoutTokens(app, ACTIVE_VECTORS_LAYOUT_PROFILE.tokens);

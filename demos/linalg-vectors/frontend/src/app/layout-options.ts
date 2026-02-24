@@ -23,7 +23,7 @@ export const VECTORS_LAYOUT_MODE: LayoutMode = 'stackedVertical';
 /**
  * Internal toggle controlling whether the debug panel is rendered.
  */
-export const INCLUDE_DEBUG_PANEL = false;
+export const INCLUDE_DEBUG_PANEL = true;
 
 const VECTORS_LAYOUT_SCHEMA: LayoutSchema<VectorsPanelId> = {
   schemaVersion: LAYOUT_SCHEMA_VERSION,

@@ -7,9 +7,11 @@ PROBABILITY_TOLERANCE = 1e-6
 
 try:
     from .api.routes.datasets import router as datasets_router
+    from .api.routes.markov_datasets import router as markov_datasets_router
 except ImportError:
     # Allow `uvicorn main:app` when running from backend/.
     from api.routes.datasets import router as datasets_router
+    from api.routes.markov_datasets import router as markov_datasets_router
 
 def _cors_origins() -> list[str]:
     """
@@ -39,6 +41,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(datasets_router)
+app.include_router(markov_datasets_router)
 
 
 @app.get("/health")

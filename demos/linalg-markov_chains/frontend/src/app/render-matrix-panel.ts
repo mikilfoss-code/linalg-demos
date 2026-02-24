@@ -19,12 +19,13 @@ import {
   colorForPanelRed,
   formatWindowRange,
   graphTargetKey,
+  PANEL_ROW_WINDOW_SIZE,
   resolveScopedNodeIndices,
   toStyleAttribute,
 } from './panel-shared';
 import type { GraphInteractionTarget } from './graph-interaction-presenter';
 
-const MATRIX_ROW_WINDOW_SIZE = 8;
+const MATRIX_ROW_WINDOW_SIZE = PANEL_ROW_WINDOW_SIZE;
 const MATRIX_COL_WINDOW_SIZE = 10;
 const PROBABILITY_EPSILON = 1e-6;
 
@@ -43,6 +44,9 @@ export type MatrixPanelController = {
 export function createMatrixPanelController(options: {
   dispatch: (action: Action) => void;
   onSetScopeMode: (mode: PanelScopeMode) => void;
+  getSharedRowWindowStart: () => number;
+  onSetSharedRowWindowStart: (start: number) => void;
+  onRequestPanelSyncRender: () => void;
 }): MatrixPanelController {
   const element = createTemplateElement(`
     <section class="base-panel markov-panel markov-panel-matrix">
@@ -136,7 +140,7 @@ export function createMatrixPanelController(options: {
     '#matrix-normalize-button'
   );
 
-  let rowWindowStart = 0;
+  let rowWindowStart = readSharedRowWindowStart();
   let colWindowStart = 0;
   let activeRowWindowSize = MATRIX_ROW_WINDOW_SIZE;
   let activeColWindowSize = MATRIX_COL_WINDOW_SIZE;
@@ -431,8 +435,8 @@ export function createMatrixPanelController(options: {
   });
 
   matrixRowSlider.addEventListener('input', () => {
-    rowWindowStart = Number.parseInt(matrixRowSlider.value, 10) || 0;
-    renderFromCache();
+    setSharedRowWindowStart(Number.parseInt(matrixRowSlider.value, 10) || 0);
+    options.onRequestPanelSyncRender();
   });
 
   matrixColSlider.addEventListener('input', () => {
@@ -445,6 +449,7 @@ export function createMatrixPanelController(options: {
     render(state, context) {
       lastRenderedState = state;
       lastRenderedContext = context;
+      rowWindowStart = readSharedRowWindowStart();
 
       const scopedNodeIndices = resolveScopedNodeIndices(context);
       const selectedTargetKey = graphTargetKey(context.selectedTarget);
@@ -469,7 +474,7 @@ export function createMatrixPanelController(options: {
         ? Math.min(MATRIX_COL_WINDOW_SIZE, scopedNodeIndices.length)
         : scopedNodeIndices.length;
       if (!showRowSlider) {
-        rowWindowStart = 0;
+        setSharedRowWindowStart(0);
       }
       if (!showColSlider) {
         colWindowStart = 0;
@@ -477,7 +482,7 @@ export function createMatrixPanelController(options: {
 
       const rowWindowLimit = Math.max(0, scopedNodeIndices.length - activeRowWindowSize);
       const colWindowLimit = Math.max(0, scopedNodeIndices.length - activeColWindowSize);
-      rowWindowStart = clampWindowStart(rowWindowStart, rowWindowLimit);
+      setSharedRowWindowStart(clampWindowStart(rowWindowStart, rowWindowLimit));
       colWindowStart = clampWindowStart(colWindowStart, colWindowLimit);
       matrixRowSliderWrap.hidden = !showRowSlider;
       matrixColSliderWrap.hidden = !showColSlider;
@@ -541,12 +546,13 @@ export function createMatrixPanelController(options: {
     if (!lastRenderedState || !lastRenderedContext) {
       return;
     }
+    rowWindowStart = readSharedRowWindowStart();
     const state = lastRenderedState;
     const context = lastRenderedContext;
     const scopedNodeIndices = resolveScopedNodeIndices(context);
     const rowWindowLimit = Math.max(0, scopedNodeIndices.length - activeRowWindowSize);
     const colWindowLimit = Math.max(0, scopedNodeIndices.length - activeColWindowSize);
-    rowWindowStart = clampWindowStart(rowWindowStart, rowWindowLimit);
+    setSharedRowWindowStart(clampWindowStart(rowWindowStart, rowWindowLimit));
     colWindowStart = clampWindowStart(colWindowStart, colWindowLimit);
     matrixRowSliderWrap.hidden = !showRowSlider;
     matrixColSliderWrap.hidden = !showColSlider;
@@ -737,11 +743,13 @@ export function createMatrixPanelController(options: {
 
     const nextFromIndex = scopedNodeIndices[nextColPosition];
     const nextToIndex = scopedNodeIndices[nextRowPosition];
-    rowWindowStart = alignWindowStartToIncludeIndex(
-      rowWindowStart,
-      nextRowPosition,
-      scopedNodeIndices.length,
-      activeRowWindowSize
+    setSharedRowWindowStart(
+      alignWindowStartToIncludeIndex(
+        rowWindowStart,
+        nextRowPosition,
+        scopedNodeIndices.length,
+        activeRowWindowSize
+      )
     );
     colWindowStart = alignWindowStartToIncludeIndex(
       colWindowStart,
@@ -924,6 +932,32 @@ export function createMatrixPanelController(options: {
     } catch {
       // Ignore browsers that disallow selection control for this input type.
     }
+  }
+
+  /**
+   * Purpose: Read and normalize shared row-window start used across matrix/state panels.
+   * Inputs: No direct parameters.
+   * Returns: Non-negative integer row-window start offset.
+   * Side effects: None (pure computation).
+   */
+  function readSharedRowWindowStart(): number {
+    const value = options.getSharedRowWindowStart();
+    if (!Number.isFinite(value) || value <= 0) {
+      return 0;
+    }
+    return Math.floor(value);
+  }
+
+  /**
+   * Purpose: Persist a row-window start so matrix/state panels stay synchronized.
+   * Inputs: Desired row-window start index.
+   * Returns: No value (`void`).
+   * Side effects: Updates local and shared row-window offsets.
+   */
+  function setSharedRowWindowStart(start: number) {
+    const normalized = Number.isFinite(start) && start > 0 ? Math.floor(start) : 0;
+    rowWindowStart = normalized;
+    options.onSetSharedRowWindowStart(normalized);
   }
 
   /**

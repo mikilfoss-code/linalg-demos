@@ -18,10 +18,67 @@ import {
   createFlowAnimation,
   DEFAULT_NODE_COUNT,
   normalizeProbabilityVector,
+  normalizeTransitionRows,
   resizeMatrixToNodeCount,
   resizeVectorToNodeCount,
   stepVector,
 } from '../lib/markov';
+import type {
+  MarkovDatasetInfo,
+  MarkovDatasetLayoutId,
+  MarkovDatasetPresetId,
+  MarkovDatasetPresetInfo,
+} from './types';
+
+const DEFAULT_DATASET_ID = 'web-google';
+const DEFAULT_DATASET_PRESET_ID: MarkovDatasetPresetId = 'balanced_instructional';
+const DEFAULT_DATASET_LAYOUT_ID: MarkovDatasetLayoutId = 'rank_layered';
+const DATASET_LAYOUT_TARGET_NODE_COUNT: Record<MarkovDatasetLayoutId, number> = {
+  rank_layered: 200,
+  community_force: 180,
+  radial_anchor: 160,
+};
+const DEFAULT_DATASET_TARGET_NODE_COUNT =
+  DATASET_LAYOUT_TARGET_NODE_COUNT[DEFAULT_DATASET_LAYOUT_ID];
+const MAX_DATASET_TARGET_NODE_COUNT = 320;
+
+const DEFAULT_DATASET_CATALOG: MarkovDatasetInfo[] = [
+  {
+    id: DEFAULT_DATASET_ID,
+    label: 'Google web graph (SNAP)',
+    directed: true,
+    nodeCount: 875_713,
+    edgeCount: 5_105_039,
+  },
+];
+
+const DEFAULT_PRESET_CATALOG: MarkovDatasetPresetInfo[] = [
+  {
+    id: 'balanced_instructional',
+    label: 'Balanced instructional',
+    description: 'Mixes hubs, bridges, feeders, and dangling nodes.',
+  },
+  {
+    id: 'community_lens',
+    label: 'Community lens',
+    description: 'Focuses on dense local structure with boundary nodes.',
+  },
+  {
+    id: 'authority_hub_contrast',
+    label: 'Authority-hub contrast',
+    description: 'Highlights high in-degree authorities and link hubs.',
+  },
+  {
+    id: 'dangling_stress',
+    label: 'Dangling stress',
+    description: 'Emphasizes dangling/sink behavior in PageRank dynamics.',
+  },
+  {
+    id: 'random_baseline',
+    label: 'Random baseline',
+    description: 'Unbiased random baseline for comparison.',
+  },
+];
 
 /**
  * Create the initial reducer state for the Markov demo.
@@ -42,6 +99,30 @@ export function createInitialState(): AppState {
     flowAnimation: null,
     nextAnimationId: 1,
     hasPendingMatrixEdits: false,
+    stepCompute: {
+      pending: false,
+      activeRequestId: null,
+      activeMatrixId: null,
+      activeExpectedAnimationId: null,
+      lastCompletedRequestId: null,
+      lastBackend: null,
+      lastDurationMs: null,
+      lastError: null,
+    },
+    dataset: {
+      selectedDatasetId: DEFAULT_DATASET_ID,
+      selectedPresetId: DEFAULT_DATASET_PRESET_ID,
+      selectedLayoutId: DEFAULT_DATASET_LAYOUT_ID,
+      targetNodeCount: DEFAULT_DATASET_TARGET_NODE_COUNT,
+      seed: null,
+      availableDatasets: DEFAULT_DATASET_CATALOG,
+      availablePresets: DEFAULT_PRESET_CATALOG,
+      isCatalogLoading: false,
+      isExtracting: false,
+      activeNodeLabels: [],
+      lastExtractionStats: null,
+      error: null,
+    },
     editSession: createIdleEditSessionState(),
     interaction: {
       hoverTarget: null,
@@ -74,6 +155,211 @@ export function reducer(state: AppState, action: Action): AppState {
         flowAnimation: null,
         hasPendingMatrixEdits: false,
       });
+    }
+
+    case 'SET_SOURCE_MODE': {
+      if (action.mode === state.sourceMode) {
+        return state;
+      }
+      return {
+        ...state,
+        sourceMode: action.mode,
+        dataset: {
+          ...state.dataset,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_SET_SELECTED_DATASET': {
+      if (action.datasetId === state.dataset.selectedDatasetId) {
+        return state;
+      }
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          selectedDatasetId: action.datasetId,
+          activeNodeLabels: [],
+          error: null,
+          lastExtractionStats: null,
+        },
+      };
+    }
+
+    case 'DATASET_SET_SELECTED_PRESET': {
+      if (action.presetId === state.dataset.selectedPresetId) {
+        return state;
+      }
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          selectedPresetId: action.presetId,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_SET_SELECTED_LAYOUT': {
+      if (action.layoutId === state.dataset.selectedLayoutId) {
+        return state;
+      }
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          selectedLayoutId: action.layoutId,
+          targetNodeCount: datasetTargetNodeCountForLayout(action.layoutId),
+        },
+      };
+    }
+
+    case 'DATASET_SET_TARGET_NODE_COUNT': {
+      const nextCount = clampDatasetTargetNodeCount(action.nodeCount);
+      if (nextCount === state.dataset.targetNodeCount) {
+        return state;
+      }
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          targetNodeCount: nextCount,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_SET_SEED': {
+      if (action.seed === state.dataset.seed) {
+        return state;
+      }
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          seed: action.seed,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_CATALOG_REQUEST': {
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          isCatalogLoading: true,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_CATALOG_SUCCESS': {
+      const nextDatasets =
+        action.datasets.length > 0 ? action.datasets : state.dataset.availableDatasets;
+      const nextPresets =
+        action.presets.length > 0 ? action.presets : state.dataset.availablePresets;
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          availableDatasets: nextDatasets,
+          availablePresets: nextPresets,
+          isCatalogLoading: false,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_CATALOG_FAILURE': {
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          isCatalogLoading: false,
+          error: action.error,
+        },
+      };
+    }
+
+    case 'DATASET_EXTRACT_REQUEST': {
+      return {
+        ...state,
+        sourceMode: 'dataset',
+        dataset: {
+          ...state.dataset,
+          isExtracting: true,
+          error: null,
+        },
+      };
+    }
+
+    case 'DATASET_EXTRACT_SUCCESS': {
+      const nodeCount = sanitizeDatasetNodeCount(action.transitionMatrix.length);
+      if (
+        nodeCount <= 0 ||
+        action.initialVector.length !== nodeCount ||
+        action.currentVector.length !== nodeCount ||
+        action.transitionMatrix.some((row) => !Array.isArray(row) || row.length !== nodeCount)
+      ) {
+        return {
+          ...state,
+          dataset: {
+            ...state.dataset,
+            isExtracting: false,
+            error: 'Received invalid extracted graph payload.',
+          },
+        };
+      }
+
+      const transitionMatrix = normalizeTransitionRows(
+        action.transitionMatrix.map((row) => row.map((value) => clampProbability(value)))
+      );
+      const initialVector = normalizeVectorWithDefault(
+        action.initialVector.map((value) => clampProbability(value)),
+        nodeCount
+      );
+      const currentVector = normalizeVectorWithDefault(
+        action.currentVector.map((value) => clampProbability(value)),
+        nodeCount
+      );
+      const nodeLabels = sanitizeDatasetNodeLabels(action.nodeLabels, nodeCount);
+
+      return withValidation({
+        ...state,
+        nodeCount,
+        sourceMode: 'dataset',
+        transitionMatrix,
+        initialVector,
+        currentVector,
+        stepCount: 0,
+        flowAnimation: null,
+        hasPendingMatrixEdits: false,
+        dataset: {
+          ...state.dataset,
+          selectedDatasetId: action.datasetId,
+          isExtracting: false,
+          activeNodeLabels: nodeLabels,
+          error: null,
+          lastExtractionStats: {
+            selectedNodeCount: action.selectedNodeCount,
+            selectedEdgeCount: action.selectedEdgeCount,
+            danglingNodeCount: action.danglingNodeCount,
+          },
+        },
+      });
+    }
+
+    case 'DATASET_EXTRACT_FAILURE': {
+      return {
+        ...state,
+        dataset: {
+          ...state.dataset,
+          isExtracting: false,
+          error: action.error,
+        },
+      };
     }
 
     case 'SET_TRANSITION_CELL': {
@@ -415,7 +701,95 @@ export function reducer(state: AppState, action: Action): AppState {
         flowAnimation,
         nextAnimationId: state.nextAnimationId + 1,
         hasPendingMatrixEdits: false,
+        stepCompute: {
+          ...state.stepCompute,
+          pending: false,
+          activeRequestId: null,
+          activeMatrixId: null,
+          activeExpectedAnimationId: null,
+          lastCompletedRequestId: null,
+          lastBackend: 'sync-fallback',
+          lastDurationMs: null,
+          lastError: null,
+        },
       });
+    }
+
+    case 'STEP_REQUEST': {
+      return {
+        ...state,
+        stepCompute: {
+          ...state.stepCompute,
+          pending: true,
+          activeRequestId: action.requestId,
+          activeMatrixId: action.matrixId,
+          activeExpectedAnimationId: action.expectedNextAnimationId,
+          lastError: null,
+        },
+      };
+    }
+
+    case 'STEP_SUCCESS': {
+      if (
+        state.stepCompute.activeRequestId !== action.requestId ||
+        state.stepCompute.activeExpectedAnimationId !== action.expectedNextAnimationId
+      ) {
+        return state;
+      }
+      if (action.expectedNextAnimationId !== state.nextAnimationId) {
+        return {
+          ...state,
+          stepCompute: {
+            ...state.stepCompute,
+            pending: false,
+            activeRequestId: null,
+            activeMatrixId: null,
+            activeExpectedAnimationId: null,
+            lastCompletedRequestId: action.requestId,
+            lastBackend: action.backend,
+            lastDurationMs: action.durationMs,
+            lastError: null,
+          },
+        };
+      }
+      return withValidation({
+        ...state,
+        transitionMatrix: action.transitionMatrix,
+        currentVector: action.toVector,
+        stepCount: state.stepCount + 1,
+        flowAnimation: action.flowAnimation,
+        nextAnimationId: state.nextAnimationId + 1,
+        hasPendingMatrixEdits: false,
+        stepCompute: {
+          ...state.stepCompute,
+          pending: false,
+          activeRequestId: null,
+          activeMatrixId: null,
+          activeExpectedAnimationId: null,
+          lastCompletedRequestId: action.requestId,
+          lastBackend: action.backend,
+          lastDurationMs: action.durationMs,
+          lastError: null,
+        },
+      });
+    }
+
+    case 'STEP_FAILURE': {
+      if (state.stepCompute.activeRequestId !== action.requestId) {
+        return state;
+      }
+      return {
+        ...state,
+        stepCompute: {
+          ...state.stepCompute,
+          pending: false,
+          activeRequestId: null,
+          activeMatrixId: null,
+          activeExpectedAnimationId: null,
+          lastCompletedRequestId: action.requestId,
+          lastError: action.message,
+        },
+      };
     }
 
     case 'RESET_TO_INITIAL': {
@@ -946,19 +1320,44 @@ function createRandomProbabilityVector(nodeCount: number): number[] {
   return normalizeVectorWithDefault(raw, nodeCount);
 }
 
-/**
- * Purpose: normalizeTransitionRows function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
- */
-function normalizeTransitionRows(transitionMatrix: number[][]): number[][] {
-  return transitionMatrix.map((row, rowIndex) => {
-    const normalized = normalizeProbabilityVector(row);
-    if (vectorSum(normalized) <= Number.EPSILON) {
-      normalized[rowIndex] = 1;
-      return normalizeProbabilityVector(normalized);
+function clampDatasetTargetNodeCount(nodeCount: number): number {
+  if (!Number.isFinite(nodeCount)) {
+    return DEFAULT_DATASET_TARGET_NODE_COUNT;
+  }
+  const rounded = Math.round(nodeCount);
+  if (rounded < 20) {
+    return 20;
+  }
+  if (rounded > MAX_DATASET_TARGET_NODE_COUNT) {
+    return MAX_DATASET_TARGET_NODE_COUNT;
+  }
+  return rounded;
+}
+
+function sanitizeDatasetNodeCount(nodeCount: number): number {
+  if (!Number.isInteger(nodeCount)) {
+    return 0;
+  }
+  if (nodeCount < 2) {
+    return 0;
+  }
+  if (nodeCount > MAX_DATASET_TARGET_NODE_COUNT) {
+    return MAX_DATASET_TARGET_NODE_COUNT;
+  }
+  return nodeCount;
+}
+
+function sanitizeDatasetNodeLabels(labels: string[], nodeCount: number): string[] {
+  const normalized = Array.from({ length: nodeCount }, (_, index) => {
+    const raw = labels[index];
+    if (typeof raw !== 'string') {
+      return '';
     }
-    return normalized;
+    return raw.trim();
   });
+  return normalized;
+}
+
+function datasetTargetNodeCountForLayout(layoutId: MarkovDatasetLayoutId): number {
+  return DATASET_LAYOUT_TARGET_NODE_COUNT[layoutId] ?? DEFAULT_DATASET_TARGET_NODE_COUNT;
 }

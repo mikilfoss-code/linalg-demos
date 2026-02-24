@@ -19,11 +19,12 @@ import {
   colorForPanelRed,
   formatWindowRange,
   graphTargetKey,
+  PANEL_ROW_WINDOW_SIZE,
   resolveScopedNodeIndices,
   toStyleAttribute,
 } from './panel-shared';
 
-const STATE_WINDOW_SIZE = 10;
+const STATE_WINDOW_SIZE = PANEL_ROW_WINDOW_SIZE;
 
 /**
  * Purpose: StatePanelController object contract.
@@ -41,6 +42,9 @@ export type StatePanelController = {
 export function createStatePanelController(options: {
   dispatch: (action: Action) => void;
   onToggleAutoStep: () => void;
+  getSharedRowWindowStart: () => number;
+  onSetSharedRowWindowStart: (start: number) => void;
+  onRequestPanelSyncRender: () => void;
 }): StatePanelController {
   const element = createTemplateElement(`
     <section class="base-panel markov-panel markov-panel-state">
@@ -142,10 +146,13 @@ export function createStatePanelController(options: {
     element,
     '#state-toggle-auto-step-button'
   );
+  const initialActionButtons = Array.from(
+    element.querySelectorAll<HTMLButtonElement>('.markov-initial-button')
+  );
   let isAutoStepRunning = false;
   let highlightOneStepButton = false;
   let oneStepHighlightTimeoutId: number | null = null;
-  let rowWindowStart = 0;
+  let rowWindowStart = readSharedRowWindowStart();
   let activeRowWindowSize = STATE_WINDOW_SIZE;
   let showRowSlider = false;
   let focusedStateInput: HTMLInputElement | null = null;
@@ -157,8 +164,8 @@ export function createStatePanelController(options: {
   updateControlButtonStyles();
 
   stateRowSlider.addEventListener('input', () => {
-    rowWindowStart = Number.parseInt(stateRowSlider.value, 10) || 0;
-    renderFromCache();
+    setSharedRowWindowStart(Number.parseInt(stateRowSlider.value, 10) || 0);
+    options.onRequestPanelSyncRender();
   });
 
   stateVectorBody.addEventListener('input', (event) => {
@@ -410,12 +417,15 @@ export function createStatePanelController(options: {
         options.onToggleAutoStep();
         break;
       case 'set-initial-uniform':
+        if (!isStateEditable()) return;
         options.dispatch({ type: 'SET_INITIAL_UNIFORM' });
         break;
       case 'set-initial-random':
+        if (!isStateEditable()) return;
         options.dispatch({ type: 'SET_INITIAL_RANDOM' });
         break;
       case 'set-initial-current':
+        if (!isStateEditable()) return;
         options.dispatch({ type: 'SET_INITIAL_FROM_CURRENT' });
         break;
       default:
@@ -432,9 +442,14 @@ export function createStatePanelController(options: {
     render(state, context) {
       lastRenderedState = state;
       lastRenderedContext = context;
+      rowWindowStart = readSharedRowWindowStart();
 
       stepCountEl.textContent = String(state.stepCount);
       stepButton.disabled = !state.validation.canStep && !state.hasPendingMatrixEdits;
+      const editable = state.sourceMode === 'manual';
+      initialActionButtons.forEach((button) => {
+        button.disabled = !editable;
+      });
 
       const scopedNodeIndices = resolveScopedNodeIndices(context);
       const selectedTargetKey = graphTargetKey(context.selectedTarget);
@@ -443,20 +458,16 @@ export function createStatePanelController(options: {
       }
       lastAutoScrolledSelectedTargetKey = selectedTargetKey;
 
-      showRowSlider = measureStateRowOverflow({
-        state,
-        context,
-        scopedNodeIndices,
-      });
+      showRowSlider = scopedNodeIndices.length > STATE_WINDOW_SIZE;
       activeRowWindowSize = showRowSlider
         ? Math.min(STATE_WINDOW_SIZE, scopedNodeIndices.length)
         : scopedNodeIndices.length;
       if (!showRowSlider) {
-        rowWindowStart = 0;
+        setSharedRowWindowStart(0);
       }
 
       const rowWindowLimit = Math.max(0, scopedNodeIndices.length - activeRowWindowSize);
-      rowWindowStart = clampWindowStart(rowWindowStart, rowWindowLimit);
+      setSharedRowWindowStart(clampWindowStart(rowWindowStart, rowWindowLimit));
       stateWindowControls.hidden = !showRowSlider;
 
       stateRowSlider.max = String(rowWindowLimit);
@@ -476,6 +487,7 @@ export function createStatePanelController(options: {
         windowSize: activeRowWindowSize,
       });
       applyPendingInitialInputFocus();
+      updateRowSliderHeight();
 
       if (state.validation.errors.length > 0) {
         validationErrorsEl.textContent = state.validation.errors[0];
@@ -484,6 +496,10 @@ export function createStatePanelController(options: {
       }
     },
   };
+
+  function isStateEditable(): boolean {
+    return lastRenderedState?.sourceMode === 'manual';
+  }
 
   /**
    * Purpose: Ensure selected graph targets are visible in the state window.
@@ -516,15 +532,6 @@ export function createStatePanelController(options: {
       return;
     }
 
-    const fromPosition = indexByNode.get(selectedTarget.fromIndex);
-    if (typeof fromPosition === 'number') {
-      rowWindowStart = alignWindowStartToIncludeIndex(
-        rowWindowStart,
-        fromPosition,
-        scopedNodeIndices.length
-      );
-    }
-
     const toPosition = indexByNode.get(selectedTarget.toIndex);
     if (typeof toPosition === 'number') {
       rowWindowStart = alignWindowStartToIncludeIndex(
@@ -533,39 +540,6 @@ export function createStatePanelController(options: {
         scopedNodeIndices.length
       );
     }
-  }
-
-  /**
-   * Purpose: Re-render state rows from cached render inputs.
-   * Inputs: No direct parameters.
-   * Returns: No value (`void`).
-   * Side effects: Updates state panel DOM.
-   */
-  function renderFromCache() {
-    if (!lastRenderedState || !lastRenderedContext) {
-      return;
-    }
-    const scopedNodeIndices = resolveScopedNodeIndices(lastRenderedContext);
-    const rowWindowLimit = Math.max(0, scopedNodeIndices.length - activeRowWindowSize);
-    rowWindowStart = clampWindowStart(rowWindowStart, rowWindowLimit);
-    stateWindowControls.hidden = !showRowSlider;
-    stateRowSlider.max = String(rowWindowLimit);
-    stateRowSlider.value = String(rowWindowStart);
-    stateRowSlider.disabled = !showRowSlider || rowWindowLimit <= 0;
-    stateRowWindowLabel.textContent = formatWindowRange(
-      rowWindowStart,
-      activeRowWindowSize,
-      scopedNodeIndices.length
-    );
-
-    stateVectorBody.innerHTML = buildStateRowsMarkup({
-      state: lastRenderedState,
-      context: lastRenderedContext,
-      scopedNodeIndices,
-      rowWindowStart,
-      windowSize: activeRowWindowSize,
-    });
-    applyPendingInitialInputFocus();
   }
 
   /**
@@ -699,10 +673,8 @@ export function createStatePanelController(options: {
     const nextPosition = config.reverse
       ? (currentPosition - 1 + scopedNodeIndices.length) % scopedNodeIndices.length
       : (currentPosition + 1) % scopedNodeIndices.length;
-    rowWindowStart = alignWindowStartToIncludeIndex(
-      rowWindowStart,
-      nextPosition,
-      scopedNodeIndices.length
+    setSharedRowWindowStart(
+      alignWindowStartToIncludeIndex(rowWindowStart, nextPosition, scopedNodeIndices.length)
     );
     const nextIndex = scopedNodeIndices[nextPosition];
     pendingFocusInitialIndex = {
@@ -881,35 +853,57 @@ export function createStatePanelController(options: {
   }
 
   /**
-   * Purpose: Measure whether full state-vector rows overflow the panel viewport.
-   * Inputs: Current state/context and scoped node indices.
-   * Returns: `true` when a row slider is needed to access rows outside the panel.
-   * Side effects: Temporarily renders full state rows for size measurement.
+   * Purpose: Read and normalize shared row-window start used across matrix/state panels.
+   * Inputs: No direct parameters.
+   * Returns: Non-negative integer row-window start offset.
+   * Side effects: None (pure computation).
    */
-  function measureStateRowOverflow(options: {
-    state: AppState;
-    context: PanelRenderContext;
-    scopedNodeIndices: number[];
-  }): boolean {
-    if (options.scopedNodeIndices.length <= STATE_WINDOW_SIZE) {
-      return false;
+  function readSharedRowWindowStart(): number {
+    const value = options.getSharedRowWindowStart();
+    if (!Number.isFinite(value) || value <= 0) {
+      return 0;
+    }
+    return Math.floor(value);
+  }
+
+  /**
+   * Purpose: Persist a row-window start so matrix/state panels stay synchronized.
+   * Inputs: Desired row-window start index.
+   * Returns: No value (`void`).
+   * Side effects: Updates local and shared row-window offsets.
+   */
+  function setSharedRowWindowStart(start: number) {
+    const normalized = Number.isFinite(start) && start > 0 ? Math.floor(start) : 0;
+    rowWindowStart = normalized;
+    options.onSetSharedRowWindowStart(normalized);
+  }
+
+  /**
+   * Purpose: Keep state row slider container height aligned with the visible state-vector table.
+   * Inputs: No direct parameters.
+   * Returns: No value (`void`).
+   * Side effects: Updates state row-slider inline height styles.
+   */
+  function updateRowSliderHeight() {
+    if (!showRowSlider) {
+      stateWindowControls.style.removeProperty('height');
+      stateRowSlider.style.removeProperty('height');
+      stateRowSlider.style.removeProperty('min-height');
+      return;
     }
 
-    const previousControlsHidden = stateWindowControls.hidden;
-    stateWindowControls.hidden = true;
+    const table = stateTableWrap.querySelector<HTMLTableElement>('table.markov-state-table');
+    if (!table) {
+      stateWindowControls.style.removeProperty('height');
+      stateRowSlider.style.removeProperty('height');
+      stateRowSlider.style.removeProperty('min-height');
+      return;
+    }
 
-    stateVectorBody.innerHTML = buildStateRowsMarkup({
-      state: options.state,
-      context: options.context,
-      scopedNodeIndices: options.scopedNodeIndices,
-      rowWindowStart: 0,
-      windowSize: options.scopedNodeIndices.length,
-    });
-    const hasRenderableViewport = stateTableWrap.clientHeight > 1;
-    const hasOverflow =
-      hasRenderableViewport && stateTableWrap.scrollHeight > stateTableWrap.clientHeight + 2;
-    stateWindowControls.hidden = previousControlsHidden;
-    return hasOverflow;
+    const height = Math.max(0, Math.round(table.getBoundingClientRect().height));
+    stateWindowControls.style.height = `${height}px`;
+    stateRowSlider.style.height = 'auto';
+    stateRowSlider.style.minHeight = '0px';
   }
 
   /**
@@ -967,6 +961,7 @@ function buildStateRowsMarkup(config: {
     config.rowWindowStart,
     config.rowWindowStart + config.windowSize
   );
+  const isEditable = config.state.sourceMode === 'manual';
 
   return displayedNodeIndices
     .map((index) => {
@@ -1008,6 +1003,7 @@ function buildStateRowsMarkup(config: {
               spellcheck="false"
               value="${formatEditableInputValue(initialDisplayValue)}"
               aria-label="Initial probability for state ${index + 1}"
+              ${isEditable ? '' : 'disabled aria-disabled="true"'}
             />
           </td>
           <td

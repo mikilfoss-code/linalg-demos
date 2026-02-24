@@ -20,7 +20,10 @@ backend/
   main.py
   datasets.py
   api/routes/datasets.py
+  api/routes/markov_datasets.py
   services/dataset_sampling.py
+  services/markov_dataset_service.py
+  services/markov_dataset_extraction.py
   services/text_vectorization.py
   tests/
 ```
@@ -39,6 +42,9 @@ backend/
 - Route: `/api/v1/info`; Method: `GET`; Owner module: `backend/main.py`; Purpose: service metadata.
 - Route: `/api/v1/datasets`; Method: `GET`; Owner module: `backend/api/routes/datasets.py`; Purpose: dataset catalog.
 - Route: `/api/v1/datasets/samples`; Method: `GET`; Owner module: `backend/api/routes/datasets.py`; Purpose: dataset sampling.
+- Route: `/api/v1/markov/datasets`; Method: `GET`; Owner module: `backend/api/routes/markov_datasets.py`; Purpose: Markov dataset + preset catalog.
+- Route: `/api/v1/markov/datasets/{dataset_id}/presets`; Method: `GET`; Owner module: `backend/api/routes/markov_datasets.py`; Purpose: per-dataset preset metadata.
+- Route: `/api/v1/markov/datasets/{dataset_id}/extract`; Method: `POST`; Owner module: `backend/api/routes/markov_datasets.py`; Purpose: preset-based subgraph extraction.
 - Route: `/api/v1/matrix/apply`; Method: `POST`; Owner module: `backend/main.py`; Purpose: matrix-vector multiplication.
 - Route: `/api/v1/matrix/eig`; Method: `POST`; Owner module: `backend/main.py`; Purpose: real eigendecomposition.
 - Route: `/api/v1/markov/analyze`; Method: `POST`; Owner module: `backend/main.py`; Purpose: Markov diagnostics.
@@ -100,6 +106,36 @@ backend/
   - `spectralGap: number | null`
   - `eigenvalues: [{real, imag, magnitude}]`
 
+### `GET /api/v1/markov/datasets`
+
+- Response:
+  - `defaultDatasetId: string`
+  - `defaultPresetId: string`
+  - `datasets: [{id, label, directed, nodeCount, edgeCount}]`
+  - `presets: [{id, label, description}]`
+
+### `GET /api/v1/markov/datasets/{dataset_id}/presets`
+
+- Response:
+  - `datasetId: string`
+  - `defaultPresetId: string`
+  - `presets: [{id, label, description}]`
+
+### `POST /api/v1/markov/datasets/{dataset_id}/extract`
+
+- Request:
+  - `presetId?: string`
+  - `targetNodeCount?: int`
+  - `seed?: int`
+  - `danglingHandling?: 'redistribute_uniform' | 'self_loop'`
+- Response:
+  - `datasetId`, `presetId`
+  - `nodeIds: int[]` (original dataset node ids)
+  - `transitionMatrix: number[][]` (row-stochastic induced subgraph matrix)
+  - `initialVector: number[]`
+  - `currentVector: number[]`
+  - `stats: {selectedNodeCount, selectedEdgeCount, danglingNodeCount}`
+
 ## Validation Invariants
 
 ### Matrix/Vector Core
@@ -123,6 +159,16 @@ backend/
 - `dataset` must map to a registered spec in `DATASET_SPECS`.
 - `split` rules are dataset-aware (`train/test` allowed only where supported).
 
+### Markov Dataset Extraction
+
+- `datasetId` must be a registered Markov dataset id (currently `web-google`).
+- `presetId` must be one of the registered extraction presets.
+- `targetNodeCount` is clamped to extraction bounds.
+- Resulting `transitionMatrix` rows are normalized to sum to 1.
+- Dangling nodes are handled according to request policy:
+  - `redistribute_uniform` (default)
+  - `self_loop`
+
 ## Error Mapping Policy
 
 - Input/contract violations: HTTP 400.
@@ -136,6 +182,8 @@ backend/
 - `PROBABILITY_TOLERANCE` (`backend/main.py`): Markov probability tolerance.
 - `MAX_DATASET_SAMPLES` (`backend/api/routes/datasets.py`): upper bound for
   sample query count.
+- `DEFAULT_TARGET_NODE_COUNT`, `MIN_TARGET_NODE_COUNT`, `MAX_TARGET_NODE_COUNT`
+  (`backend/services/markov_dataset_extraction.py`): extraction-size policy.
 - `OPENML_TRAIN_COUNT` (`backend/datasets.py`): split boundary for OpenML
   datasets.
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME`
@@ -160,8 +208,14 @@ backend/
 - `backend/api/routes/datasets.py`
   - request-level query validation
   - route surface for dataset catalog and sampling
+- `backend/api/routes/markov_datasets.py`
+  - route surface for Markov dataset catalog/preset/extraction workflows
 - `backend/services/dataset_sampling.py`
   - service wrapper and exception normalization to HTTP errors
+- `backend/services/markov_dataset_service.py`
+  - extraction service wrapper and HTTP error normalization
+- `backend/services/markov_dataset_extraction.py`
+  - sparse web-graph ingestion/cache and preset-based subgraph extraction
 - `backend/services/text_vectorization.py`
   - token filtering and vectorizer construction policy for 20 Newsgroups
 
@@ -183,6 +237,7 @@ Dev/test (`backend/requirements-dev.in`):
 
 - `backend/tests/test_dataset_sampling_service.py`
 - `backend/tests/test_markov_analysis.py`
+- `backend/tests/test_markov_dataset_extraction.py`
 - `backend/tests/test_text_vectorization.py`
 
 Current tests focus on service error mapping, Markov contract validation, and

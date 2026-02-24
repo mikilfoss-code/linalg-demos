@@ -3,6 +3,11 @@ import type { GraphInteractionTarget } from './graph-interaction-presenter';
 import type { PanelRenderContext } from './panel-context';
 
 /**
+ * Shared row-window size used by matrix/state panels so both show the same node slice.
+ */
+export const PANEL_ROW_WINDOW_SIZE = 8;
+
+/**
  * Clamp numeric values into [0, 1] for color interpolation.
  */
 export function clamp01(value: number): number {

@@ -76,15 +76,80 @@ code {
   gap: var(--base-space-4);
 }
 
+.markov-dataset-controls {
+  display: grid;
+  gap: var(--base-space-2);
+  padding: var(--base-space-3);
+  border: 1px solid rgba(14, 65, 108, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.markov-dataset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--base-space-2);
+}
+
+.markov-select-input,
+.markov-number-mini-input,
+.markov-mini-readout {
+  min-height: 2rem;
+  border-radius: 8px;
+  border: 1px solid rgba(14, 65, 108, 0.24);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--base-ink);
+  padding: 0.2rem 0.45rem;
+}
+
+.markov-select-input {
+  min-width: 12rem;
+}
+
+.markov-number-mini-input {
+  width: 5.5rem;
+}
+
+.markov-mini-readout {
+  min-width: 4.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
 .markov-graph-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--base-space-3);
+  gap: var(--base-space-2);
   padding: var(--base-space-3);
   border: 1px solid rgba(14, 65, 108, 0.16);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.6);
+}
+
+.markov-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--base-space-2);
+}
+
+.markov-control-row--source #toggle-all-values-button {
+  margin-left: auto;
+}
+
+.markov-manual-controls,
+.markov-dataset-selection-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--base-space-2);
+  width: 100%;
+}
+
+.markov-control-row--action {
+  min-height: 2.25rem;
 }
 
 .markov-graph-status {
@@ -481,14 +546,21 @@ code {
 }
 
 .markov-state-window-controls {
-  display: grid;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 0.32rem;
   width: 2.45rem;
   border: 1px solid rgba(14, 65, 108, 0.14);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.5);
   padding: 0.42rem 0.28rem;
+}
+
+.markov-state-window-controls .markov-window-slider--vertical {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
 }
 
 .markov-window-slider {
@@ -498,7 +570,7 @@ code {
 
 .markov-window-slider--vertical {
   writing-mode: vertical-lr;
-  direction: rtl;
+  direction: ltr;
   width: 1.2rem;
   height: 8.4rem;
   min-height: 8.4rem;
@@ -539,8 +611,17 @@ code {
 }
 
 @media (max-width: 860px) {
-  .markov-graph-controls {
-    grid-template-columns: minmax(0, 1fr);
+  .markov-control-row {
+    align-items: stretch;
+  }
+
+  .markov-select-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .markov-control-row--source #toggle-all-values-button {
+    margin-left: 0;
   }
 }
 

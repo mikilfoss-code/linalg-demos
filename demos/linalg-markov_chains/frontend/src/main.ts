@@ -12,12 +12,17 @@ import type { GraphInteractionTarget } from './app/graph-interaction-presenter';
 import type { PanelRenderContext, PanelScopeMode } from './app/panel-context';
 import { createMatrixPanelController } from './app/render-matrix-panel';
 import { createStatePanelController } from './app/render-state-panel';
+import type { Action } from './app/actions';
 import { reducer, createInitialState } from './app/reducer';
+import { createStepRuntime } from './app/step-runtime';
 import { selectEffectiveHighlightTarget } from './app/selectors';
 import { createStore } from './app/store';
 import type { AppState } from './app/types';
 import type { EditOp, EditTarget, PanelId } from './app/edit-session';
 import { createTransitionGraphGenerator } from './lib/transition-graph-generator';
+import { createMarkovDatasetApi } from './lib/dataset-api';
+import { buildValidationSummary, MAX_NODE_COUNT, normalizeTransitionRows } from './lib/markov';
+import { runSparseParitySelfCheck } from './lib/markov-sparse-self-check';
 import { ACTIVE_MARKOV_LAYOUT_PROFILE, type MarkovPanelId } from './layout-options';
 
 const API_BASE = getApiBaseUrl() || '(same origin)';
@@ -37,6 +42,7 @@ root.innerHTML = `
         </p>
       </div>
       <div class="markov-api-pill">API base: <code>${API_BASE}</code></div>
+      <div class="markov-api-pill" id="markov-step-runtime-pill">Step runtime: idle</div>
     </header>
     <section
       class="markov-layout ${ACTIVE_MARKOV_LAYOUT_PROFILE.containerModeClassName}"
@@ -47,14 +53,28 @@ root.innerHTML = `
 
 const shell = requireElement<HTMLDivElement>(root, '.markov-shell');
 applyLayoutTokens(shell, ACTIVE_MARKOV_LAYOUT_PROFILE.tokens);
+const stepRuntimePill = requireElement<HTMLElement>(root, '#markov-step-runtime-pill');
 
 const store = createStore(createInitialState(), reducer);
+const dispatchStore = store.dispatch;
+const dispatchAction = (action: Action) => {
+  if (action.type === 'STEP') {
+    void requestAsyncStep();
+    return;
+  }
+  dispatchStore(action);
+};
 const transitionGraphGenerator = createTransitionGraphGenerator();
+const markovDatasetApi = createMarkovDatasetApi();
+const stepRuntime = createStepRuntime();
 const AUTO_STEP_TICK_MS = 90;
 
 let isAutoStepRunning = false;
 let isRenderingFromStore = false;
+let isStepComputationInFlight = false;
+let stepRequestSequence = 0;
 let panelScopeMode: PanelScopeMode = 'full-extracted';
+let sharedPanelRowWindowStart = 0;
 let graphPanelContext: GraphPanelContextSnapshot = {
   renderedNodeIndices: [],
   viewportVisibleNodeIndices: [],
@@ -88,22 +108,179 @@ function runAutoStepTick() {
   if (snapshot.flowAnimation) {
     return;
   }
+  if (isStepComputationInFlight) {
+    return;
+  }
   if (!snapshot.validation.canStep && !snapshot.hasPendingMatrixEdits) {
     setAutoStepRunning(false);
     return;
   }
 
-  store.dispatch({ type: 'STEP' });
+  dispatchAction({ type: 'STEP' });
+}
+
+async function requestAsyncStep() {
+  if (isStepComputationInFlight) {
+    return;
+  }
+
+  const snapshot = store.getState();
+  if (snapshot.flowAnimation) {
+    return;
+  }
+
+  const stepMatrix = snapshot.hasPendingMatrixEdits
+    ? normalizeTransitionRows(snapshot.transitionMatrix)
+    : snapshot.transitionMatrix;
+  const validation = buildValidationSummary(stepMatrix, snapshot.initialVector, snapshot.currentVector);
+  if (!validation.canStep) {
+    return;
+  }
+
+  const expectedNextAnimationId = snapshot.nextAnimationId;
+  const expectedCurrentVectorRef = snapshot.currentVector;
+  const expectedTransitionMatrixRef = snapshot.transitionMatrix;
+  const expectedPendingMatrixEdits = snapshot.hasPendingMatrixEdits;
+  const requestSequence = stepRequestSequence + 1;
+  stepRequestSequence = requestSequence;
+  isStepComputationInFlight = true;
+  const startedAt = performance.now();
+
+  const request = stepRuntime.beginStep({
+    requestId: requestSequence,
+    transitionMatrix: stepMatrix,
+    currentVector: snapshot.currentVector,
+    animationId: expectedNextAnimationId,
+  });
+  dispatchStore({
+    type: 'STEP_REQUEST',
+    requestId: request.requestId,
+    matrixId: request.matrixId,
+    expectedNextAnimationId,
+  });
+
+  try {
+    const result = await request.promise;
+    const durationMs = performance.now() - startedAt;
+
+    if (requestSequence !== stepRequestSequence) {
+      dispatchStore({
+        type: 'STEP_FAILURE',
+        requestId: request.requestId,
+        message: 'Discarded stale async step result.',
+      });
+      return;
+    }
+
+    const latest = store.getState();
+    const stateStillMatchesRequestedStep =
+      latest.nextAnimationId === expectedNextAnimationId &&
+      latest.currentVector === expectedCurrentVectorRef &&
+      latest.transitionMatrix === expectedTransitionMatrixRef &&
+      latest.hasPendingMatrixEdits === expectedPendingMatrixEdits &&
+      latest.flowAnimation === null;
+    if (!stateStillMatchesRequestedStep) {
+      dispatchStore({
+        type: 'STEP_FAILURE',
+        requestId: request.requestId,
+        message: 'Step state changed while worker was computing.',
+      });
+      return;
+    }
+
+    dispatchStore({
+      type: 'STEP_SUCCESS',
+      requestId: request.requestId,
+      matrixId: request.matrixId,
+      expectedNextAnimationId,
+      transitionMatrix: stepMatrix,
+      toVector: result.toVector,
+      flowAnimation: result.flowAnimation,
+      durationMs,
+      backend: 'worker',
+    });
+  } catch (error) {
+    console.error('Async step computation failed; falling back to synchronous STEP.', error);
+    const latest = store.getState();
+    const stateStillMatchesRequestedStep =
+      latest.nextAnimationId === expectedNextAnimationId &&
+      latest.currentVector === expectedCurrentVectorRef &&
+      latest.transitionMatrix === expectedTransitionMatrixRef &&
+      latest.hasPendingMatrixEdits === expectedPendingMatrixEdits &&
+      latest.flowAnimation === null;
+    if (stateStillMatchesRequestedStep) {
+      dispatchStore({
+        type: 'STEP_FAILURE',
+        requestId: request.requestId,
+        message: error instanceof Error ? error.message : 'Async step computation failed.',
+      });
+      dispatchStore({ type: 'STEP' });
+    }
+  } finally {
+    if (requestSequence === stepRequestSequence) {
+      isStepComputationInFlight = false;
+    }
+  }
+}
+
+async function loadDatasetCatalog() {
+  dispatchAction({ type: 'DATASET_CATALOG_REQUEST' });
+  const result = await markovDatasetApi.getCatalog();
+  if (result.ok) {
+    dispatchAction({
+      type: 'DATASET_CATALOG_SUCCESS',
+      datasets: result.value.datasets,
+      presets: result.value.presets,
+    });
+    return;
+  }
+  dispatchAction({
+    type: 'DATASET_CATALOG_FAILURE',
+    error: result.error.message,
+  });
+}
+
+async function extractDatasetSubgraph() {
+  const snapshot = store.getState();
+  const request = {
+    datasetId: snapshot.dataset.selectedDatasetId,
+    presetId: snapshot.dataset.selectedPresetId,
+    targetNodeCount: snapshot.dataset.targetNodeCount,
+    seed: snapshot.dataset.seed,
+  };
+
+  setAutoStepRunning(false);
+  dispatchAction({ type: 'DATASET_EXTRACT_REQUEST' });
+  const result = await markovDatasetApi.extractSubgraph(request);
+  if (!result.ok) {
+    dispatchAction({
+      type: 'DATASET_EXTRACT_FAILURE',
+      error: result.error.message,
+    });
+    return;
+  }
+  dispatchAction({
+    type: 'DATASET_EXTRACT_SUCCESS',
+    datasetId: result.value.datasetId,
+    transitionMatrix: result.value.transitionMatrix,
+    initialVector: result.value.initialVector,
+    currentVector: result.value.currentVector,
+    nodeLabels: result.value.nodeLabels,
+    selectedNodeCount: result.value.stats.selectedNodeCount,
+    selectedEdgeCount: result.value.stats.selectedEdgeCount,
+    danglingNodeCount: result.value.stats.danglingNodeCount,
+  });
 }
 
 const graphPanel = createGraphPanelController({
-  dispatch: store.dispatch,
+  dispatch: dispatchAction,
   onFlowAnimationComplete(animationId) {
-    store.dispatch({ type: 'CLEAR_FLOW_ANIMATION', animationId });
+    dispatchAction({ type: 'CLEAR_FLOW_ANIMATION', animationId });
     runAutoStepTick();
   },
   onSetNodeCount(nodeCount) {
     setAutoStepRunning(false);
+    store.dispatch({ type: 'SET_SOURCE_MODE', mode: 'manual' });
     store.dispatch({ type: 'SET_NODE_COUNT', nodeCount });
     const updated = store.getState();
     const generated = transitionGraphGenerator.generate({
@@ -118,6 +295,7 @@ const graphPanel = createGraphPanelController({
   },
   onGenerateRandomDirectedGraph() {
     setAutoStepRunning(false);
+    store.dispatch({ type: 'SET_SOURCE_MODE', mode: 'manual' });
     const snapshot = store.getState();
     const generated = transitionGraphGenerator.generate({
       nodeCount: snapshot.nodeCount,
@@ -128,6 +306,40 @@ const graphPanel = createGraphPanelController({
       initialVector: generated.initialVector,
       currentVector: generated.currentVector,
     });
+  },
+  onSetSourceMode(mode) {
+    const snapshot = store.getState();
+    if (mode === 'manual' && snapshot.nodeCount > MAX_NODE_COUNT) {
+      store.dispatch({ type: 'SET_SOURCE_MODE', mode: 'manual' });
+      store.dispatch({ type: 'SET_NODE_COUNT', nodeCount: MAX_NODE_COUNT });
+      const updated = store.getState();
+      const generated = transitionGraphGenerator.generate({
+        nodeCount: updated.nodeCount,
+      });
+      store.dispatch({
+        type: 'APPLY_GENERATED_GRAPH',
+        transitionMatrix: generated.transitionMatrix,
+        initialVector: generated.initialVector,
+        currentVector: generated.currentVector,
+      });
+      return;
+    }
+    store.dispatch({ type: 'SET_SOURCE_MODE', mode });
+  },
+  onSetDatasetPreset(presetId) {
+    store.dispatch({ type: 'DATASET_SET_SELECTED_PRESET', presetId });
+  },
+  onSetDatasetId(datasetId) {
+    store.dispatch({ type: 'DATASET_SET_SELECTED_DATASET', datasetId });
+  },
+  onSetDatasetLayout(layoutId) {
+    store.dispatch({ type: 'DATASET_SET_SELECTED_LAYOUT', layoutId });
+  },
+  onSetDatasetTargetNodeCount(nodeCount) {
+    store.dispatch({ type: 'DATASET_SET_TARGET_NODE_COUNT', nodeCount });
+  },
+  onExtractDatasetSubgraph() {
+    void extractDatasetSubgraph();
   },
   onContextChange(context) {
     graphPanelContext = context;
@@ -142,20 +354,38 @@ const graphPanel = createGraphPanelController({
 });
 
 const statePanel = createStatePanelController({
-  dispatch: store.dispatch,
+  dispatch: dispatchAction,
   onToggleAutoStep() {
     setAutoStepRunning(!isAutoStepRunning);
     runAutoStepTick();
   },
+  getSharedRowWindowStart() {
+    return sharedPanelRowWindowStart;
+  },
+  onSetSharedRowWindowStart(start) {
+    sharedPanelRowWindowStart = Number.isFinite(start) && start > 0 ? Math.floor(start) : 0;
+  },
+  onRequestPanelSyncRender() {
+    renderSidePanels(store.getState());
+  },
 });
 
 const matrixPanel = createMatrixPanelController({
-  dispatch: store.dispatch,
+  dispatch: dispatchAction,
   onSetScopeMode(mode) {
     if (panelScopeMode === mode) {
       return;
     }
     panelScopeMode = mode;
+    renderSidePanels(store.getState());
+  },
+  getSharedRowWindowStart() {
+    return sharedPanelRowWindowStart;
+  },
+  onSetSharedRowWindowStart(start) {
+    sharedPanelRowWindowStart = Number.isFinite(start) && start > 0 ? Math.floor(start) : 0;
+  },
+  onRequestPanelSyncRender() {
     renderSidePanels(store.getState());
   },
 });
@@ -181,7 +411,22 @@ renderLayoutPlan({
 
 store.subscribe(render);
 render();
+void loadDatasetCatalog();
 const autoStepIntervalId = window.setInterval(runAutoStepTick, AUTO_STEP_TICK_MS);
+if (import.meta.env.DEV) {
+  window.setTimeout(() => {
+    const summary = runSparseParitySelfCheck();
+    console.info(
+      '[markov] sparse parity check',
+      {
+        trials: summary.trialCount,
+        maxAbsDiff: summary.maxAbsDiff,
+        denseMs: Number(summary.denseTotalMs.toFixed(3)),
+        sparseMs: Number(summary.sparseTotalMs.toFixed(3)),
+      }
+    );
+  }, 0);
+}
 
 const handleGlobalEditUndoRedo = (event: KeyboardEvent) => {
   const state = store.getState();
@@ -266,6 +511,7 @@ window.addEventListener('beforeunload', () => {
   window.clearInterval(autoStepIntervalId);
   window.removeEventListener('keydown', handleGlobalEditUndoRedo, true);
   setAutoStepRunning(false);
+  stepRuntime.dispose();
   graphPanel.destroy();
 });
 
@@ -281,6 +527,7 @@ function render() {
   try {
     graphPanel.render(state);
     renderSidePanels(state);
+    updateStepRuntimePill(state);
   } finally {
     isRenderingFromStore = false;
   }
@@ -623,4 +870,37 @@ function resolvePanelForEditTarget(target: EditTarget, panelHint: PanelId | null
     return panelHint;
   }
   return 'matrix';
+}
+
+function updateStepRuntimePill(state: AppState) {
+  if (state.stepCompute.pending) {
+    const requestLabel =
+      state.stepCompute.activeRequestId !== null ? `#${state.stepCompute.activeRequestId}` : '?';
+    stepRuntimePill.textContent = `Step runtime: computing ${requestLabel}...`;
+    return;
+  }
+
+  if (state.stepCompute.lastError) {
+    const requestLabel =
+      state.stepCompute.lastCompletedRequestId !== null
+        ? `#${state.stepCompute.lastCompletedRequestId}`
+        : '?';
+    stepRuntimePill.textContent = `Step runtime: failed ${requestLabel} (${state.stepCompute.lastError})`;
+    return;
+  }
+
+  if (state.stepCompute.lastBackend) {
+    const requestLabel =
+      state.stepCompute.lastCompletedRequestId !== null
+        ? `#${state.stepCompute.lastCompletedRequestId}`
+        : '?';
+    const durationLabel =
+      state.stepCompute.lastDurationMs !== null
+        ? `${state.stepCompute.lastDurationMs.toFixed(1)}ms`
+        : 'n/a';
+    stepRuntimePill.textContent = `Step runtime: ${state.stepCompute.lastBackend} ${requestLabel} (${durationLabel})`;
+    return;
+  }
+
+  stepRuntimePill.textContent = 'Step runtime: idle';
 }

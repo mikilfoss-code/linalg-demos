@@ -157,6 +157,7 @@ function buildSelectedEdgeEditor(
   appState: AppState,
   selectedTarget: GraphInteractionTarget | null
 ): GraphEdgeEditorModel | null {
+  if (appState.sourceMode !== 'manual') return null;
   if (!selectedTarget || selectedTarget.kind !== 'edge') return null;
   const probability =
     appState.transitionMatrix[selectedTarget.fromIndex]?.[selectedTarget.toIndex] ?? 0;
@@ -177,6 +178,7 @@ function buildSelectedNodeEditor(
   appState: AppState,
   selectedTarget: GraphInteractionTarget | null
 ): GraphNodeEditorModel | null {
+  if (appState.sourceMode !== 'manual') return null;
   if (
     !selectedTarget ||
     (selectedTarget.kind !== 'node' && selectedTarget.kind !== 'incoming-node')

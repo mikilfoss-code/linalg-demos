@@ -200,6 +200,20 @@ export function normalizeProbabilityVector(vector: number[]): number[] {
 }
 
 /**
+ * Normalize every transition row and enforce a deterministic self-loop fallback for zero rows.
+ */
+export function normalizeTransitionRows(transitionMatrix: number[][]): number[][] {
+  return transitionMatrix.map((row, rowIndex) => {
+    const normalized = normalizeProbabilityVector(row);
+    if (sumVector(normalized) <= VALUE_EPSILON) {
+      normalized[rowIndex] = 1;
+      return normalizeProbabilityVector(normalized);
+    }
+    return normalized;
+  });
+}
+
+/**
  * Multiply a row-vector state by a row-stochastic transition matrix.
  */
 export function stepVector(currentVector: number[], transitionMatrix: number[][]): number[] {

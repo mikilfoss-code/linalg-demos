@@ -16,7 +16,7 @@
 
 - Consumer: `demos/linalg-vectors/frontend`. Depends on: `GET /api/v1/datasets`, `GET /api/v1/datasets/samples`. Notes: Primary data-loading path for vectors UX.
 - Consumer: `demos/linalg-matrix_transforms/frontend`. Depends on: `GET /health`. Notes: Button-driven connectivity check in current UX.
-- Consumer: `demos/linalg-markov_chains/frontend`. Depends on: no backend route calls in current runtime. Notes: API base is displayed; simulation is local.
+- Consumer: `demos/linalg-markov_chains/frontend`. Depends on: `GET /api/v1/markov/datasets`, `POST /api/v1/markov/datasets/{datasetId}/extract`. Notes: Manual/random simulation is local; dataset mode calls backend extraction APIs.
 - Consumer: all demos. Depends on: `demos/shared/src/lib/layout-*`, `demos/shared/src/ui/*`. Notes: Shared layout/runtime/tokens infrastructure.
 
 ## Repo Layout (By Location)
@@ -45,16 +45,20 @@
 
 ### backend/api/
 - `backend/api/routes/datasets.py` - dataset catalog + sampling HTTP routes.
+- `backend/api/routes/markov_datasets.py` - Markov dataset catalog/preset/extraction HTTP routes.
 - `backend/api/routes/__init__.py` - route package marker.
 - `backend/api/__init__.py` - API package marker.
 
 ### backend/services/
 - `backend/services/dataset_sampling.py` - service layer for dataset route responses and HTTP error mapping.
+- `backend/services/markov_dataset_service.py` - HTTP-friendly service wrapper for Markov dataset extraction workflows.
+- `backend/services/markov_dataset_extraction.py` - cached web-graph ingestion and preset-based subgraph extraction.
 - `backend/services/text_vectorization.py` - 20 Newsgroups tokenizer/filter/vectorizer policy.
 
 ### backend/tests/
 - `backend/tests/test_dataset_sampling_service.py` - service behavior tests.
 - `backend/tests/test_markov_analysis.py` - Markov analysis endpoint validation and error-path tests.
+- `backend/tests/test_markov_dataset_extraction.py` - Markov dataset extraction strategy and row-stochastic output tests.
 - `backend/tests/test_text_vectorization.py` - token filtering/vectorization rule tests.
 
 ### demos/shared/
@@ -89,11 +93,11 @@
 ### demos/linalg-markov_chains/frontend/
 - `demos/linalg-markov_chains/frontend/package.json` - Markov demo scripts and engine constraints.
 - `demos/linalg-markov_chains/frontend/index.html` - Vite HTML entry.
-- `demos/linalg-markov_chains/frontend/src/main.ts` - composition root, shared layout mounting, store wiring, auto-step orchestration, and panel-to-graph highlight wiring.
+- `demos/linalg-markov_chains/frontend/src/main.ts` - composition root, shared layout mounting, store wiring, async worker-backed step orchestration, and panel-to-graph highlight wiring.
 - `demos/linalg-markov_chains/frontend/src/layout-options.ts` - Markov demo schema-driven panel layout profile.
 - `demos/linalg-markov_chains/frontend/src/style.css` - Markov demo styles for graph, controls, matrix table, and inline graph editors.
 - `demos/linalg-markov_chains/frontend/src/app/` - reducer/store and panel renderers (graph/state/matrix).
-- `demos/linalg-markov_chains/frontend/src/lib/` - Markov math/validation helpers and graph-generation strategies.
+- `demos/linalg-markov_chains/frontend/src/lib/` - Markov math/validation helpers, sparse-step diagnostics, and graph-generation strategies.
 
 ### .agent/
 - `.agent/rules/` - repo-specific agent operating rules.
@@ -111,6 +115,9 @@
   - `GET /api/v1/info`
   - `GET /api/v1/datasets`
   - `GET /api/v1/datasets/samples`
+  - `GET /api/v1/markov/datasets`
+  - `GET /api/v1/markov/datasets/{datasetId}/presets`
+  - `POST /api/v1/markov/datasets/{datasetId}/extract`
   - `POST /api/v1/matrix/apply`
   - `POST /api/v1/matrix/eig`
   - `POST /api/v1/markov/analyze`
@@ -129,14 +136,17 @@
 ## Key Modules And Responsibilities (By Location)
 
 ### backend/
-- `backend/main.py` - app configuration, CORS policy, health/info, matrix APIs, and Markov analysis endpoint.
+- `backend/main.py` - app configuration, CORS policy, health/info, matrix APIs, Markov analysis endpoint, and Markov dataset extraction router wiring.
 - `backend/datasets.py` - dataset loading/caching and modality-specific sample shaping.
 
 ### backend/api/routes/
 - `backend/api/routes/datasets.py` - request validation and dataset service delegation.
+- `backend/api/routes/markov_datasets.py` - Markov dataset extraction route surface and request payload parsing.
 
 ### backend/services/
 - `backend/services/dataset_sampling.py` - dataset route service contract and exception-to-HTTP normalization.
+- `backend/services/markov_dataset_service.py` - route-facing extraction orchestration and HTTP exception mapping.
+- `backend/services/markov_dataset_extraction.py` - web-Google loader/cache, extraction strategy registry, and induced-transition-matrix builder.
 - `backend/services/text_vectorization.py` - token cleaning/filtering policy for text vectors.
 
 ### demos/shared/src/lib/
@@ -181,14 +191,14 @@
 - `lib/api.ts` - matrix demo API exports.
 
 ### demos/linalg-markov_chains/frontend/src/
-- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, node-count random-graph regeneration, graph auto-step run/pause loop, pending matrix auto-normalization on cross-panel click, panel-input hover/focus edge/node highlighting, and transposed-matrix panel edge-target mapping.
+- `main.ts` - Markov demo bootstrap, shared layout-plan rendering, reducer store setup, node-count random-graph regeneration, dataset extraction API orchestration, worker-backed async step lifecycle (`STEP_REQUEST/SUCCESS/FAILURE`) with runtime timing pill, graph auto-step run/pause loop, pending matrix auto-normalization on cross-panel click, panel-input hover/focus edge/node highlighting, and transposed-matrix panel edge-target mapping.
 - `layout-options.ts` - internal layout mode selection for top graph/state row and bottom matrix panel.
 - `style.css` - Markov graph visuals, flow particles, state controls, and matrix editor styling.
 
 ### demos/linalg-markov_chains/frontend/src/app/
-- `types.ts` - canonical app state contracts for matrix/vector editing, flow animation, and pending-matrix-normalization tracking.
-- `actions.ts` - reducer action union for matrix/vector edits, graph-inline node/edge edits, state-vector Enter-commit reset/normalization actions, and stepping.
-- `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, pre-step pending-matrix row normalization, and flow-animation metadata generation on each step.
+- `types.ts` - canonical app state contracts for matrix/vector editing, flow animation, pending-matrix-normalization tracking, and async step-compute lifecycle telemetry.
+- `actions.ts` - reducer action union for matrix/vector edits, graph-inline node/edge edits, state-vector Enter-commit reset/normalization actions, and async step lifecycle actions.
+- `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, pre-step pending-matrix row normalization, async step lifecycle state updates, and flow-animation metadata generation on each step.
 - `store.ts` - minimal reducer-driven store with subscribe/dispatch APIs.
 - `edit-session.ts` - edit-target types and edit mode/session state contracts shared across panels.
 - `edit-value-input.ts` - shared numeric draft parsing/formatting plus overwrite-mode keyboard/caret helpers.
@@ -204,16 +214,23 @@
 - `render-graph.ts` - SVG directed-graph rendering with constrained cubic edge geometry, arc-based self-loops, probability-aware styling, graph-local controls, interaction highlighting, inline on-graph value overlays/editors, subgraph-aware drawing, constrained viewport transform support (Ctrl+wheel and +/- zoom, arrow/right-drag pan with visible-node guarantees), editor-dismiss behavior (`Enter` or off-target click), and edge-aligned clustered flow-particle ("glob") animation.
 - `render-state-panel.ts` - right-side controls for state vectors, auto-step toggle, and Enter-to-commit reset/normalization workflows.
 - `render-matrix-panel.ts` - transition-matrix table rendering as a transposed view (`P^T`) with column normalization controls and windowed row/column navigation.
+- `step-runtime.ts` - worker orchestration API (`beginStep`, `beginStepBatch`) and stale-request-safe promise routing.
+- `step-runtime-messages.ts` - typed worker protocol for matrix-cache updates, single-step, and batch-step requests.
+- `workers/markov-step.worker.ts` - worker-side cached sparse matrix stepping and unchanged flow-animation payload generation.
 
 ### demos/linalg-markov_chains/frontend/src/lib/
-- `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, and flow-particle planning with source-node-weighted, intra-glob non-overlapping slot offsets.
+- `markov.ts` - Markov math helpers (step, normalization, resize), validation diagnostics, shared row normalization, and flow-particle planning with source-node-weighted, intra-glob non-overlapping slot offsets.
+- `markov-sparse.ts` - CSR sparse matrix build + sparse row-vector stepping (`O(E)` path used by worker runtime).
+- `markov-sparse-self-check.ts` - deterministic development-only sparse parity/performance check harness.
 - `transition-graph-generator.ts` - strategy-based transition graph generators (random directed/no-self default) returning matrix + state vectors.
+- `dataset-api.ts` - Markov dataset catalog/extraction API wrapper with runtime contract validation.
 
 ## Global Parameters / Constants
 
 - `CORS_ALLOW_ORIGINS` - backend CORS allowlist.
 - `OPENML_TRAIN_COUNT` (`backend/datasets.py`) - train/test split boundary for OpenML datasets.
 - `MAX_DATASET_SAMPLES` (`backend/api/routes/datasets.py`) - dataset sample query upper bound.
+- `DEFAULT_TARGET_NODE_COUNT`, `MIN_TARGET_NODE_COUNT`, `MAX_TARGET_NODE_COUNT` (`backend/services/markov_dataset_extraction.py`) - Markov dataset extraction node-count bounds/default.
 - `VITE_API_BASE_URL` - frontend API base URL override.
 - `VECTOR_WINDOW` (`demos/linalg-vectors/frontend/src/app/constants.ts`) - visible vector component window size.
 - `LAYOUT_SCHEMA_VERSION` (`demos/shared/src/lib/layout-schema.ts`) - active schema version used by layout config validation/resolution.
@@ -222,7 +239,7 @@
 - `USE_RECURSIVE_LAYOUT_ENGINE` (`demos/linalg-vectors/frontend/src/app/view.ts`) - temporary vectors internal migration toggle between recursive and legacy layout rendering paths.
 - `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
-- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - node-count bounds/default used by the Markov editor (currently supports up to 10 states).
+- `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - manual/random editor node-count bounds/default (dataset extraction mode can load larger subgraphs).
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
 
 ## Global Objects / Shared State
@@ -251,9 +268,25 @@
 - `datasets() -> dict` - returns dataset catalog response.
 - `dataset_samples(...) -> dict` - validates query params and delegates to service.
 
+### backend/api/routes/markov_datasets.py
+- `markov_datasets() -> dict` - returns Markov dataset + preset catalog metadata.
+- `markov_dataset_presets(dataset_id) -> dict` - returns available extraction presets for one dataset id.
+- `markov_dataset_extract(dataset_id, payload) -> dict` - validates request payload and delegates extraction to the service layer.
+
 ### backend/services/dataset_sampling.py
 - `list_dataset_catalog() -> dict` - builds frontend dataset metadata payload.
 - `sample_dataset_response(...) -> dict` - wraps dataset sampling with HTTP-friendly error mapping.
+
+### backend/services/markov_dataset_service.py
+- `markov_dataset_catalog_response() -> dict` - exposes catalog metadata for Markov extraction controls.
+- `markov_dataset_presets_response(dataset_id) -> dict` - returns preset metadata with HTTP-friendly error mapping.
+- `markov_extract_response(...) -> dict` - runs extraction and serializes response payloads for frontend use.
+
+### backend/services/markov_dataset_extraction.py
+- `list_markov_dataset_catalog() -> dict` - returns dataset + preset metadata and defaults.
+- `extract_markov_subgraph(options, graph_override?) -> MarkovExtractResult` - extracts a preset subgraph and builds row-stochastic transition data.
+- `_load_web_google_graph(path) -> DirectedGraphStore` - parses and caches sparse adjacency structures from the SNAP edge list.
+- `_build_induced_transition_matrix(...)` - builds normalized row-stochastic transitions with configurable dangling handling.
 
 ### backend/services/text_vectorization.py
 - `strip_email_addresses(text) -> str` - removes emails and normalizes case.
@@ -358,6 +391,7 @@
 
 ### demos/linalg-markov_chains/frontend/src/main.ts
 - `render()` - fan-out render pass for graph/state/matrix panels from canonical store state.
+- `loadDatasetCatalog()` / `extractDatasetSubgraph()` - async Markov dataset mode API orchestration and reducer dispatch bridge.
 
 ### demos/linalg-markov_chains/frontend/src/app/reducer.ts
 - `createInitialState() -> AppState` - initializes default transition matrix/state vectors and validation.
@@ -398,6 +432,10 @@
 
 ### demos/linalg-markov_chains/frontend/src/lib/transition-graph-generator.ts
 - `createTransitionGraphGenerator(options?)` - registers generation strategies and produces transition matrices/state vectors for requested node counts.
+
+### demos/linalg-markov_chains/frontend/src/lib/dataset-api.ts
+- `createMarkovDatasetApi()` - creates typed API methods for Markov dataset catalog and subgraph extraction endpoints.
+- `validateCatalogResponse(...)` / `validateExtractResponse(...)` - runtime guards for dataset-mode response contracts.
 
 ## Theme And Style Tokens
 

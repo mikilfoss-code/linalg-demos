@@ -12,9 +12,10 @@ Purpose:
 - deterministic stepping and auto-step animation loop
 - in-graph edge/node editing and cross-panel highlighting
 - flow-particle visualization of state transitions
+- dataset mode for SNAP web-Google extraction presets (~200-node instructional subgraphs)
 
-Current implementation is client-side simulation; it does not call
-`POST /api/v1/markov/analyze` at runtime.
+Current implementation is primarily client-side simulation, with optional
+dataset-mode calls to backend extraction endpoints.
 
 ## Demo Structure
 
@@ -37,11 +38,18 @@ demos/linalg-markov_chains/frontend/
     render-graph.ts
     render-state-panel.ts
     render-matrix-panel.ts
+    step-runtime.ts
+    step-runtime-messages.ts
+    workers/
+      markov-step.worker.ts
     graph-*.ts
     node-label.ts
   src/lib/
     markov.ts
+    markov-sparse.ts
+    markov-sparse-self-check.ts
     transition-graph-generator.ts
+    dataset-api.ts
 ```
 
 ## Entrypoints
@@ -80,11 +88,13 @@ Primary browser-lifetime object:
   - `currentVector`
   - `stepCount`
   - `sourceMode`
+  - `dataset` (selected preset/layout/target/seed + extraction status)
   - `validation`
   - `editSession`
   - `flowAnimation`
   - `nextAnimationId`
   - `hasPendingMatrixEdits`
+  - `stepCompute` (worker-backed step lifecycle + timing telemetry)
 
 Additional long-lived runtime objects in `src/main.ts`:
 
@@ -115,7 +125,7 @@ Additional long-lived runtime objects in `src/main.ts`:
 - `src/app/dom-helpers.ts`
   - shared template/query DOM utilities used by panel controllers
 - `src/app/render-graph.ts`
-  - graph rendering, interactions, inline edits, flow animation
+  - graph rendering, interactions, inline edits, dataset controls, flow animation
 - `src/app/render-state-panel.ts`
   - state vector controls and auto-step controls
 - `src/app/render-matrix-panel.ts`
@@ -124,8 +134,16 @@ Additional long-lived runtime objects in `src/main.ts`:
   - hover/focus/selection highlight models
 - `src/lib/markov.ts`
   - probability math, validation, flow animation planning
+- `src/lib/markov-sparse.ts`
+  - sparse CSR build + sparse step multiply (`O(E)` stepping path)
+- `src/app/workers/markov-step.worker.ts`
+  - worker-side sparse stepping + flow-animation payload generation
+- `src/app/step-runtime.ts`
+  - main-thread worker orchestration and request lifecycle wiring
 - `src/lib/transition-graph-generator.ts`
   - pluggable random graph generation strategies
+- `src/lib/dataset-api.ts`
+  - typed API wrapper for Markov dataset catalog and extraction endpoints
 
 ## Key Functions And Methods
 
@@ -136,16 +154,32 @@ Additional long-lived runtime objects in `src/main.ts`:
   (`src/app/selectors.ts`): panel-visible values during edit sessions.
 - `createGraphPanelController(...)` (`src/app/render-graph.ts`):
   graph panel runtime orchestration.
+- `loadDatasetCatalog()` / `extractDatasetSubgraph()` (`src/main.ts`):
+  async dataset-mode API orchestration.
 - `readNonNegativeDraftInputValue(...)` (`src/app/edit-value-input.ts`):
   shared parser/sanitizer for matrix/state/graph numeric inputs.
 - `buildValidationSummary(...)` (`src/lib/markov.ts`):
   step/validity gate diagnostics.
 - `stepVector(...)` (`src/lib/markov.ts`):
   row-vector Markov update.
+- `stepVectorSparse(...)` (`src/lib/markov-sparse.ts`):
+  sparse row-vector update used by worker runtime.
 - `createFlowAnimation(...)` (`src/lib/markov.ts`):
   transition particles and timing plan.
 - `createTransitionGraphGenerator(...)` (`src/lib/transition-graph-generator.ts`):
   strategy registry and generation API.
+
+## Step Runtime (Option 2)
+
+- UI `STEP` actions are intercepted in `src/main.ts` and computed asynchronously via
+  `src/app/step-runtime.ts`.
+- The worker caches normalized transition matrices and computes sparse steps using CSR in
+  `src/app/workers/markov-step.worker.ts` + `src/lib/markov-sparse.ts`.
+- Animation quality is preserved because flow payloads are still generated with the same
+  `createFlowAnimation(...)` logic/parameters (now executed in worker).
+- The header debug pill (`#markov-step-runtime-pill`) reports request lifecycle and compute latency.
+- Dev-mode parity/performance self-check runs once at startup via
+  `src/lib/markov-sparse-self-check.ts`.
 
 ## Theme And Style Tokens
 
@@ -168,8 +202,9 @@ markov-specific class-level styling for graph, matrix, and control elements.
 
 ### Current runtime API usage
 
-- No backend endpoint calls for simulation logic.
-- UI displays resolved API base URL for reference.
+- `GET /api/v1/markov/datasets` for dataset + preset catalog metadata.
+- `POST /api/v1/markov/datasets/{datasetId}/extract` for extracted subgraph payloads.
+- Manual/random simulation remains local (no required backend calls).
 
 ### Related backend contract (not currently invoked by this UI)
 

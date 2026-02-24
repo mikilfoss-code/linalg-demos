@@ -27,7 +27,7 @@ export type GraphRenderData = {
 
 export const DEFAULT_GRAPH_SUBGRAPH_SELECTION: GraphSubgraphSelection = {
   mode: 'all',
-  maxNodes: 120,
+  maxNodes: 240,
   minEdgeProbability: 0,
 };
 

@@ -92,7 +92,9 @@ function createRequestJson(baseUrl: string) {
 
     const bodyText = await res.text();
     if (!res.ok) {
-      return fail(buildError(`HTTP ${res.status} for ${url}`, res.status, bodyText));
+      return fail(
+        buildError(describeHttpError(res.status, url, bodyText), res.status, bodyText)
+      );
     }
 
     let data: any = null;
@@ -117,6 +119,21 @@ function createRequestJson(baseUrl: string) {
       return fail(buildError(`Invalid response from ${url}: ${message}`, res.status, bodyText));
     }
   };
+}
+
+function describeHttpError(status: number, url: string, bodyText: string): string {
+  if (!bodyText) {
+    return `HTTP ${status} for ${url}`;
+  }
+  try {
+    const parsed = JSON.parse(bodyText) as { detail?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail.trim().length > 0) {
+      return `HTTP ${status} for ${url}: ${parsed.detail}`;
+    }
+  } catch {
+    // Fall through to generic message when response is not JSON.
+  }
+  return `HTTP ${status} for ${url}`;
 }
 
 /**

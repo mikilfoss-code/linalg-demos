@@ -1,10 +1,16 @@
 import { clampProbability } from '../lib/markov';
 
 export const DEFAULT_GRAPH_LAYOUT_STRATEGY_ID = 'probability-deterministic';
+export const RANK_LAYERED_GRAPH_LAYOUT_STRATEGY_ID = 'rank-layered';
+export const COMMUNITY_FORCE_GRAPH_LAYOUT_STRATEGY_ID = 'community-force';
+export const RADIAL_ANCHOR_GRAPH_LAYOUT_STRATEGY_ID = 'radial-anchor';
 
 const RADIAL_FALLBACK_STRATEGY_ID = 'radial-fallback';
 const LAYOUT_EPSILON = 1e-6;
 const GRAPH_LAYOUT_CENTER_Y_RATIO = 0.43;
+const DATASET_DEFAULT_MAX_VISIBLE_NODES = 12;
+const DATASET_SPREAD_MAX_SCALE = 64;
+const DATASET_SPREAD_BINARY_SEARCH_STEPS = 18;
 
 /**
  * Purpose: Define a 2D coordinate used for graph geometry and viewport math.
@@ -65,7 +71,13 @@ export function createGraphLayoutEngine(options?: {
   customStrategies?: GraphLayoutStrategy[];
 }): GraphLayoutEngine {
   const strategies = new Map<string, GraphLayoutStrategy>();
-  const builtin = [createProbabilityDeterministicStrategy(), createRadialFallbackStrategy()];
+  const builtin = [
+    createProbabilityDeterministicStrategy(),
+    createRankLayeredStrategy(),
+    createCommunityForceStrategy(),
+    createRadialAnchorStrategy(),
+    createRadialFallbackStrategy(),
+  ];
 
   builtin.forEach((strategy) => strategies.set(strategy.id, strategy));
   options?.customStrategies?.forEach((strategy) => strategies.set(strategy.id, strategy));
@@ -153,6 +165,92 @@ function createProbabilityDeterministicStrategy(): GraphLayoutStrategy {
         y: position.y,
         angle: computeLoopAngle(index, centerNodeIndex, positions, input.transitionMatrix, center),
       }));
+    },
+  };
+}
+
+/**
+ * Build a layered layout useful for larger instructional graph views.
+ */
+function createRankLayeredStrategy(): GraphLayoutStrategy {
+  return {
+    id: RANK_LAYERED_GRAPH_LAYOUT_STRATEGY_ID,
+    computeLayout(input) {
+      if (input.nodeCount <= 0) {
+        return [];
+      }
+      const centerX = input.width / 2;
+      const minX = input.nodeRadius + 16;
+      const maxX = input.width - input.nodeRadius - 16;
+      const minY = input.nodeRadius + 20;
+      const maxY = input.height - input.nodeRadius - 20;
+      const scoreByIndex = Array.from({ length: input.nodeCount }, (_, index) => {
+        let score = 0;
+        for (let other = 0; other < input.nodeCount; other += 1) {
+          score += clampProbability(input.transitionMatrix[index]?.[other] ?? 0);
+          score += clampProbability(input.transitionMatrix[other]?.[index] ?? 0);
+        }
+        return score;
+      });
+
+      const rankedIndices = Array.from({ length: input.nodeCount }, (_, index) => index).sort(
+        (left, right) => {
+          if (scoreByIndex[right] !== scoreByIndex[left]) {
+            return scoreByIndex[right] - scoreByIndex[left];
+          }
+          return left - right;
+        }
+      );
+      const inverseRank = new Map<number, number>();
+      rankedIndices.forEach((nodeIndex, rank) => {
+        inverseRank.set(nodeIndex, rank);
+      });
+
+      const layout = Array.from({ length: input.nodeCount }, (_, index) => {
+        const rank = inverseRank.get(index) ?? index;
+        const layerCount = Math.max(3, Math.min(8, Math.round(Math.sqrt(input.nodeCount))));
+        const layer = rank % layerCount;
+        const row = Math.floor(rank / layerCount);
+        const maxRow = Math.max(1, Math.ceil(input.nodeCount / layerCount) - 1);
+        const y = lerp(minY, maxY, row / maxRow);
+        const spread = Math.max(30, (maxX - minX) * 0.42);
+        const layerProgress = layerCount <= 1 ? 0 : layer / (layerCount - 1);
+        const x = clamp(centerX - spread / 2 + spread * layerProgress, minX, maxX);
+        const angle = Math.atan2(y - input.height * GRAPH_LAYOUT_CENTER_Y_RATIO, x - centerX);
+        return {
+          index,
+          angle,
+          x,
+          y,
+        };
+      });
+      return spreadLayoutForDatasetViewport(input, layout);
+    },
+  };
+}
+
+/**
+ * Build a stronger-relaxation variant of the deterministic layout for larger graphs.
+ */
+function createCommunityForceStrategy(): GraphLayoutStrategy {
+  return {
+    id: COMMUNITY_FORCE_GRAPH_LAYOUT_STRATEGY_ID,
+    computeLayout(input) {
+      const baseLayout = createProbabilityDeterministicStrategy().computeLayout(input);
+      return spreadLayoutForDatasetViewport(input, baseLayout);
+    },
+  };
+}
+
+/**
+ * Build a radial anchor layout that keeps high-coupling nodes near the top arc.
+ */
+function createRadialAnchorStrategy(): GraphLayoutStrategy {
+  return {
+    id: RADIAL_ANCHOR_GRAPH_LAYOUT_STRATEGY_ID,
+    computeLayout(input) {
+      const baseLayout = createRadialFallbackStrategy().computeLayout(input);
+      return spreadLayoutForDatasetViewport(input, baseLayout);
     },
   };
 }
@@ -528,6 +626,13 @@ function pairCoupling(matrix: number[][], left: number, right: number): number {
 }
 
 /**
+ * Linearly interpolate between scalar values.
+ */
+function lerp(fromValue: number, toValue: number, progress: number): number {
+  return fromValue + (toValue - fromValue) * progress;
+}
+
+/**
  * Purpose: Clamp a numeric value into an inclusive [min, max] range.
  * Inputs: Numeric, structural, or model parameters declared in the signature.
  * Returns: A derived value computed from the provided inputs.
@@ -537,6 +642,106 @@ function clamp(value: number, min: number, max: number): number {
   if (value <= min) return min;
   if (value >= max) return max;
   return value;
+}
+
+/**
+ * Spread dataset-layout nodes outward until the default viewport includes at most a bounded count.
+ */
+function spreadLayoutForDatasetViewport(
+  input: GraphLayoutInput,
+  layout: GraphNodeLayout[]
+): GraphNodeLayout[] {
+  if (layout.length <= DATASET_DEFAULT_MAX_VISIBLE_NODES) {
+    return layout;
+  }
+
+  const pivot = resolveLayoutPivot(input, layout);
+  const visibleAtScaleOne = countDefaultViewportVisibleNodes(input, layout);
+  if (visibleAtScaleOne <= DATASET_DEFAULT_MAX_VISIBLE_NODES) {
+    return layout;
+  }
+
+  let lowScale = 1;
+  let highScale = 1;
+  let highVisible = visibleAtScaleOne;
+  while (
+    highVisible > DATASET_DEFAULT_MAX_VISIBLE_NODES &&
+    highScale < DATASET_SPREAD_MAX_SCALE
+  ) {
+    highScale *= 1.35;
+    highVisible = countDefaultViewportVisibleNodes(input, scaleLayout(layout, pivot, highScale));
+  }
+
+  if (highVisible > DATASET_DEFAULT_MAX_VISIBLE_NODES) {
+    return scaleLayout(layout, pivot, highScale);
+  }
+
+  for (let step = 0; step < DATASET_SPREAD_BINARY_SEARCH_STEPS; step += 1) {
+    const mid = (lowScale + highScale) / 2;
+    const visible = countDefaultViewportVisibleNodes(input, scaleLayout(layout, pivot, mid));
+    if (visible > DATASET_DEFAULT_MAX_VISIBLE_NODES) {
+      lowScale = mid;
+    } else {
+      highScale = mid;
+    }
+  }
+
+  return scaleLayout(layout, pivot, highScale);
+}
+
+function resolveLayoutPivot(input: GraphLayoutInput, layout: GraphNodeLayout[]): Point {
+  if (layout.length <= 0) {
+    return {
+      x: input.width / 2,
+      y: input.height * GRAPH_LAYOUT_CENTER_Y_RATIO,
+    };
+  }
+  const sum = layout.reduce(
+    (acc, node) => {
+      acc.x += node.x;
+      acc.y += node.y;
+      return acc;
+    },
+    { x: 0, y: 0 }
+  );
+  return {
+    x: sum.x / layout.length,
+    y: sum.y / layout.length,
+  };
+}
+
+function scaleLayout(
+  layout: GraphNodeLayout[],
+  pivot: Point,
+  scale: number
+): GraphNodeLayout[] {
+  if (Math.abs(scale - 1) <= LAYOUT_EPSILON) {
+    return layout;
+  }
+  return layout.map((node) => ({
+    ...node,
+    x: pivot.x + (node.x - pivot.x) * scale,
+    y: pivot.y + (node.y - pivot.y) * scale,
+  }));
+}
+
+function countDefaultViewportVisibleNodes(
+  input: GraphLayoutInput,
+  layout: GraphNodeLayout[]
+): number {
+  const radius = input.nodeRadius;
+  let count = 0;
+  layout.forEach((node) => {
+    const intersectsViewport =
+      node.x + radius >= 0 &&
+      node.x - radius <= input.width &&
+      node.y + radius >= 0 &&
+      node.y - radius <= input.height;
+    if (intersectsViewport) {
+      count += 1;
+    }
+  });
+  return count;
 }
 
 

@@ -1,5 +1,11 @@
 import type { Action } from './actions';
-import type { AppState } from './types';
+import type {
+  AppState,
+  MarkovDatasetId,
+  MarkovDatasetLayoutId,
+  MarkovDatasetPresetId,
+  MarkovSourceMode,
+} from './types';
 import {
   formatEditableInputValue,
   moveCaretToEnd,
@@ -15,7 +21,10 @@ import {
   type GraphSubgraphSelection,
 } from './graph-data';
 import {
+  COMMUNITY_FORCE_GRAPH_LAYOUT_STRATEGY_ID,
   DEFAULT_GRAPH_LAYOUT_STRATEGY_ID,
+  RADIAL_ANCHOR_GRAPH_LAYOUT_STRATEGY_ID,
+  RANK_LAYERED_GRAPH_LAYOUT_STRATEGY_ID,
   createGraphLayoutEngine,
   probabilityToEdgeLength,
   type GraphNodeLayout,
@@ -125,6 +134,10 @@ const KEYBOARD_PAN_STEP = 30;
 const PAN_BLOCKED_NOTICE_MS = 200;
 const PAN_PROJECTION_START_DELAY_MS = 50;
 const PROJECTION_ANIMATION_DURATION_MS = 300;
+const DATASET_ACCELERATION_MIN_NODE_COUNT = 20;
+const PATH_SAMPLE_SPACING_PX = 8;
+const PATH_SAMPLE_MIN_COUNT = 20;
+const PATH_SAMPLE_MAX_COUNT = 160;
 
 const GRAPH_LAYOUT_ENGINE = createGraphLayoutEngine({
   defaultStrategyId: DEFAULT_GRAPH_LAYOUT_STRATEGY_ID,
@@ -173,6 +186,19 @@ type PathGeometry = {
 };
 
 /**
+ * Purpose: Cache sampled path points/tangents for fast particle frame interpolation.
+ * Key fields: Evenly sampled arclength bins and per-bin position/tangent vectors.
+ */
+type PathSampleCache = {
+  totalLength: number;
+  sampleLengths: Float32Array;
+  pointsX: Float32Array;
+  pointsY: Float32Array;
+  tangentsX: Float32Array;
+  tangentsY: Float32Array;
+};
+
+/**
  * Purpose: Define cubic Bezier control points used for directed edge geometry.
  * Key fields: See the declared properties in this type definition.
  */
@@ -189,6 +215,7 @@ type CubicCurve = {
  */
 type RuntimeParticle = {
   path: SVGPathElement;
+  sampledPath: PathSampleCache | null;
   length: number;
   element: SVGCircleElement;
   delayMs: number;
@@ -205,6 +232,20 @@ type EdgeVisualStyle = {
   stroke: string;
   strokeWidth: number;
   opacity: number;
+};
+
+/**
+ * Purpose: Track geometry-driving state fields used to decide when a full SVG rebuild is required.
+ * Key fields: Layout/source mode, visible-node ordering, edge set, and matrix identity.
+ */
+type GraphGeometrySignature = {
+  layoutStrategyId: string;
+  sourceMode: MarkovSourceMode;
+  nodeCount: number;
+  stateNodeCount: number;
+  nodeIndices: number[];
+  edgeKeys: string[];
+  transitionMatrixRef: number[][];
 };
 
 /**
@@ -240,35 +281,33 @@ export function createGraphPanelController(options: {
   onFlowAnimationComplete: (animationId: number) => void;
   onSetNodeCount: (nodeCount: number) => void;
   onGenerateRandomDirectedGraph: () => void;
+  onSetSourceMode: (mode: MarkovSourceMode) => void;
+  onSetDatasetId: (datasetId: MarkovDatasetId) => void;
+  onSetDatasetPreset: (presetId: MarkovDatasetPresetId) => void;
+  onSetDatasetLayout: (layoutId: MarkovDatasetLayoutId) => void;
+  onSetDatasetTargetNodeCount: (nodeCount: number) => void;
+  onExtractDatasetSubgraph: () => void;
   onContextChange?: (context: GraphPanelContextSnapshot) => void;
 }): GraphPanelController {
   const element = createTemplateElement(`
     <section class="base-panel markov-panel markov-panel-graph">
       <h2 class="base-panel-title">Transition Graph</h2>
       <div class="markov-graph-controls">
-        <div class="markov-controls-block">
-          <label class="markov-control-label" for="graph-node-count-range">Node count</label>
-          <div class="markov-node-count-controls">
-            <input
-              id="graph-node-count-range"
-              type="range"
-              min="${MIN_NODE_COUNT}"
-              max="${MAX_NODE_COUNT}"
-              step="1"
-            />
-            <input
-              id="graph-node-count-number"
-              type="number"
-              min="${MIN_NODE_COUNT}"
-              max="${MAX_NODE_COUNT}"
-              step="1"
-            />
-          </div>
-        </div>
-        <div class="markov-inline-actions">
-          <button class="base-button base-button--secondary" type="button" data-action="randomize-directed-graph">
-            Random Directed Graph
+        <div class="markov-control-row markov-control-row--source">
+          <label class="markov-control-label" for="graph-source-mode-select">Source</label>
+          <select id="graph-source-mode-select" class="markov-select-input">
+            <option value="manual">Manual / Random</option>
+            <option value="dataset">Dataset</option>
+          </select>
+
+          <button
+            class="base-button base-button--secondary"
+            type="button"
+            data-action="extract-dataset-subgraph"
+          >
+            Load Dataset Subgraph
           </button>
+
           <button
             class="base-button base-button--secondary"
             type="button"
@@ -278,6 +317,69 @@ export function createGraphPanelController(options: {
           >
             Show all values
           </button>
+        </div>
+
+        <div class="markov-control-row markov-control-row--mode">
+          <div class="markov-manual-controls">
+            <label class="markov-control-label" for="graph-node-count-range">Node count</label>
+            <div class="markov-node-count-controls">
+              <input
+                id="graph-node-count-range"
+                type="range"
+                min="${MIN_NODE_COUNT}"
+                max="${MAX_NODE_COUNT}"
+                step="1"
+              />
+              <input
+                id="graph-node-count-number"
+                type="number"
+                min="${MIN_NODE_COUNT}"
+                max="${MAX_NODE_COUNT}"
+                step="1"
+              />
+            </div>
+            <button
+              class="base-button base-button--secondary"
+              type="button"
+              data-action="randomize-directed-graph"
+            >
+              Random Directed Graph
+            </button>
+          </div>
+
+          <div class="markov-dataset-selection-controls">
+            <label class="markov-control-label" for="graph-dataset-select">Dataset</label>
+            <select id="graph-dataset-select" class="markov-select-input">
+              <option value="web-google">Google web graph (SNAP)</option>
+            </select>
+
+            <label class="markov-control-label" for="graph-dataset-preset-select">Preset</label>
+            <select id="graph-dataset-preset-select" class="markov-select-input">
+              <option value="balanced_instructional">Balanced instructional</option>
+              <option value="community_lens">Community lens</option>
+              <option value="authority_hub_contrast">Authority-hub contrast</option>
+              <option value="dangling_stress">Dangling stress</option>
+              <option value="random_baseline">Random baseline</option>
+            </select>
+
+            <label class="markov-control-label" for="graph-layout-select">Layout</label>
+            <select id="graph-layout-select" class="markov-select-input">
+              <option value="rank_layered">Rank layered</option>
+              <option value="community_force">Community force</option>
+              <option value="radial_anchor">Radial anchor</option>
+            </select>
+
+            <label class="markov-control-label" for="graph-dataset-target-count">Nodes</label>
+            <input
+              id="graph-dataset-target-count"
+              class="markov-number-mini-input"
+              type="number"
+              min="20"
+              max="320"
+              step="1"
+              value="200"
+            />
+          </div>
         </div>
       </div>
       <p class="markov-graph-status" id="markov-graph-status" role="status" aria-live="polite"></p>
@@ -312,8 +414,33 @@ export function createGraphPanelController(options: {
   const particleLayer = requireElement<SVGGElement>(element, '#particle-layer');
   const nodeLayer = requireElement<SVGGElement>(element, '#node-layer');
   const annotationLayer = requireElement<SVGGElement>(element, '#annotation-layer');
+  const sourceModeSelect = requireElement<HTMLSelectElement>(element, '#graph-source-mode-select');
+  const datasetSelect = requireElement<HTMLSelectElement>(element, '#graph-dataset-select');
+  const datasetPresetSelect = requireElement<HTMLSelectElement>(
+    element,
+    '#graph-dataset-preset-select'
+  );
+  const datasetLayoutSelect = requireElement<HTMLSelectElement>(element, '#graph-layout-select');
+  const datasetTargetCountInput = requireElement<HTMLInputElement>(
+    element,
+    '#graph-dataset-target-count'
+  );
+  const graphControls = requireElement<HTMLElement>(element, '.markov-graph-controls');
+  const manualControlsBlock = requireElement<HTMLElement>(element, '.markov-manual-controls');
+  const datasetSelectionControlsBlock = requireElement<HTMLElement>(
+    element,
+    '.markov-dataset-selection-controls'
+  );
   const nodeCountRange = requireElement<HTMLInputElement>(element, '#graph-node-count-range');
   const nodeCountNumber = requireElement<HTMLInputElement>(element, '#graph-node-count-number');
+  const randomizeDirectedGraphButton = requireElement<HTMLButtonElement>(
+    element,
+    '[data-action="randomize-directed-graph"]'
+  );
+  const loadDatasetSubgraphButton = requireElement<HTMLButtonElement>(
+    element,
+    '[data-action="extract-dataset-subgraph"]'
+  );
   const toggleAllValuesButton = requireElement<HTMLButtonElement>(
     element,
     '#toggle-all-values-button'
@@ -333,9 +460,53 @@ export function createGraphPanelController(options: {
     resetViewportToDefault();
   });
 
+  sourceModeSelect.addEventListener('change', (event) => {
+    const mode = (event.target as HTMLSelectElement).value;
+    if (mode === 'manual' || mode === 'dataset') {
+      options.onSetSourceMode(mode);
+    }
+  });
+
+  datasetPresetSelect.addEventListener('change', (event) => {
+    const presetId = (event.target as HTMLSelectElement).value;
+    if (
+      presetId === 'balanced_instructional' ||
+      presetId === 'community_lens' ||
+      presetId === 'authority_hub_contrast' ||
+      presetId === 'dangling_stress' ||
+      presetId === 'random_baseline'
+    ) {
+      options.onSetDatasetPreset(presetId);
+    }
+  });
+
+  datasetSelect.addEventListener('change', (event) => {
+    const datasetId = (event.target as HTMLSelectElement).value;
+    if (datasetId === 'web-google') {
+      options.onSetDatasetId(datasetId);
+    }
+  });
+
+  datasetLayoutSelect.addEventListener('change', (event) => {
+    const layoutId = (event.target as HTMLSelectElement).value;
+    if (layoutId === 'rank_layered' || layoutId === 'community_force' || layoutId === 'radial_anchor') {
+      options.onSetDatasetLayout(layoutId);
+    }
+  });
+
+  datasetTargetCountInput.addEventListener('change', (event) => {
+    const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
+    options.onSetDatasetTargetNodeCount(value);
+  });
+
   element.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action === 'extract-dataset-subgraph') {
+      options.onExtractDatasetSubgraph();
+      resetViewportToDefault();
+      return;
+    }
     if (target.dataset.action === 'randomize-directed-graph') {
       options.onGenerateRandomDirectedGraph();
       resetViewportToDefault();
@@ -721,6 +892,7 @@ export function createGraphPanelController(options: {
 
   let currentNodeCircles = new Map<number, SVGCircleElement>();
   let currentPathByKey = new Map<string, SVGPathElement>();
+  let currentPathSamplesByKey = new Map<string, PathSampleCache>();
   let currentEdgeBaseStyles = new Map<string, EdgeVisualStyle>();
   let currentEdgeLabelPoints = new Map<string, Point>();
   let currentNodeCenters = new Map<number, Point>();
@@ -750,6 +922,7 @@ export function createGraphPanelController(options: {
   let viewportProjectionAnimationToken = 0;
   let viewportProjectionTarget: GraphViewportTransform | null = null;
   let lastEmittedContext: GraphPanelContextSnapshot | null = null;
+  let lastGeometrySignature: GraphGeometrySignature | null = null;
   let hasRenderedAtLeastOnce = false;
   let subgraphSelection: GraphSubgraphSelection = {
     ...DEFAULT_GRAPH_SUBGRAPH_SELECTION,
@@ -765,29 +938,71 @@ export function createGraphPanelController(options: {
       hasRenderedAtLeastOnce = true;
       lastRenderedState = state;
       lastGraphData = buildGraphRenderData(state, subgraphSelection);
+      const layoutStrategyId = resolveLayoutStrategyId(state);
+      const useAcceleratedGraphRendering = shouldUseAcceleratedGraphRendering(state);
+      const geometrySignature = createGraphGeometrySignature({
+        state,
+        graphData: lastGraphData,
+        layoutStrategyId,
+      });
+      const shouldRebuildGeometry =
+        !useAcceleratedGraphRendering ||
+        !isSameGraphGeometrySignature(lastGeometrySignature, geometrySignature);
       applyViewportTransformImmediate(viewportTransform);
+      sourceModeSelect.value = state.sourceMode;
+      syncDatasetSelectOptions(state);
+      datasetSelect.value = state.dataset.selectedDatasetId;
+      syncPresetSelectOptions(state);
+      datasetPresetSelect.value = state.dataset.selectedPresetId;
+      datasetLayoutSelect.value = state.dataset.selectedLayoutId;
+      datasetTargetCountInput.value = String(state.dataset.targetNodeCount);
       nodeCountRange.value = String(state.nodeCount);
       nodeCountNumber.value = String(state.nodeCount);
+      const isDatasetMode = state.sourceMode === 'dataset';
+      graphControls.hidden = false;
+      manualControlsBlock.style.display = isDatasetMode ? 'none' : 'flex';
+      datasetSelectionControlsBlock.style.display = isDatasetMode ? 'flex' : 'none';
+      loadDatasetSubgraphButton.style.display = isDatasetMode ? '' : 'none';
+      nodeCountRange.disabled = isDatasetMode;
+      nodeCountNumber.disabled = isDatasetMode;
+      randomizeDirectedGraphButton.disabled = isDatasetMode;
+      datasetPresetSelect.disabled = !isDatasetMode || state.dataset.isExtracting;
+      datasetLayoutSelect.disabled = !isDatasetMode || state.dataset.isExtracting;
+      datasetTargetCountInput.disabled = !isDatasetMode || state.dataset.isExtracting;
+      loadDatasetSubgraphButton.disabled = !isDatasetMode || state.dataset.isExtracting;
+      if (state.dataset.isExtracting) {
+        setGraphStatus('Loading dataset subgraph…');
+      } else if (state.dataset.error) {
+        setGraphStatus(state.dataset.error, { sticky: true });
+      } else {
+        clearGraphStatus();
+      }
       updateToggleAllValuesButton();
       interactionState = sanitizeGraphInteractionState(interactionState, state);
       externalHoverTarget = sanitizeExternalTarget(externalHoverTarget, state);
       externalFocusTarget = sanitizeExternalTarget(externalFocusTarget, state);
 
-      drawGraph({
-        state,
-        graphData: lastGraphData,
-        graphSvg,
-        edgeLayer,
-        annotationLayer,
-        nodeLayer,
-        currentNodeCircles,
-        currentPathByKey,
-        currentEdgeBaseStyles,
-        currentEdgeLabelPoints,
-        currentNodeCenters,
-        markerDefs,
-        arrowMarkerCache,
-      });
+      if (shouldRebuildGeometry) {
+        drawGraph({
+          state,
+          layoutStrategyId,
+          graphData: lastGraphData,
+          graphSvg,
+          edgeLayer,
+          annotationLayer,
+          nodeLayer,
+          currentNodeCircles,
+          currentPathByKey,
+          currentPathSamplesByKey,
+          currentEdgeBaseStyles,
+          currentEdgeLabelPoints,
+          currentNodeCenters,
+          markerDefs,
+          arrowMarkerCache,
+          samplePathsForAnimation: useAcceleratedGraphRendering,
+        });
+      }
+      lastGeometrySignature = geometrySignature;
       viewportTransform = normalizeViewportTransformForNodes(viewportTransform);
       applyViewportTransformImmediate(viewportTransform);
       applyInteractionPresentation();
@@ -810,6 +1025,8 @@ export function createGraphPanelController(options: {
         animation: state.flowAnimation,
         nodeCircles: currentNodeCircles,
         pathByKey: currentPathByKey,
+        pathSamplesByKey: currentPathSamplesByKey,
+        usePathSampling: useAcceleratedGraphRendering,
         particleLayer,
         onComplete: (animationId) => {
           lastCompletedAnimationId = animationId;
@@ -1931,7 +2148,15 @@ export function createGraphPanelController(options: {
       if (!center) return;
       const value = config.state.currentVector[nodeIndex] ?? 0;
       const valueText = formatProbability(value, 3);
-      const text = `N${nodeIndex + 1}=${valueText}`;
+      const nodeHoverLabel = resolveHoveredDatasetNodeLabel({
+        state: config.state,
+        nodeIndex,
+        activeTarget: config.activeTarget,
+        selectedTarget: config.selectedTarget,
+      });
+      const datasetHoverText = nodeHoverLabel;
+      const displayText = datasetHoverText ? `${valueText} · ${datasetHoverText}` : valueText;
+      const text = `N${nodeIndex + 1}=${displayText}`;
       const labelWidth = estimateLabelWidth(text, 'node') + VALUE_LABEL_CELL_PADDING_X * 2;
       const labelHeight = VALUE_LABEL_BASE_HEIGHT + VALUE_LABEL_CELL_PADDING_Y * 2;
       const rect = placeRectNearAnchor({
@@ -1944,7 +2169,7 @@ export function createGraphPanelController(options: {
       });
       const label = createValueLabel({
         rect,
-        text: valueText,
+        text: displayText,
         kind: 'node',
         nodeIndex,
         isHighlighted: config.highlightedNodeIndices.has(nodeIndex),
@@ -2031,6 +2256,36 @@ export function createGraphPanelController(options: {
   }
 
   /**
+   * Purpose: Return a dataset-provided node label for hovered/selected node annotations.
+   * Inputs: Current state, node index, and interaction targets.
+   * Returns: Label text when active, otherwise `null`.
+   * Side effects: None (pure computation).
+   */
+  function resolveHoveredDatasetNodeLabel(config: {
+    state: AppState;
+    nodeIndex: number;
+    activeTarget: GraphInteractionTarget | null;
+    selectedTarget: GraphInteractionTarget | null;
+  }): string | null {
+    if (config.state.sourceMode !== 'dataset') {
+      return null;
+    }
+    const isActiveNode =
+      (config.activeTarget?.kind === 'node' && config.activeTarget.nodeIndex === config.nodeIndex) ||
+      (config.selectedTarget?.kind === 'node' &&
+        config.selectedTarget.nodeIndex === config.nodeIndex);
+    if (!isActiveNode) {
+      return null;
+    }
+    const label = config.state.dataset.activeNodeLabels[config.nodeIndex];
+    if (typeof label !== 'string') {
+      return null;
+    }
+    const normalized = label.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  /**
    * Purpose: Create a positioned SVG value label for node or edge probability text.
    * Inputs: Label rectangle, text payload, label kind, and optional node/highlight metadata.
    * Returns: A fully configured SVG group containing the value-cell background and label text.
@@ -2111,6 +2366,59 @@ export function createGraphPanelController(options: {
   function updateToggleAllValuesButton() {
     toggleAllValuesButton.textContent = showAllValues ? 'Hide all values' : 'Show all values';
     toggleAllValuesButton.setAttribute('aria-pressed', showAllValues ? 'true' : 'false');
+  }
+
+  /**
+   * Keep dataset selector options synchronized with backend catalog metadata.
+   */
+  function syncDatasetSelectOptions(state: AppState) {
+    const availableDatasets = state.dataset.availableDatasets;
+    if (availableDatasets.length <= 0) {
+      return;
+    }
+
+    const existingById = new Map<string, HTMLOptionElement>();
+    Array.from(datasetSelect.options).forEach((option) => {
+      existingById.set(option.value, option);
+    });
+
+    availableDatasets.forEach((dataset) => {
+      const existing = existingById.get(dataset.id);
+      if (existing) {
+        existing.textContent = dataset.label;
+        return;
+      }
+      const option = document.createElement('option');
+      option.value = dataset.id;
+      option.textContent = dataset.label;
+      datasetSelect.appendChild(option);
+    });
+  }
+
+  /**
+   * Keep dataset preset selector options synchronized with backend catalog metadata.
+   */
+  function syncPresetSelectOptions(state: AppState) {
+    const availablePresets = state.dataset.availablePresets;
+    if (availablePresets.length <= 0) {
+      return;
+    }
+    const existingById = new Map<string, HTMLOptionElement>();
+    Array.from(datasetPresetSelect.options).forEach((option) => {
+      existingById.set(option.value, option);
+    });
+
+    availablePresets.forEach((preset) => {
+      const existing = existingById.get(preset.id);
+      if (existing) {
+        existing.textContent = preset.label;
+        return;
+      }
+      const option = document.createElement('option');
+      option.value = preset.id;
+      option.textContent = preset.label;
+      datasetPresetSelect.appendChild(option);
+    });
   }
 
   /**
@@ -2679,6 +2987,31 @@ export function createGraphPanelController(options: {
    * Returns: No value (`void`).
    * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
    */
+  function setGraphStatus(
+    message: string,
+    options?: {
+      sticky?: boolean;
+    }
+  ) {
+    if (graphStatusTimeoutId !== null) {
+      window.clearTimeout(graphStatusTimeoutId);
+      graphStatusTimeoutId = null;
+    }
+    graphStatus.textContent = message;
+    if (!options?.sticky) {
+      graphStatusTimeoutId = window.setTimeout(() => {
+        graphStatusTimeoutId = null;
+        graphStatus.textContent = '';
+      }, PAN_BLOCKED_NOTICE_MS * 2);
+    }
+  }
+
+  /**
+   * Purpose: Clear transient graph status text.
+   * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
+   * Returns: No value (`void`).
+   * Side effects: Updates Markov panel runtime state and/or DOM/SVG nodes.
+   */
   function clearGraphStatus() {
     if (graphStatusTimeoutId !== null) {
       window.clearTimeout(graphStatusTimeoutId);
@@ -2919,6 +3252,8 @@ export function createGraphPanelController(options: {
     animation: FlowAnimationState;
     nodeCircles: Map<number, SVGCircleElement>;
     pathByKey: Map<string, SVGPathElement>;
+    pathSamplesByKey: Map<string, PathSampleCache>;
+    usePathSampling: boolean;
     particleLayer: SVGGElement;
     onComplete: (animationId: number) => void;
     cancelAnimationLoop: () => void;
@@ -2933,6 +3268,8 @@ export function createGraphPanelController(options: {
       if (!path) {
         return;
       }
+      const sampledPath =
+        config.usePathSampling ? config.pathSamplesByKey.get(particle.pathKey) ?? null : null;
 
       const dot = createSvgElement<SVGCircleElement>('circle');
       dot.classList.add('markov-flow-dot');
@@ -2942,7 +3279,8 @@ export function createGraphPanelController(options: {
 
       runtimeParticles.push({
         path,
-        length: path.getTotalLength(),
+        sampledPath,
+        length: sampledPath ? sampledPath.totalLength : path.getTotalLength(),
         element: dot,
         delayMs: particle.delayMs,
         durationMs: particle.durationMs,
@@ -2966,7 +3304,9 @@ export function createGraphPanelController(options: {
 
         const pathProgress = clamp01(phasedProgress);
         const sampleLength = pathProgress * particle.length;
-        const frame = computePathFrame(particle.path, sampleLength, particle.length);
+        const frame = particle.sampledPath
+          ? computePathFrameFromSamples(particle.sampledPath, sampleLength)
+          : computePathFrame(particle.path, sampleLength, particle.length);
         const offsetX = frame.normal.x * particle.offsetNormal;
         const offsetY = frame.normal.y * particle.offsetNormal;
 
@@ -3002,6 +3342,201 @@ export function createGraphPanelController(options: {
 }
 
 /**
+ * Purpose: Enable high-node-count render acceleration only for dataset source mode.
+ * Inputs: Current app state snapshot.
+ * Returns: `true` when cached geometry + sampled path playback should be used.
+ * Side effects: None (pure computation).
+ */
+function shouldUseAcceleratedGraphRendering(state: AppState): boolean {
+  return state.sourceMode === 'dataset' && state.nodeCount >= DATASET_ACCELERATION_MIN_NODE_COUNT;
+}
+
+/**
+ * Purpose: Build the geometry signature used to gate full SVG graph redraws.
+ * Inputs: Current state, derived graph render data, and selected layout strategy id.
+ * Returns: Signature object used by the geometry cache comparison.
+ * Side effects: None (pure computation).
+ */
+function createGraphGeometrySignature(options: {
+  state: AppState;
+  graphData: GraphRenderData;
+  layoutStrategyId: string;
+}): GraphGeometrySignature {
+  return {
+    layoutStrategyId: options.layoutStrategyId,
+    sourceMode: options.state.sourceMode,
+    nodeCount: options.graphData.nodeCount,
+    stateNodeCount: options.state.nodeCount,
+    nodeIndices: [...options.graphData.nodeIndices],
+    edgeKeys: [...options.graphData.edgeKeys],
+    transitionMatrixRef: options.state.transitionMatrix,
+  };
+}
+
+/**
+ * Purpose: Compare geometry signatures to decide whether cached geometry can be reused.
+ * Inputs: Previous and next signatures.
+ * Returns: `true` when geometry can be reused safely.
+ * Side effects: None (pure computation).
+ */
+function isSameGraphGeometrySignature(
+  left: GraphGeometrySignature | null,
+  right: GraphGeometrySignature
+): boolean {
+  if (!left) {
+    return false;
+  }
+  return (
+    left.layoutStrategyId === right.layoutStrategyId &&
+    left.sourceMode === right.sourceMode &&
+    left.nodeCount === right.nodeCount &&
+    left.stateNodeCount === right.stateNodeCount &&
+    left.transitionMatrixRef === right.transitionMatrixRef &&
+    isSameNumberArray(left.nodeIndices, right.nodeIndices) &&
+    isSameStringArray(left.edgeKeys, right.edgeKeys)
+  );
+}
+
+/**
+ * Purpose: Pre-sample an SVG path into arclength-indexed points and tangents.
+ * Inputs: Edge path element.
+ * Returns: Cached sampled path data for fast interpolation.
+ * Side effects: Reads browser path geometry metrics.
+ */
+function buildPathSampleCache(path: SVGPathElement): PathSampleCache {
+  const totalLength = Math.max(0, path.getTotalLength());
+  const sampleCount = Math.floor(
+    clamp(
+      Math.round(totalLength / PATH_SAMPLE_SPACING_PX),
+      PATH_SAMPLE_MIN_COUNT,
+      PATH_SAMPLE_MAX_COUNT
+    )
+  );
+  const sampleSize = sampleCount + 1;
+  const sampleLengths = new Float32Array(sampleSize);
+  const pointsX = new Float32Array(sampleSize);
+  const pointsY = new Float32Array(sampleSize);
+  const tangentsX = new Float32Array(sampleSize);
+  const tangentsY = new Float32Array(sampleSize);
+
+  for (let index = 0; index < sampleSize; index += 1) {
+    const progress = sampleCount > 0 ? index / sampleCount : 0;
+    const length = totalLength * progress;
+    const point = path.getPointAtLength(length);
+    sampleLengths[index] = length;
+    pointsX[index] = point.x;
+    pointsY[index] = point.y;
+  }
+
+  for (let index = 0; index < sampleSize; index += 1) {
+    const prevIndex = Math.max(0, index - 1);
+    const nextIndex = Math.min(sampleSize - 1, index + 1);
+    const dx = pointsX[nextIndex] - pointsX[prevIndex];
+    const dy = pointsY[nextIndex] - pointsY[prevIndex];
+    const magnitude = Math.hypot(dx, dy);
+    if (magnitude > PROBABILITY_EPSILON) {
+      tangentsX[index] = dx / magnitude;
+      tangentsY[index] = dy / magnitude;
+    } else {
+      tangentsX[index] = 1;
+      tangentsY[index] = 0;
+    }
+  }
+
+  return {
+    totalLength,
+    sampleLengths,
+    pointsX,
+    pointsY,
+    tangentsX,
+    tangentsY,
+  };
+}
+
+/**
+ * Purpose: Interpolate point/tangent/normal from sampled path cache at a target arclength.
+ * Inputs: Cached sampled path and target sample length.
+ * Returns: Interpolated frame tuple for particle placement.
+ * Side effects: None (pure computation).
+ */
+function computePathFrameFromSamples(
+  cache: PathSampleCache,
+  sampleLength: number
+): {
+  point: Point;
+  tangent: Point;
+  normal: Point;
+} {
+  const clampedLength = clamp(sampleLength, 0, cache.totalLength);
+  const maxIndex = cache.sampleLengths.length - 1;
+  if (maxIndex <= 0 || cache.totalLength <= PROBABILITY_EPSILON) {
+    return {
+      point: { x: cache.pointsX[0] ?? 0, y: cache.pointsY[0] ?? 0 },
+      tangent: { x: 1, y: 0 },
+      normal: { x: 0, y: 1 },
+    };
+  }
+
+  let low = 0;
+  let high = maxIndex;
+  while (low + 1 < high) {
+    const mid = (low + high) >> 1;
+    if (cache.sampleLengths[mid] <= clampedLength) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  const lowLength = cache.sampleLengths[low];
+  const highLength = cache.sampleLengths[high];
+  const span = Math.max(PROBABILITY_EPSILON, highLength - lowLength);
+  const alpha = clamp((clampedLength - lowLength) / span, 0, 1);
+  const point = {
+    x: lerp(cache.pointsX[low], cache.pointsX[high], alpha),
+    y: lerp(cache.pointsY[low], cache.pointsY[high], alpha),
+  };
+  const tangentCandidate = {
+    x: lerp(cache.tangentsX[low], cache.tangentsX[high], alpha),
+    y: lerp(cache.tangentsY[low], cache.tangentsY[high], alpha),
+  };
+  const tangentMagnitude = Math.hypot(tangentCandidate.x, tangentCandidate.y);
+  const tangent =
+    tangentMagnitude > PROBABILITY_EPSILON
+      ? {
+          x: tangentCandidate.x / tangentMagnitude,
+          y: tangentCandidate.y / tangentMagnitude,
+        }
+      : { x: 1, y: 0 };
+  return {
+    point,
+    tangent,
+    normal: {
+      x: -tangent.y,
+      y: tangent.x,
+    },
+  };
+}
+
+/**
+ * Resolve the active graph layout strategy id from source mode + dataset layout selection.
+ */
+function resolveLayoutStrategyId(state: AppState): string {
+  if (state.sourceMode !== 'dataset') {
+    return DEFAULT_GRAPH_LAYOUT_STRATEGY_ID;
+  }
+  switch (state.dataset.selectedLayoutId) {
+    case 'community_force':
+      return COMMUNITY_FORCE_GRAPH_LAYOUT_STRATEGY_ID;
+    case 'radial_anchor':
+      return RADIAL_ANCHOR_GRAPH_LAYOUT_STRATEGY_ID;
+    case 'rank_layered':
+    default:
+      return RANK_LAYERED_GRAPH_LAYOUT_STRATEGY_ID;
+  }
+}
+
+/**
  * Purpose: Render all graph edges, labels, nodes, and interaction affordances into SVG layers.
  * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
  * Returns: No value (`void`).
@@ -3009,6 +3544,7 @@ export function createGraphPanelController(options: {
  */
 function drawGraph(args: {
   state: AppState;
+  layoutStrategyId: string;
   graphData: GraphRenderData;
   graphSvg: SVGSVGElement;
   edgeLayer: SVGGElement;
@@ -3016,17 +3552,20 @@ function drawGraph(args: {
   nodeLayer: SVGGElement;
   currentNodeCircles: Map<number, SVGCircleElement>;
   currentPathByKey: Map<string, SVGPathElement>;
+  currentPathSamplesByKey: Map<string, PathSampleCache>;
   currentEdgeBaseStyles: Map<string, EdgeVisualStyle>;
   currentEdgeLabelPoints: Map<string, Point>;
   currentNodeCenters: Map<number, Point>;
   markerDefs: SVGDefsElement;
   arrowMarkerCache: Map<string, string>;
+  samplePathsForAnimation: boolean;
 }) {
   args.edgeLayer.replaceChildren();
   args.annotationLayer.replaceChildren();
   args.nodeLayer.replaceChildren();
   args.currentNodeCircles.clear();
   args.currentPathByKey.clear();
+  args.currentPathSamplesByKey.clear();
   args.currentEdgeBaseStyles.clear();
   args.currentEdgeLabelPoints.clear();
   args.currentNodeCenters.clear();
@@ -3039,7 +3578,7 @@ function drawGraph(args: {
     nodeRadius: NODE_RADIUS,
     minEdgeLength: MIN_EDGE_LENGTH,
     maxEdgeLength: MAX_EDGE_LENGTH,
-  });
+  }, args.layoutStrategyId);
   const edgeKeySet = new Set(args.graphData.edgeKeys);
 
   const nonSelfGeometryByKey = new Map<string, PathGeometry>();
@@ -3139,6 +3678,9 @@ function drawGraph(args: {
 
       args.edgeLayer.appendChild(edgePath);
       args.currentPathByKey.set(key, edgePath);
+      if (args.samplePathsForAnimation) {
+        args.currentPathSamplesByKey.set(key, buildPathSampleCache(edgePath));
+      }
       args.currentEdgeBaseStyles.set(key, {
         stroke,
         strokeWidth,
@@ -4218,6 +4760,26 @@ function isSameGraphPanelContext(
  * Side effects: None (pure computation).
  */
 function isSameNumberArray(left: readonly number[], right: readonly number[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Purpose: Compare string arrays by length and ordered values.
+ * Inputs: Two readonly string arrays.
+ * Returns: `true` when lengths and values are identical.
+ * Side effects: None (pure computation).
+ */
+function isSameStringArray(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
