@@ -377,7 +377,7 @@ export function createGraphPanelController(options: {
               min="20"
               max="320"
               step="1"
-              value="200"
+              value="40"
             />
           </div>
         </div>

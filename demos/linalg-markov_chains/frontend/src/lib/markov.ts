@@ -1,5 +1,5 @@
 export const MIN_NODE_COUNT = 2;
-export const MAX_NODE_COUNT = 10;
+export const MAX_NODE_COUNT = 20;
 export const DEFAULT_NODE_COUNT = 4;
 
 const VALUE_EPSILON = 1e-9;

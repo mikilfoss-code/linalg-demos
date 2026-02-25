@@ -34,7 +34,7 @@ const DEFAULT_DATASET_ID = 'web-google';
 const DEFAULT_DATASET_PRESET_ID: MarkovDatasetPresetId = 'balanced_instructional';
 const DEFAULT_DATASET_LAYOUT_ID: MarkovDatasetLayoutId = 'rank_layered';
 const DATASET_LAYOUT_TARGET_NODE_COUNT: Record<MarkovDatasetLayoutId, number> = {
-  rank_layered: 200,
+  rank_layered: 40,
   community_force: 180,
   radial_anchor: 160,
 };

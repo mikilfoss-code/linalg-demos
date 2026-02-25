@@ -7,6 +7,7 @@ try:
     from .markov_dataset_extraction import (
         DEFAULT_DATASET_ID,
         DEFAULT_PRESET_ID,
+        DEFAULT_TARGET_NODE_COUNT,
         MarkovExtractOptions,
         extract_markov_subgraph,
         list_markov_dataset_catalog,
@@ -16,6 +17,7 @@ except ImportError:
     from services.markov_dataset_extraction import (  # type: ignore
         DEFAULT_DATASET_ID,
         DEFAULT_PRESET_ID,
+        DEFAULT_TARGET_NODE_COUNT,
         MarkovExtractOptions,
         extract_markov_subgraph,
         list_markov_dataset_catalog,
@@ -65,7 +67,7 @@ def markov_extract_response(
     options = MarkovExtractOptions(
         dataset_id=dataset_id if dataset_id else DEFAULT_DATASET_ID,
         preset_id=preset_id if preset_id is not None else DEFAULT_PRESET_ID,
-        target_node_count=target_node_count if target_node_count is not None else 200,
+        target_node_count=target_node_count if target_node_count is not None else DEFAULT_TARGET_NODE_COUNT,
         seed=seed,
         dangling_handling=dangling_handling or "redistribute_uniform",
     )

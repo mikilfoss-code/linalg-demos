@@ -839,4 +839,4 @@ WARN Skipping file for pillow: Pillow-6.1.0.win32-py3.7.exe
 WARN Skipping file for pillow: Pillow-7.1.0-py3.8-macosx-10.9-x86_64.egg
 WARN Skipping file for pillow: Pillow-7.1.1-py3.8-macosx-10.9-x86_64.egg
 WARN Skipping file for pillow: Pillow-7.1.2-py3.8-macosx-10.9-x86_64.egg
-Resolved 26 packages in 582ms
+Resolved 26 packages in 820ms

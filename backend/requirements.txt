@@ -14,7 +14,7 @@ colorama==0.4.6
     # via
     #   click
     #   uvicorn
-fastapi==0.129.2
+fastapi==0.133.0
     # via -r backend/requirements.in
 h11==0.16.0
     # via uvicorn
@@ -43,7 +43,7 @@ pyyaml==6.0.3
     # via uvicorn
 scikit-learn==1.8.0
     # via -r backend/requirements.in
-scipy==1.17.0
+scipy==1.17.1
     # via
     #   -r backend/requirements.in
     #   scikit-learn

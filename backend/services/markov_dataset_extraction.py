@@ -26,7 +26,7 @@ DanglingHandling = Literal["redistribute_uniform", "self_loop"]
 
 DEFAULT_DATASET_ID: MarkovDatasetId = "web-google"
 DEFAULT_PRESET_ID: MarkovPresetId = "balanced_instructional"
-DEFAULT_TARGET_NODE_COUNT = 30
+DEFAULT_TARGET_NODE_COUNT = 40
 MIN_TARGET_NODE_COUNT = 20
 MAX_TARGET_NODE_COUNT = 320
 MAX_BFS_DEPTH = 4

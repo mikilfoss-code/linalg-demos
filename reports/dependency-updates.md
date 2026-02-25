@@ -1,6 +1,6 @@
 # Dependency update report
 
-Generated: 2026-02-22 09:43:12
+Generated: 2026-02-24 14:39:00
 
 ## Toolchain
 
@@ -8,7 +8,7 @@ Generated: 2026-02-22 09:43:12
 | ------ | ------------- |
 | git    | V1            |
 | node   | v25.6.1       |
-| pnpm   | 10.29.3       |
+| pnpm   | 10.30.1       |
 | python | Python 3.14.3 |
 | uv     | V2            |
 | volta  | 2.0.2         |
@@ -16,7 +16,7 @@ Generated: 2026-02-22 09:43:12
 Legend:
 Version keys:
 - V1: git version 2.53.0.windows.1
-- V2: uv 0.10.2 (a788db7e5 2026-02-10)
+- V2: uv 0.10.4 (079e3fd05 2026-02-17)
 
 ## Toolchain upgrade availability (read-only)
 
@@ -25,9 +25,9 @@ Version keys:
 | git        | 2.53.0  | 2.53.0  | up_to_date        | S51    |                    |
 | pip-system | 26.0.1  | 26.0.1  | up_to_date        | S52    |                    |
 | pip-venv   | 26.0.1  | 26.0.1  | up_to_date        | S52    |                    |
-| pnpm       | 10.29.3 | 10.30.1 | upgrade_available | S53    |                    |
+| pnpm       | 10.30.1 | 10.30.2 | upgrade_available | S53    |                    |
 | python     | 3.14.3  | 3.14.3  | up_to_date        | S54    | used tags fallback |
-| uv         | 0.10.2  | 0.10.4  | upgrade_available | S55    |                    |
+| uv         | 0.10.4  | 0.10.5  | upgrade_available | S55    |                    |
 | volta      | 2.0.2   | 2.0.2   | up_to_date        | S56    |                    |
 
 Legend:
@@ -53,9 +53,9 @@ Scopes scanned: **4**
 
 | Scope     | Dir | Outdated (latest) | Outdated (compatible) |
 | --------- | --- | ----------------- | --------------------- |
-| S1        | D1  | 1                 | 1                     |
-| S2        | D2  | 1                 | 1                     |
-| S3        | D3  | 1                 | 1                     |
+| S1        | D1  | 0                 | 0                     |
+| S2        | D2  | 0                 | 0                     |
+| S3        | D3  | 0                 | 0                     |
 | node:root | .   | 0                 | 0                     |
 
 Legend:
@@ -69,22 +69,10 @@ Dir keys:
 - D3: demos\linalg-vectors\frontend
 
 - Runtime dependency upgrades available: **0**
-- Dev dependency upgrades available: **3**
+- Dev dependency upgrades available: **0**
 - Runtime/dev relationship status: **match**
 
-### Outdated packages (merged)
-
-| Scope | Package     | Type            | Current | Compatible | Wanted | Latest |
-| ----- | ----------- | --------------- | ------- | ---------- | ------ | ------ |
-| S1    | @types/node | devDependencies | 25.2.3  | 25.2.3     | 25.2.3 | 25.3.0 |
-| S2    | @types/node | devDependencies | 25.2.3  | 25.2.3     | 25.2.3 | 25.3.0 |
-| S3    | @types/node | devDependencies | 25.2.3  | 25.2.3     | 25.2.3 | 25.3.0 |
-
-Legend:
-Scope keys:
-- S1: node:frontend:linalg-markov_chains
-- S2: node:frontend:linalg-matrix_transforms
-- S3: node:frontend:linalg-vectors
+_No parsed Node outdated results._
 
 ### Outdated runtime dependencies
 
@@ -92,32 +80,13 @@ _No outdated runtime dependencies found._
 
 ### Outdated dev dependencies
 
-| Scope | Package     | Type            | Current | Compatible | Wanted | Latest |
-| ----- | ----------- | --------------- | ------- | ---------- | ------ | ------ |
-| S1    | @types/node | devDependencies | 25.2.3  | 25.2.3     | 25.2.3 | 25.3.0 |
-| S2    | @types/node | devDependencies | 25.2.3  | 25.2.3     | 25.2.3 | 25.3.0 |
-| S3    | @types/node | devDependencies | 25.2.3  | 25.2.3     | 25.2.3 | 25.3.0 |
-
-Legend:
-Scope keys:
-- S1: node:frontend:linalg-markov_chains
-- S2: node:frontend:linalg-matrix_transforms
-- S3: node:frontend:linalg-vectors
+_No outdated dev dependencies found._
 
 ### Runtime/Dev discrepancies
 
 - Detected Node runtime: `v25.6.1`
 
 _No runtime/dev discrepancies detected._
-
-### Node scan notes
-
-- pnpm latest scan for node:frontend:linalg-markov_chains returned non-zero exit code 126, but JSON parsed successfully (informational).
-- pnpm compatible scan for node:frontend:linalg-markov_chains returned non-zero exit code 126, but JSON parsed successfully (informational).
-- pnpm latest scan for node:frontend:linalg-matrix_transforms returned non-zero exit code 126, but JSON parsed successfully (informational).
-- pnpm compatible scan for node:frontend:linalg-matrix_transforms returned non-zero exit code 126, but JSON parsed successfully (informational).
-- pnpm latest scan for node:frontend:linalg-vectors returned non-zero exit code 126, but JSON parsed successfully (informational).
-- pnpm compatible scan for node:frontend:linalg-vectors returned non-zero exit code 126, but JSON parsed successfully (informational).
 
 ## Python backend (uv pip compile --upgrade preview)
 
@@ -133,8 +102,8 @@ Counts: update=2, added=0, removed=0
 
 | Package | Current | Upgraded | Status |
 | ------- | ------- | -------- | ------ |
-| fastapi | 0.129.0 | 0.129.2  | update |
-| uvicorn | 0.40.0  | 0.41.0   | update |
+| fastapi | 0.129.2 | 0.133.0  | update |
+| scipy   | 1.17.0  | 1.17.1   | update |
 
 ## Code Change Impact (Heuristic)
 
@@ -142,23 +111,15 @@ Counts: update=2, added=0, removed=0
 - Any upgrades that should be reviewed manually: **yes**
 - Note: this is a heuristic based on semantic version deltas and dependency category.
 
-| Ecosystem | Scope   | Package     | Type            | Current | Target  | Delta | Rec | Reason |
-| --------- | ------- | ----------- | --------------- | ------- | ------- | ----- | --- | ------ |
-| node      | S1      | @types/node | devDependencies | 25.2.3  | 25.3.0  | minor | LNC | R91    |
-| node      | S2      | @types/node | devDependencies | 25.2.3  | 25.3.0  | minor | LNC | R91    |
-| node      | S3      | @types/node | devDependencies | 25.2.3  | 25.3.0  | minor | LNC | R91    |
-| python    | backend | fastapi     | runtime         | 0.129.0 | 0.129.2 | patch | LNC | R92    |
-| python    | backend | uvicorn     | runtime         | 0.40.0  | 0.41.0  | minor | RR  | R93    |
+| Ecosystem | Scope   | Package | Type    | Current | Target  | Delta | Rec | Reason |
+| --------- | ------- | ------- | ------- | ------- | ------- | ----- | --- | ------ |
+| python    | backend | fastapi | runtime | 0.129.2 | 0.133.0 | minor | RR  | R91    |
+| python    | backend | scipy   | runtime | 1.17.0  | 1.17.1  | patch | LNC | R92    |
 
 Legend:
-Scope keys:
-- S1: node:frontend:linalg-markov_chains
-- S2: node:frontend:linalg-matrix_transforms
-- S3: node:frontend:linalg-vectors
 Reason keys:
-- R91: Dev-dependency patch/minor upgrades are usually tooling/type updates.
-- R92: Framework patch upgrade is typically backward compatible.
-- R93: Package minor upgrade may require validation.
+- R91: Framework minor upgrade can affect behavior/contracts.
+- R92: Package patch upgrade is typically backward compatible.
 
 Rec legend:
 - NCE: no_changes_expected
@@ -170,13 +131,13 @@ Rec legend:
 
 | Ecosystem | Scope   | Package | Recommendation | Files | Reason |
 | --------- | ------- | ------- | -------------- | ----- | ------ |
-| python    | backend | uvicorn | RR             | F1    | R61    |
+| python    | backend | fastapi | RR             | F1    | R61    |
 
 Legend:
 Files keys:
 - F1: backend/datasets.py; backend/main.py
 Reason keys:
-- R61: Package minor upgrade may require validation.
+- R61: Framework minor upgrade can affect behavior/contracts.
 
 ## Upgrade Steps (Step-by-Step)
 
@@ -190,7 +151,7 @@ Reason keys:
    - `& "C:\Users\mfoss3\.venvs\linalg-demos\Scripts\python.exe" -m pip --version`
    - Optional Volta project pinning (run once per demo project):
    - `volta pin node@lts` or `volta pin node@latest`
-   - `volta pin pnpm@10.30.1` or `volta pin pnpm@latest`
+   - `volta pin pnpm@10.30.2` or `volta pin pnpm@latest`
    - Verify active/runtime tool versions:
    - `node -v`
    - `pnpm -v`
@@ -200,29 +161,19 @@ Reason keys:
    - `Get-ChildItem demos -Recurse -Filter package.json | Where-Object { $_.FullName -notmatch '\\node_modules\\' } | Select-String -Pattern '"volta"|"packageManager"' | ForEach-Object { "{0}:{1}: {2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() }`
    - Output format: `<path>:<line>: <matched text>`.
    - Optional cleanup: `volta uninstall pnpm@<unused-version>` (Volta does not currently support uninstalling Node runtimes).
-   - `pnpm` (10.29.3 -> 10.30.1): `volta install pnpm@latest`
+   - `pnpm` (10.30.1 -> 10.30.2): `volta install pnpm@latest`
    - Verify: `pnpm -v`
-   - `uv` (0.10.2 -> 0.10.4): `uv self update`
+   - `uv` (0.10.4 -> 0.10.5): `uv self update`
    - Verify: `uv --version`
 
 2. Upgrade frontend runtime dependencies to latest (if any).
    - No outdated frontend runtime dependencies found.
 
 3. Upgrade frontend dev dependencies to latest (if any).
-   - `pnpm --dir demos\linalg-markov_chains\frontend add -D @types/node@latest`
-   - Verify: `pnpm --dir demos\linalg-markov_chains\frontend list --depth -1 @types/node`
-   - `pnpm --dir demos\linalg-matrix_transforms\frontend add -D @types/node@latest`
-   - Verify: `pnpm --dir demos\linalg-matrix_transforms\frontend list --depth -1 @types/node`
-   - `pnpm --dir demos\linalg-vectors\frontend add -D @types/node@latest`
-   - Verify: `pnpm --dir demos\linalg-vectors\frontend list --depth -1 @types/node`
+   - No outdated frontend dev dependencies found.
 
 4. Rebuild affected frontends.
-   - `pnpm --dir demos\linalg-markov_chains\frontend build`
-   - Verify: `$LASTEXITCODE` (expect 0)
-   - `pnpm --dir demos\linalg-matrix_transforms\frontend build`
-   - Verify: `$LASTEXITCODE` (expect 0)
-   - `pnpm --dir demos\linalg-vectors\frontend build`
-   - Verify: `$LASTEXITCODE` (expect 0)
+   - No frontend scopes have outdated packages; no rebuild targets identified.
 
 5. Apply backend Python upgrades from the requirements.in workflow.
    - Run from repo root (`linalg`) so `backend/...` paths resolve.
@@ -236,11 +187,11 @@ Reason keys:
    - `uv pip sync backend/requirements.txt`
    - Verify: `uv pip check`
    - Packages identified by scan:
-   - `fastapi`: `0.129.0` -> `0.129.2` (update)
-   - `uvicorn`: `0.40.0` -> `0.41.0` (update)
+   - `fastapi`: `0.129.2` -> `0.133.0` (update)
+   - `scipy`: `1.17.0` -> `1.17.1` (update)
    - Verify expected pins in `backend/requirements.txt`:
-   - `Select-String -Path backend/requirements.txt -Pattern '^fastapi==0\.129\.2$'`
-   - `Select-String -Path backend/requirements.txt -Pattern '^uvicorn==0\.41\.0$'`
+   - `Select-String -Path backend/requirements.txt -Pattern '^fastapi==0\.133\.0$'`
+   - `Select-String -Path backend/requirements.txt -Pattern '^scipy==1\.17\.1$'`
 
 6. Re-run scan to confirm upgrades are complete.
    - `pwsh -NoProfile -File .agent/skills/update-scan/scripts/update-dep-scanner.ps1`

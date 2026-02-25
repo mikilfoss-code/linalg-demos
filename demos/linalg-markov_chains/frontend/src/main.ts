@@ -38,7 +38,7 @@ root.innerHTML = `
       <div>
         <h1 class="base-title">Markov Chain Lab</h1>
         <p class="base-subtitle">
-          Build a chain with up to 10 states, inspect x<sub>t</sub>, and animate probability flow along directed edges.
+          Build a chain with up to 20 states, inspect x<sub>t</sub>, and animate probability flow along directed edges.
         </p>
       </div>
       <div class="markov-api-pill">API base: <code>${API_BASE}</code></div>
