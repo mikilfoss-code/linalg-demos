@@ -32,6 +32,18 @@ importers:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@25.3.0)
 
+  demos/linalg-networks/frontend:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.0
+        version: 25.3.0
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@25.3.0)
+
   demos/linalg-vectors/frontend:
     devDependencies:
       '@types/node':

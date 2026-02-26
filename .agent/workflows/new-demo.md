@@ -8,7 +8,7 @@ description: 'Create a new linalg demo frontend scaffold under demos/<demo-name>
 
 - Create directory: `demos/<demo-name>/frontend`
 - Initialize a Vite app in that folder (vanilla-ts)
-- Add Three.js dependency
+- Add Three.js dependency if needed
 - Add an `.env.development` with `VITE_API_BASE_URL=http://localhost:8000`
 - Add a minimal page that renders a canvas + placeholder text "`<demo-name>`"
 - Provide commands to run it locally (pnpm install, pnpm dev)

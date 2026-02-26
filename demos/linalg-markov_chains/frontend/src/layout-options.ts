@@ -12,7 +12,7 @@ export type MarkovPanelId = 'top' | 'graph' | 'state' | 'matrix';
  */
 export const MARKOV_LAYOUT_MODE: LayoutMode = 'sideBySide';
 
-const MARKOV_LAYOUT_SCHEMA: LayoutSchema<MarkovPanelId> = {
+export const MARKOV_LAYOUT_SCHEMA: LayoutSchema<MarkovPanelId> = {
   schemaVersion: LAYOUT_SCHEMA_VERSION,
   defaultVariantId: 'sideBySide',
   panels: [
@@ -26,26 +26,51 @@ const MARKOV_LAYOUT_SCHEMA: LayoutSchema<MarkovPanelId> = {
       id: 'sideBySide',
       containerClassName: 'markov-layout--side-by-side',
       placements: [
-        { panelId: 'top', order: 1 },
+        {
+          panelId: 'top',
+          order: 1,
+          childrenLayout: {
+            mode: 'grid',
+            columns: '66% 34%',
+            gap: 'var(--base-space-5)',
+            alignItems: 'start',
+          },
+        },
         { panelId: 'graph', order: 1 },
-        { panelId: 'state', order: 2 },
-        { panelId: 'matrix', order: 2 },
+        { panelId: 'state', order: 2, width: '100%', maxWidth: '100%' },
+        { panelId: 'matrix', order: 2, width: '100%', maxWidth: '100%' },
+      ],
+      responsiveFallbacks: [
+        {
+          panelId: 'state',
+          maxPanelWidthPx: 380,
+          fallbackVariantId: 'stackedVertical',
+          hysteresisPx: 48,
+        },
       ],
     },
     {
       id: 'stackedVertical',
       containerClassName: 'markov-layout--stacked-vertical',
       placements: [
-        { panelId: 'top', order: 1 },
+        {
+          panelId: 'top',
+          order: 1,
+          childrenLayout: {
+            mode: 'grid',
+            columns: '100%',
+            gap: 'var(--base-space-5)',
+          },
+        },
         { panelId: 'graph', order: 1 },
-        { panelId: 'state', order: 2 },
-        { panelId: 'matrix', order: 2 },
+        { panelId: 'state', order: 2, width: '100%', maxWidth: '100%' },
+        { panelId: 'matrix', order: 2, width: '100%', maxWidth: '100%' },
       ],
     },
   ],
 };
 
-const fallbackVariants = {
+export const MARKOV_FALLBACK_VARIANTS = {
   sideBySide: {
     variantId: 'sideBySide',
     containerClassName: 'markov-layout--side-by-side',
@@ -68,7 +93,7 @@ const fallbackVariants = {
 const resolvedMarkovLayoutProfile = resolveLayoutProfile({
   schema: MARKOV_LAYOUT_SCHEMA,
   variantId: MARKOV_LAYOUT_MODE,
-  fallbackVariant: fallbackVariants[MARKOV_LAYOUT_MODE],
+  fallbackVariant: MARKOV_FALLBACK_VARIANTS[MARKOV_LAYOUT_MODE],
 });
 
 logLayoutWarnings('markov-layout', resolvedMarkovLayoutProfile.warnings);

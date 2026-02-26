@@ -10,6 +10,8 @@ FastAPI service and organized as a pnpm monorepo.
 - `demos/linalg-vectors/frontend/`: image/text vector exploration demo.
 - `demos/linalg-matrix_transforms/frontend/`: matrix-transform shell demo.
 - `demos/linalg-markov_chains/frontend/`: Markov chain editor/simulator demo.
+- `demos/linalg-networks/frontend/`: incidence matrix, flow, and vector-space
+  exploration demo for directed graphs.
 - `demos/shared/`: shared frontend runtime modules and base UI tokens.
 
 ## Documentation Map
@@ -21,6 +23,8 @@ FastAPI service and organized as a pnpm monorepo.
 - `DEMO-VECTORS.md`: vectors demo architecture, state, tokens, and contracts.
 - `DEMO-MATRIX_TRANSFORMATIONS.md`: matrix demo architecture and contracts.
 - `DEMO-MARKOV_CHAINS.md`: Markov demo architecture and state contracts.
+- `DEMO-NETWORKS.md`: networks demo architecture, state, and linear algebra
+  contracts.
 - `AGENT.md`: repo editing/authorization/documentation maintenance contract.
 
 ## Repository Structure
@@ -39,6 +43,7 @@ demos/
   linalg-vectors/frontend/
   linalg-matrix_transforms/frontend/
   linalg-markov_chains/frontend/
+  linalg-networks/frontend/
 .agent/
   rules/
 CODEMAP.md
@@ -47,6 +52,7 @@ BACKEND.md
 DEMO-VECTORS.md
 DEMO-MATRIX_TRANSFORMATIONS.md
 DEMO-MARKOV_CHAINS.md
+DEMO-NETWORKS.md
 ```
 
 ## Local Development
@@ -73,6 +79,7 @@ From repo root:
 pnpm dev:vectors
 pnpm dev:matrix
 pnpm dev:markov
+pnpm dev:networks
 ```
 
 Per-demo commands are also available in each `demos/<demo>/frontend` folder:
@@ -84,6 +91,7 @@ From repo root:
 
 ```bash
 pnpm build
+pnpm build:networks
 pnpm typecheck
 ```
 
@@ -108,7 +116,7 @@ Backend routes currently exposed:
 - `demo-linalg-matrix-transforms`
 
 Markov frontend has a local build target but is not currently defined as a
-Render static service.
+Render static service. Networks frontend is also local-only at this time.
 
 ## Documentation Maintenance Rule
 

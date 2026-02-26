@@ -15,7 +15,7 @@ export type MatrixPanelId = 'controls' | 'output';
  */
 export const MATRIX_LAYOUT_MODE: LayoutMode = 'stackedVertical';
 
-const MATRIX_LAYOUT_SCHEMA: LayoutSchema<MatrixPanelId> = {
+export const MATRIX_LAYOUT_SCHEMA: LayoutSchema<MatrixPanelId> = {
   schemaVersion: LAYOUT_SCHEMA_VERSION,
   defaultVariantId: 'sideBySide',
   panels: [
@@ -27,22 +27,29 @@ const MATRIX_LAYOUT_SCHEMA: LayoutSchema<MatrixPanelId> = {
       id: 'sideBySide',
       containerClassName: 'base-layout--side-by-side',
       placements: [
-        { panelId: 'controls', order: 1 },
-        { panelId: 'output', order: 2 },
+        { panelId: 'controls', order: 1, width: '42%', maxWidth: '100%' },
+        { panelId: 'output', order: 2, width: '58%', maxWidth: '100%' },
+      ],
+      responsiveFallbacks: [
+        {
+          maxContainerWidthPx: 980,
+          fallbackVariantId: 'stackedVertical',
+          hysteresisPx: 48,
+        },
       ],
     },
     {
       id: 'stackedVertical',
       containerClassName: 'base-layout--stacked-vertical',
       placements: [
-        { panelId: 'controls', order: 1 },
-        { panelId: 'output', order: 2 },
+        { panelId: 'controls', order: 1, width: '100%', maxWidth: '100%' },
+        { panelId: 'output', order: 2, width: '100%', maxWidth: '100%' },
       ],
     },
   ],
 };
 
-const matrixFallbackVariants = {
+export const MATRIX_FALLBACK_VARIANTS = {
   sideBySide: {
     variantId: 'sideBySide',
     containerClassName: 'base-layout--side-by-side',
@@ -59,7 +66,7 @@ const matrixFallbackVariants = {
   panelOrder: readonly MatrixPanelId[];
 }>;
 
-const matrixFallbackVariant = matrixFallbackVariants[MATRIX_LAYOUT_MODE];
+const matrixFallbackVariant = MATRIX_FALLBACK_VARIANTS[MATRIX_LAYOUT_MODE];
 
 const resolvedMatrixLayoutProfile = resolveLayoutProfile({
   schema: MATRIX_LAYOUT_SCHEMA,

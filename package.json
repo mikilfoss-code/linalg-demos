@@ -7,9 +7,11 @@
     "build:vectors": "pnpm --filter @linalg/demo-vectors build",
     "build:matrix": "pnpm --filter @linalg/demo-matrix_transforms build",
     "build:markov": "pnpm --filter @linalg/demo-markov_chains build",
+    "build:networks": "pnpm --filter @linalg/demo-networks build",
     "dev:vectors": "pnpm --filter @linalg/demo-vectors dev",
     "dev:matrix": "pnpm --filter @linalg/demo-matrix_transforms dev",
     "dev:markov": "pnpm --filter @linalg/demo-markov_chains dev",
+    "dev:networks": "pnpm --filter @linalg/demo-networks dev",
     "typecheck": "pnpm --recursive --filter \"@linalg/demo-*\" exec tsc --noEmit"
   },
   "volta": {

@@ -1,5 +1,6 @@
 @import "./tokens.css";
 @import "./primitives.css";
+@import "./graph-primitives.css";
 
 .base-shell {
   /* Primitive alias tokens.

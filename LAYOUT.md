@@ -161,6 +161,18 @@ Registry options:
   - `markov-layout--side-by-side`
   - `markov-layout--stacked-vertical`
 
+### Networks
+
+- File: `demos/linalg-networks/frontend/src/layout-options.ts`
+- Mode constant: `NETWORKS_LAYOUT_MODE` (`sideBySide` currently)
+- Panel tree:
+  - roots: `top`, `bottom`
+  - children of `top`: `graph`, `flow`
+  - children of `bottom`: `matrix`, `spaces`
+- Container classes:
+  - `networks-layout--side-by-side`
+  - `networks-layout--stacked-vertical`
+
 ## Fallback Behavior
 
 If schema validation fails or requested/default variants cannot be resolved,

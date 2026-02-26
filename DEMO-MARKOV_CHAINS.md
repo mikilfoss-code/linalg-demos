@@ -113,7 +113,7 @@ Additional long-lived runtime objects in `src/main.ts`:
 - `src/app/actions.ts`
   - action union contract for store dispatch
 - `src/app/store.ts`
-  - small observable store abstraction
+  - demo-local re-export for shared reducer store helper from `@shared/lib/store`
 - `src/app/selectors.ts`
   - shared "displayed value" selectors for committed vs draft edit values
 - `src/app/edit-value-input.ts`
@@ -123,15 +123,21 @@ Additional long-lived runtime objects in `src/main.ts`:
 - `src/app/panel-shared.ts`
   - shared windowing/highlight helpers reused by state and matrix panels
 - `src/app/dom-helpers.ts`
-  - shared template/query DOM utilities used by panel controllers
+  - demo-local re-export for shared template/query DOM utilities from
+    `@shared/lib/dom`
 - `src/app/render-graph.ts`
   - graph rendering, interactions, inline edits, dataset controls, flow animation
+  - consumes shared graph style helpers from `@shared/graph/style`
 - `src/app/render-state-panel.ts`
   - state vector controls and auto-step controls
 - `src/app/render-matrix-panel.ts`
   - matrix editor panel (`P^T` view semantics)
 - `src/app/graph-interaction-presenter.ts`
-  - hover/focus/selection highlight models
+  - hover/focus/selection highlight models using shared `@shared/graph/highlight` logic
+- `@shared/graph/highlight.ts`
+  - reusable graph target sanitization and highlight derivation shared with Networks
+- `@shared/graph/style.ts`
+  - reusable edge/node style helpers and highlight tokens shared with Networks
 - `src/lib/markov.ts`
   - probability math, validation, flow animation planning
 - `src/lib/markov-sparse.ts`
@@ -186,6 +192,7 @@ Additional long-lived runtime objects in `src/main.ts`:
 Token sources:
 
 - `@shared/ui/base-shell.css`
+- `@shared/ui/graph-primitives.css`
 - `src/style.css`
 
 Notable markov-specific overrides:

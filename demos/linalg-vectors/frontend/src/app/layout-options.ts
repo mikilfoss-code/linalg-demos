@@ -25,7 +25,7 @@ export const VECTORS_LAYOUT_MODE: LayoutMode = 'stackedVertical';
  */
 export const INCLUDE_DEBUG_PANEL = true;
 
-const VECTORS_LAYOUT_SCHEMA: LayoutSchema<VectorsPanelId> = {
+export const VECTORS_LAYOUT_SCHEMA: LayoutSchema<VectorsPanelId> = {
   schemaVersion: LAYOUT_SCHEMA_VERSION,
   defaultVariantId: 'sideBySide',
   panels: [
@@ -42,32 +42,79 @@ const VECTORS_LAYOUT_SCHEMA: LayoutSchema<VectorsPanelId> = {
       id: 'sideBySide',
       containerClassName: 'layout--side-by-side',
       placements: [
-        { panelId: 'grid', order: 1 },
-        { panelId: 'vector', order: 2 },
+        { panelId: 'grid', order: 1, width: '56%', maxWidth: '100%' },
+        {
+          panelId: 'vector',
+          order: 2,
+          width: '44%',
+          maxWidth: '100%',
+          childrenLayout: {
+            mode: 'grid',
+            columns: '34% 66%',
+            gap: 'var(--base-space-4)',
+            alignItems: 'start',
+          },
+        },
         { panelId: 'selected', order: 1 },
-        { panelId: 'vectorWindow', order: 2 },
-        { panelId: 'slider', order: 1 },
-        { panelId: 'components', order: 2 },
+        {
+          panelId: 'vectorWindow',
+          order: 2,
+          childrenLayout: {
+            mode: 'grid',
+            columns: '72px 1fr',
+            gap: 'var(--base-space-3)',
+            alignItems: 'start',
+          },
+        },
+        { panelId: 'slider', order: 1, maxWidth: '100%' },
+        { panelId: 'components', order: 2, maxWidth: '100%' },
         { panelId: 'debug', order: 3 },
+      ],
+      responsiveFallbacks: [
+        {
+          panelId: 'vector',
+          maxPanelWidthPx: 430,
+          fallbackVariantId: 'stackedVertical',
+          hysteresisPx: 42,
+        },
       ],
     },
     {
       id: 'stackedVertical',
       containerClassName: 'layout--stacked-vertical',
       placements: [
-        { panelId: 'vector', order: 1 },
-        { panelId: 'grid', order: 2 },
+        {
+          panelId: 'vector',
+          order: 1,
+          width: '100%',
+          maxWidth: '100%',
+          childrenLayout: {
+            mode: 'grid',
+            columns: '100%',
+            gap: 'var(--base-space-4)',
+          },
+        },
+        { panelId: 'grid', order: 2, width: '100%', maxWidth: '100%' },
         { panelId: 'selected', order: 1 },
-        { panelId: 'vectorWindow', order: 2 },
-        { panelId: 'slider', order: 1 },
-        { panelId: 'components', order: 2 },
+        {
+          panelId: 'vectorWindow',
+          order: 2,
+          childrenLayout: {
+            mode: 'grid',
+            columns: '72px 1fr',
+            gap: 'var(--base-space-3)',
+            alignItems: 'start',
+          },
+        },
+        { panelId: 'slider', order: 1, maxWidth: '100%' },
+        { panelId: 'components', order: 2, maxWidth: '100%' },
         { panelId: 'debug', order: 3 },
       ],
     },
   ],
 };
 
-const vectorsFallbackVariants = {
+export const VECTORS_FALLBACK_VARIANTS = {
   sideBySide: {
     variantId: 'sideBySide',
     containerClassName: 'layout--side-by-side',
@@ -103,7 +150,7 @@ const vectorsFallbackVariants = {
   }
 >;
 
-const vectorsFallbackVariant = vectorsFallbackVariants[VECTORS_LAYOUT_MODE];
+const vectorsFallbackVariant = VECTORS_FALLBACK_VARIANTS[VECTORS_LAYOUT_MODE];
 
 const resolvedVectorsLayoutProfile = resolveLayoutProfile({
   schema: VECTORS_LAYOUT_SCHEMA,

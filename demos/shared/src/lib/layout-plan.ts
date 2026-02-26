@@ -2,6 +2,7 @@ export type LayoutPlanNode<PanelId extends string> = {
   panelId: PanelId;
   order: number;
   inlineStyle: string;
+  childInlineStyle?: string;
   children: readonly LayoutPlanNode<PanelId>[];
 };
 

@@ -175,6 +175,25 @@ export function validateLayoutSchema<PanelId extends string>(
       } else {
         seenPlacements.add(placement.panelId);
       }
+
+      if (placement.childrenLayout) {
+        if (placement.childrenLayout.mode !== 'grid' && placement.childrenLayout.mode !== 'flex') {
+          issues.push({
+            path: `${placementPath}.childrenLayout.mode`,
+            message: 'childrenLayout.mode must be "grid" or "flex".',
+          });
+        }
+        if (
+          placement.childrenLayout.mode === 'grid' &&
+          !placement.childrenLayout.columns &&
+          !placement.childrenLayout.rows
+        ) {
+          issues.push({
+            path: `${placementPath}.childrenLayout`,
+            message: 'Grid childrenLayout should define columns or rows.',
+          });
+        }
+      }
     });
 
     panelIds.forEach((panelId) => {
@@ -182,6 +201,55 @@ export function validateLayoutSchema<PanelId extends string>(
       issues.push({
         path: `${variantPath}.placements`,
         message: `Missing placement for panel "${String(panelId)}".`,
+      });
+    });
+
+    (variant.responsiveFallbacks ?? []).forEach((rule, ruleIndex) => {
+      const rulePath = `${variantPath}.responsiveFallbacks[${ruleIndex}]`;
+      if (!rule.fallbackVariantId.trim()) {
+        issues.push({
+          path: `${rulePath}.fallbackVariantId`,
+          message: 'fallbackVariantId cannot be empty.',
+        });
+      }
+      const hasContainerThreshold = typeof rule.maxContainerWidthPx === 'number';
+      const hasPanelThreshold = typeof rule.maxPanelWidthPx === 'number';
+      if (!hasContainerThreshold && !hasPanelThreshold) {
+        issues.push({
+          path: rulePath,
+          message: 'Fallback rule must specify maxContainerWidthPx or maxPanelWidthPx.',
+        });
+      }
+      if (rule.panelId && !panelIds.has(rule.panelId)) {
+        issues.push({
+          path: `${rulePath}.panelId`,
+          message: `Unknown panel id "${String(rule.panelId)}".`,
+        });
+      }
+      if (rule.panelId && !hasPanelThreshold) {
+        issues.push({
+          path: `${rulePath}.maxPanelWidthPx`,
+          message: 'maxPanelWidthPx is required when panelId is set.',
+        });
+      }
+      if (typeof rule.hysteresisPx === 'number' && rule.hysteresisPx < 0) {
+        issues.push({
+          path: `${rulePath}.hysteresisPx`,
+          message: 'hysteresisPx must be non-negative.',
+        });
+      }
+    });
+  });
+
+  schema.variants.forEach((variant, index) => {
+    const variantPath = `variants[${index}]`;
+    (variant.responsiveFallbacks ?? []).forEach((rule, ruleIndex) => {
+      if (variantIds.has(rule.fallbackVariantId)) {
+        return;
+      }
+      issues.push({
+        path: `${variantPath}.responsiveFallbacks[${ruleIndex}].fallbackVariantId`,
+        message: `Unknown fallback variant "${rule.fallbackVariantId}".`,
       });
     });
   });

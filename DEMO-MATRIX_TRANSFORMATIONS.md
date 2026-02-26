@@ -69,11 +69,8 @@ Long-lived runtime objects:
 - `applyLayoutTokens(...)` (shared callsite in `src/main.ts`):
   applies resolved CSS token overrides.
 - `health()` (`src/lib/api.ts`): typed backend health request.
-
-Local helper utilities in `src/main.ts`:
-
-- `createTemplateElement<T>(markup)`
-- `requireElement<T>(root, selector)`
+- shared DOM helpers from `@shared/lib/dom` are used for template creation and
+  required element queries.
 
 ## Theme And Style Tokens
 

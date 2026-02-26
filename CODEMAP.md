@@ -11,12 +11,14 @@
 - Topic: Vectors demo architecture/state/tokens/contracts. Canonical document: `DEMO-VECTORS.md`.
 - Topic: Matrix demo architecture/contracts. Canonical document: `DEMO-MATRIX_TRANSFORMATIONS.md`.
 - Topic: Markov demo architecture/state/contracts. Canonical document: `DEMO-MARKOV_CHAINS.md`.
+- Topic: Networks demo architecture/state/contracts. Canonical document: `DEMO-NETWORKS.md`.
 
 ## Cross-System Dependency Summary
 
 - Consumer: `demos/linalg-vectors/frontend`. Depends on: `GET /api/v1/datasets`, `GET /api/v1/datasets/samples`. Notes: Primary data-loading path for vectors UX.
 - Consumer: `demos/linalg-matrix_transforms/frontend`. Depends on: `GET /health`. Notes: Button-driven connectivity check in current UX.
 - Consumer: `demos/linalg-markov_chains/frontend`. Depends on: `GET /api/v1/markov/datasets`, `POST /api/v1/markov/datasets/{datasetId}/extract`. Notes: Manual/random simulation is local; dataset mode calls backend extraction APIs.
+- Consumer: `demos/linalg-networks/frontend`. Depends on: none (local client-side math). Notes: incidence-space exploration is computed fully in-browser.
 - Consumer: all demos. Depends on: `demos/shared/src/lib/layout-*`, `demos/shared/src/ui/*`. Notes: Shared layout/runtime/tokens infrastructure.
 
 ## Repo Layout (By Location)
@@ -35,6 +37,7 @@
 - `DEMO-VECTORS.md` - vectors demo architecture reference.
 - `DEMO-MATRIX_TRANSFORMATIONS.md` - matrix demo architecture reference.
 - `DEMO-MARKOV_CHAINS.md` - Markov demo architecture reference.
+- `DEMO-NETWORKS.md` - networks demo architecture reference.
 
 ### backend/
 - `backend/main.py` - FastAPI app entrypoint, middleware wiring, matrix endpoints.
@@ -63,16 +66,22 @@
 
 ### demos/shared/
 - `demos/shared/config/` - shared Vite + TypeScript configuration.
+- `demos/shared/src/graph/` - shared directed-graph geometry, highlight, style, and SVG rendering modules.
 - `demos/shared/src/lib/api.ts` - shared typed API client factory.
+- `demos/shared/src/lib/dom.ts` - shared required-element and template helpers for panel/controller mounting.
+- `demos/shared/src/lib/event-bus.ts` - shared typed pub/sub bus used by panel-controller orchestration.
+- `demos/shared/src/lib/linear-algebra.ts` - shared matrix/vector helpers (incidence, `rref`, and basis extraction).
 - `demos/shared/src/lib/layout-plan.ts` - recursive render-plan contracts and tree helpers.
 - `demos/shared/src/lib/layout-renderer.ts` - shared recursive renderer with panel strategy registry support.
 - `demos/shared/src/lib/layout-runtime.ts` - schema-to-runtime profile resolver, fallback handling, and CSS token/placement helpers.
 - `demos/shared/src/lib/layout-schema.ts` - versioned layout schema contract for panel ids, parent hierarchy (`parentId`), and variant placements.
+- `demos/shared/src/lib/store.ts` - shared reducer-store helper with synchronous subscriptions.
 - `demos/shared/src/lib/layout-validate.ts` - runtime layout schema validation checks.
 - `demos/shared/src/lib/result.ts` - shared `Result<T>` helpers.
 - `demos/shared/src/lib/types.ts` - shared matrix/vector runtime guards.
 - `demos/shared/src/ui/tokens.css` - shared design tokens (typography, spacing, palette, shell geometry).
 - `demos/shared/src/ui/primitives.css` - shared panel/button UI primitives that consume `--ui-*` aliases.
+- `demos/shared/src/ui/graph-primitives.css` - shared graph edge/node/label primitive classes.
 - `demos/shared/src/ui/base-shell.css` - shared shell styling used by demos.
 
 ### demos/linalg-vectors/frontend/
@@ -98,6 +107,14 @@
 - `demos/linalg-markov_chains/frontend/src/style.css` - Markov demo styles for graph, controls, matrix table, and inline graph editors.
 - `demos/linalg-markov_chains/frontend/src/app/` - reducer/store and panel renderers (graph/state/matrix).
 - `demos/linalg-markov_chains/frontend/src/lib/` - Markov math/validation helpers, sparse-step diagnostics, and graph-generation strategies.
+
+### demos/linalg-networks/frontend/
+- `demos/linalg-networks/frontend/package.json` - networks demo scripts and engine constraints.
+- `demos/linalg-networks/frontend/index.html` - Vite HTML entry.
+- `demos/linalg-networks/frontend/src/main.ts` - composition root, shared layout mounting, event-bus command wiring, and panel registration.
+- `demos/linalg-networks/frontend/src/layout-options.ts` - networks demo schema-driven panel layout profile.
+- `demos/linalg-networks/frontend/src/style.css` - networks graph/vector/matrix/space panel styles.
+- `demos/linalg-networks/frontend/src/app/` - reducer/actions/events and panel controllers.
 
 ### .agent/
 - `.agent/rules/` - repo-specific agent operating rules.
@@ -127,9 +144,11 @@
   - `pnpm dev:vectors`
   - `pnpm dev:matrix`
   - `pnpm dev:markov`
+  - `pnpm dev:networks`
   - `pnpm build:vectors`
   - `pnpm build:matrix`
   - `pnpm build:markov`
+  - `pnpm build:networks`
   - `pnpm typecheck`
 - Per-demo commands remain available in each demo folder (`pnpm dev`, `pnpm build`, `pnpm preview`).
 
@@ -151,13 +170,24 @@
 
 ### demos/shared/src/lib/
 - `demos/shared/src/lib/api.ts` - reusable API client with runtime validation and `Result` responses.
+- `demos/shared/src/lib/dom.ts` - reusable required-element/template helpers for panel/controller composition.
+- `demos/shared/src/lib/event-bus.ts` - reusable typed pub/sub for command/state fanout between controllers.
+- `demos/shared/src/lib/linear-algebra.ts` - reusable incidence matrix, matrix-vector multiply, `rref`, and basis extraction helpers.
 - `demos/shared/src/lib/layout-plan.ts` - recursive plan types and depth-first flatten helper.
 - `demos/shared/src/lib/layout-renderer.ts` - shared recursive renderer with panel registry and optional visibility filters.
 - `demos/shared/src/lib/layout-runtime.ts` - shared schema resolver and runtime helpers for panel style/token application.
 - `demos/shared/src/lib/layout-schema.ts` - shared versioned schema types for panel hierarchy (`parentId`) and placement definitions.
 - `demos/shared/src/lib/layout-validate.ts` - shared runtime validation for schema integrity and cross-reference checks.
 - `demos/shared/src/lib/result.ts` - helpers for `ok/fail` result construction.
+- `demos/shared/src/lib/store.ts` - reusable reducer store helper used by multiple demos.
 - `demos/shared/src/lib/types.ts` - reusable matrix/vector type guards and assertions.
+
+### demos/shared/src/graph/
+- `demos/shared/src/graph/types.ts` - shared graph scene/interaction/presentation type contracts.
+- `demos/shared/src/graph/highlight.ts` - reusable graph hover/selection sanitization and highlight set derivation.
+- `demos/shared/src/graph/style.ts` - reusable graph style tokens/helpers for edge/node color, stroke, opacity, and filter behavior.
+- `demos/shared/src/graph/geometry.ts` - reusable quadratic-edge and self-loop SVG path builders.
+- `demos/shared/src/graph/render-svg.ts` - reusable directed-graph SVG renderer used by graph-based demos.
 
 ### demos/linalg-vectors/frontend/src/
 - `demos/linalg-vectors/frontend/src/main.ts` - app composition root, reducer dispatch loop, render pass.
@@ -199,12 +229,12 @@
 - `types.ts` - canonical app state contracts for matrix/vector editing, flow animation, pending-matrix-normalization tracking, and async step-compute lifecycle telemetry.
 - `actions.ts` - reducer action union for matrix/vector edits, graph-inline node/edge edits, state-vector Enter-commit reset/normalization actions, and async step lifecycle actions.
 - `reducer.ts` - pure state transitions including graph-inline edit semantics (row normalization and node-value reset behavior), state-vector Enter workflows (`current -> reset initial`, `initial -> normalize + reset`), deferred matrix normalization tracking, pre-step pending-matrix row normalization, async step lifecycle state updates, and flow-animation metadata generation on each step.
-- `store.ts` - minimal reducer-driven store with subscribe/dispatch APIs.
+- `store.ts` - thin re-export of shared reducer-store helper (`@shared/lib/store`) for demo-local imports.
 - `edit-session.ts` - edit-target types and edit mode/session state contracts shared across panels.
 - `edit-value-input.ts` - shared numeric draft parsing/formatting plus overwrite-mode keyboard/caret helpers.
 - `panel-context.ts` - graph-derived context contract consumed by matrix/state panels.
 - `selectors.ts` - derived accessors that resolve committed values vs in-progress draft edits.
-- `dom-helpers.ts` - shared template/query DOM helpers for panel/controller creation.
+- `dom-helpers.ts` - thin re-export of shared template/query DOM helpers (`@shared/lib/dom`).
 - `panel-shared.ts` - shared matrix/state panel helpers for scope windowing, target keys, and highlight colors.
 - `graph-layout.ts` - strategy-based graph layout engine with deterministic probability-aware positioning and fallback radial strategy.
 - `graph-data.ts` - graph render-data adapter for full-graph and top-state-mass subgraph extraction.
@@ -225,6 +255,22 @@
 - `transition-graph-generator.ts` - strategy-based transition graph generators (random directed/no-self default) returning matrix + state vectors.
 - `dataset-api.ts` - Markov dataset catalog/extraction API wrapper with runtime contract validation.
 
+### demos/linalg-networks/frontend/src/
+- `main.ts` - networks demo bootstrap, shared layout-plan mounting, controller registry, and event-bus/store wiring.
+- `layout-options.ts` - networks layout mode selection for top (graph/flow) and bottom (matrix/spaces) panel rows.
+- `style.css` - networks demo visuals for graph, vectors, matrix tables, and basis controls.
+
+### demos/linalg-networks/frontend/src/app/
+- `types.ts` - canonical networks app state contracts for nodes/edges/flows and derived matrix-space data.
+- `actions.ts` - reducer action union for node/edge edits, flow edits, and basis selection.
+- `events.ts` - typed event-bus contract for command events and panel state fanout.
+- `reducer.ts` - pure state transitions for graph edits plus derived incidence/imbalance/rref/basis recomputation.
+- `graph-layout.ts` - deterministic circular node layout helper for SVG graph rendering.
+- `panels/graph-panel.ts` - graph editing controls and shared directed-graph SVG rendering with on-graph flow/imbalance labels.
+- `panels/flow-panel.ts` - editable edge-flow vector and computed imbalance vector column displays.
+- `panels/matrix-panel.ts` - incidence matrix and `rref(M)` table rendering.
+- `panels/spaces-panel.ts` - row/column/null basis button groups and selected-basis column-vector display.
+
 ## Global Parameters / Constants
 
 - `CORS_ALLOW_ORIGINS` - backend CORS allowlist.
@@ -240,6 +286,8 @@
 - `MATRIX_LAYOUT_MODE` (`demos/linalg-matrix_transforms/frontend/src/layout-options.ts`) - matrix demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `MARKOV_LAYOUT_MODE` (`demos/linalg-markov_chains/frontend/src/layout-options.ts`) - Markov demo layout mode toggle (`sideBySide` or `stackedVertical`).
 - `MIN_NODE_COUNT`, `MAX_NODE_COUNT`, `DEFAULT_NODE_COUNT` (`demos/linalg-markov_chains/frontend/src/lib/markov.ts`) - manual/random editor node-count bounds/default (dataset extraction mode can load larger subgraphs).
+- `NETWORKS_LAYOUT_MODE` (`demos/linalg-networks/frontend/src/layout-options.ts`) - networks demo layout mode toggle (`sideBySide` or `stackedVertical`).
+- `MAX_NODES`, `MAX_EDGES` (`demos/linalg-networks/frontend/src/app/reducer.ts`) - networks demo graph-size limits for nodes and directed edges.
 - `DATA_ROOT`, `OPENML_DATA_HOME`, `LFW_DATA_HOME`, `NEWSGROUPS_DATA_HOME` (`backend/datasets.py`) - on-disk dataset cache roots.
 
 ## Global Objects / Shared State
@@ -248,6 +296,7 @@
 - `backend/datasets.py::_raw_dataset_cache` and `_split_dataset_cache` - process-lifetime dataset caches.
 - `demos/linalg-vectors/frontend/src/main.ts::state` - browser-lifetime vectors app state.
 - `demos/linalg-markov_chains/frontend/src/main.ts::store` - browser-lifetime Markov app store.
+- `demos/linalg-networks/frontend/src/main.ts::store` - browser-lifetime networks app store.
 
 ## Key Functions/Methods (By Location)
 
@@ -308,6 +357,19 @@
 - `createApiClient(baseUrl?) -> ApiClient` - creates low-level JSON request client.
 - `createApi(options?) -> ApiService` - feature-flagged typed API wrapper.
 
+### demos/shared/src/lib/dom.ts
+- `createTemplateElement(markup, context?)` - creates and validates a single-root `HTMLElement` from template markup.
+- `requireElement(root, selector)` - required-query helper that throws for missing elements.
+
+### demos/shared/src/lib/event-bus.ts
+- `createEventBus<Events>()` - typed pub/sub bus for command and state fanout across controllers.
+
+### demos/shared/src/lib/linear-algebra.ts
+- `buildDirectedIncidenceMatrix(nodeCount, edges)` - builds node-row/edge-column directed incidence matrix.
+- `multiplyMatrixVector(matrix, vector)` - computes matrix-column-vector multiplication.
+- `computeRref(matrix)` - computes reduced row echelon form and pivot columns.
+- `rowSpaceBasis(matrix)`, `columnSpaceBasis(matrix)`, `nullSpaceBasis(matrix)` - derives basis vectors for core subspaces.
+
 ### demos/shared/src/lib/layout-runtime.ts
 - `resolveLayoutProfile(options)` - resolves requested schema variant, validates schema, and builds recursive render plans.
 - `applyLayoutTokens(root, tokens)` - applies layout token overrides as CSS custom properties.
@@ -332,9 +394,25 @@
 - `fail(error)` - constructs failure result.
 - `buildError(message, status, bodyText?)` - structured API error payload.
 
+### demos/shared/src/lib/store.ts
+- `createStore(initialState, reducer)` - creates reducer store with `getState/dispatch/subscribe` APIs.
+
 ### demos/shared/src/lib/types.ts
 - `isVec`, `isMat` - runtime guards for vector/matrix values.
 - `assert(condition, message)` - shared assertion helper.
+
+### demos/shared/src/graph/highlight.ts
+- `edgePathKey(fromIndex, toIndex)` - stable directed-edge key helper shared across graph demos.
+- `sanitizeGraphInteractionState(interaction, nodeCount)` - drops stale hover/selection targets when graph size changes.
+- `buildGraphHighlightPresentation({ interaction, nodeCount, edges, minEdgeWeight? })` - computes highlighted nodes/edges for hover/select states.
+- `readGraphInteractionTargetFromElement(target)` - maps DOM dataset attributes to typed graph interaction targets.
+
+### demos/shared/src/graph/render-svg.ts
+- `renderDirectedGraphSvg({ svg, scene, presentation })` - reusable SVG renderer for directed graph edges/nodes/labels with shared highlight styling.
+
+### demos/shared/src/graph/style.ts
+- `edgeStrokeWidth(weight)`, `edgeOpacity(weight)` - shared edge visual scaling helpers.
+- `colorForGraphNodeValue(value)`, `colorForGraphHighlightedNodeValue(value)` - shared node fill color mappers.
 
 ### demos/linalg-vectors/frontend/src/main.ts
 - `dispatch(action)` - reducer dispatch + render trigger.
@@ -422,8 +500,8 @@
 - `normalizeGraphViewportTransform(transform, fallback) -> GraphViewportTransform` - clamps external zoom/pan updates into safe bounds.
 
 ### demos/linalg-markov_chains/frontend/src/app/graph-interaction-presenter.ts
-- `sanitizeGraphInteractionState(interaction, appState)` - removes invalid hover/selection targets when node counts change.
-- `buildGraphInteractionPresentation(appState, interaction)` - produces highlight sets and selected edit models for node/edge interaction.
+- `sanitizeGraphInteractionState(interaction, nodeCount)` - removes invalid hover/selection targets when node counts change.
+- `buildGraphInteractionPresentation(appState, interaction)` - combines shared highlight derivation with Markov selected-edit models.
 
 ### demos/linalg-markov_chains/frontend/src/lib/markov.ts
 - `buildValidationSummary(...) -> ValidationSummary` - validates matrix/vector probability constraints and step/analyze gates.
@@ -437,12 +515,34 @@
 - `createMarkovDatasetApi()` - creates typed API methods for Markov dataset catalog and subgraph extraction endpoints.
 - `validateCatalogResponse(...)` / `validateExtractResponse(...)` - runtime guards for dataset-mode response contracts.
 
+### demos/linalg-networks/frontend/src/main.ts
+- command-event handlers (`command:*`) - maps panel command events into reducer actions.
+- state broadcast (`state:changed`) - emits canonical `NetworksState` snapshots to all panel controllers.
+
+### demos/linalg-networks/frontend/src/app/reducer.ts
+- `createInitialState() -> NetworksState` - seeds default graph/flow values and derived matrix-space state.
+- `reducer(state, action) -> NetworksState` - enforces graph constraints, applies edits, and recomputes derived state.
+- `selectedBasisVector(state)` - resolves selected basis vector for UI rendering.
+
+### demos/linalg-networks/frontend/src/app/panels/graph-panel.ts
+- `createGraphPanelController(bus)` - graph controls and shared directed-graph SVG rendering with edge-flow/node-imbalance overlays.
+
+### demos/linalg-networks/frontend/src/app/panels/flow-panel.ts
+- `createFlowPanelController(bus)` - edge flow vector editing and `b = M f` column-vector display.
+
+### demos/linalg-networks/frontend/src/app/panels/matrix-panel.ts
+- `createMatrixPanelController(bus)` - incidence matrix and `rref(M)` display rendering.
+
+### demos/linalg-networks/frontend/src/app/panels/spaces-panel.ts
+- `createSpacesPanelController(bus)` - basis button rendering and selected-basis column-vector output.
+
 ## Theme And Style Tokens
 
 ### Global Token Sources
 - `demos/shared/src/ui/tokens.css` - canonical shared token definitions used across demos.
 - `demos/shared/src/ui/base-shell.css` - shared shell token aliases (`--ui-*`) that wire shared primitives.
 - `demos/shared/src/ui/primitives.css` - shared primitive selectors that consume `--ui-*` aliases.
+- `demos/shared/src/ui/graph-primitives.css` - shared graph edge/node/label classes consumed by Markov and Networks graph panels.
 - Demo-specific token inventories are intentionally documented in `DEMO-*.md` files.
 
 ### Global Base Tokens (`tokens.css`)
@@ -518,5 +618,10 @@ Current `render.yaml` services define only:
 - not currently defined as a Render service in `render.yaml`
 - local build: `pnpm --filter @linalg/demo-markov_chains build`
 - static publish path if deployed later: `demos/linalg-markov_chains/frontend/dist`
+
+### `demo-linalg-networks`
+- not currently defined as a Render service in `render.yaml`
+- local build: `pnpm --filter @linalg/demo-networks build`
+- static publish path if deployed later: `demos/linalg-networks/frontend/dist`
 
 

@@ -50,6 +50,20 @@ import {
   MIN_NODE_COUNT,
   type FlowAnimationState,
 } from '../lib/markov';
+import {
+  colorForGraphHighlightedNodeValue,
+  colorForGraphNodeValue,
+  EDGE_DEFAULT_MARKER_FILL,
+  EDGE_DEFAULT_STROKE,
+  EDGE_HIGHLIGHT_STROKE,
+  edgeOpacity,
+  edgeStrokeWidth,
+  NODE_DEFAULT_STROKE,
+  NODE_DEFAULT_STROKE_WIDTH,
+  NODE_HIGHLIGHT_FILTER,
+  NODE_HIGHLIGHT_STROKE,
+  NODE_HIGHLIGHT_STROKE_WIDTH,
+} from '@shared/graph/style';
 
 const GRAPH_WIDTH = 880;
 const GRAPH_HEIGHT = 620;
@@ -84,11 +98,6 @@ const EDGE_NODE_CLEARANCE_MARGIN = 0.2;
 const EDGE_BEND_SCALE_CANDIDATES = [0.6, 0.8, 1, 1.3, 1.6, 1.9, 2.2, 2.5] as const;
 const EDGE_DEFAULT_MARKER_ID_PREFIX = 'markov-arrow-head';
 const EDGE_HIGHLIGHT_MARKER_ID_PREFIX = 'markov-arrow-head-highlight';
-const EDGE_HIGHLIGHT_STROKE = 'hsl(2 72% 46%)';
-const NODE_HIGHLIGHT_STROKE = 'hsl(2 72% 46%)';
-const NODE_DEFAULT_STROKE = 'rgba(9, 39, 63, 0.45)';
-const NODE_DEFAULT_STROKE_WIDTH = 1.4;
-const NODE_HIGHLIGHT_STROKE_WIDTH = 3;
 const INLINE_EDGE_EDITOR_WIDTH = 70;
 const INLINE_EDGE_EDITOR_HEIGHT = 34;
 const INLINE_NODE_EDITOR_WIDTH = 70;
@@ -978,7 +987,7 @@ export function createGraphPanelController(options: {
         clearGraphStatus();
       }
       updateToggleAllValuesButton();
-      interactionState = sanitizeGraphInteractionState(interactionState, state);
+      interactionState = sanitizeGraphInteractionState(interactionState, state.nodeCount);
       externalHoverTarget = sanitizeExternalTarget(externalHoverTarget, state);
       externalFocusTarget = sanitizeExternalTarget(externalFocusTarget, state);
 
@@ -1111,7 +1120,7 @@ export function createGraphPanelController(options: {
       };
     }
 
-    interactionState = sanitizeGraphInteractionState(interactionState, renderState);
+    interactionState = sanitizeGraphInteractionState(interactionState, renderState.nodeCount);
     externalHoverTarget = sanitizeExternalTarget(externalHoverTarget, renderState);
     externalFocusTarget = sanitizeExternalTarget(externalFocusTarget, renderState);
     const displayedNodeValues =
@@ -1186,7 +1195,7 @@ export function createGraphPanelController(options: {
       if (presentation.highlightedNodeIndices.has(index)) {
         circle.style.stroke = NODE_HIGHLIGHT_STROKE;
         circle.style.strokeWidth = String(NODE_HIGHLIGHT_STROKE_WIDTH);
-        circle.style.filter = 'drop-shadow(0 0 5px rgba(178, 35, 35, 0.35))';
+        circle.style.filter = NODE_HIGHLIGHT_FILTER;
         const value = displayedNodeValues[index] ?? 0;
         circle.setAttribute('fill', colorForGraphHighlightedNodeValue(value));
         return;
@@ -3181,7 +3190,7 @@ export function createGraphPanelController(options: {
         hovered: target,
         selected: null,
       },
-      state
+      state.nodeCount
     ).hovered;
   }
 
@@ -3651,11 +3660,9 @@ function drawGraph(args: {
       edgePath.setAttribute('data-from-index', String(fromIndex));
       edgePath.setAttribute('data-to-index', String(toIndex));
 
-      const strokeWidth = 1.2 + probability * 7.6;
-      const baseOpacity = 0.14 + probability * 0.86;
-      const hue = 208;
-      const lightness = 34;
-      const stroke = `hsl(${hue.toFixed(1)} 72% ${lightness.toFixed(1)}%)`;
+      const strokeWidth = edgeStrokeWidth(probability);
+      const baseOpacity = edgeOpacity(probability);
+      const stroke = EDGE_DEFAULT_STROKE;
       const defaultMarkerId = getOrCreateArrowMarkerId({
         markerDefs: args.markerDefs,
         markerCache: args.arrowMarkerCache,
@@ -4423,34 +4430,6 @@ function easeInOutCubic(value: number): number {
 }
 
 /**
- * Purpose: Map a node value to the non-highlight graph fill color scale.
- * Inputs: Numeric, structural, or model parameters declared in the signature.
- * Returns: A derived value computed from the provided inputs.
- * Side effects: None (pure computation).
- */
-function colorForGraphNodeValue(value: number): string {
-  const normalized = clamp01(value);
-  const hue = 206;
-  const saturation = 60;
-  const lightness = 93 - normalized * 46;
-  return `hsl(${hue.toFixed(1)} ${saturation}% ${lightness.toFixed(1)}%)`;
-}
-
-/**
- * Purpose: Map a highlighted node value to an HSL display color.
- * Inputs: Numeric, structural, or model parameters declared in the signature.
- * Returns: A derived value computed from the provided inputs.
- * Side effects: None (pure computation).
- */
-function colorForGraphHighlightedNodeValue(value: number): string {
-  const normalized = clamp01(value);
-  const hue = 10;
-  const saturation = 65;
-  const lightness = 93 - normalized * 42;
-  return `hsl(${hue} ${saturation}% ${lightness.toFixed(1)}%)`;
-}
-
-/**
  * Purpose: Render node labels with subscript suffixes in SVG text/tspan nodes.
  * Inputs: UI state, DOM references, and interaction/geometry parameters declared in the signature.
  * Returns: No value (`void`).
@@ -4653,7 +4632,10 @@ function getOrCreateArrowMarkerId(options: {
     'd',
     `M 0 0 L ${size.width.toFixed(3)} ${size.refY.toFixed(3)} L 0 ${size.height.toFixed(3)} z`
   );
-  path.setAttribute('fill', options.variant === 'highlight' ? EDGE_HIGHLIGHT_STROKE : '#0f4c81');
+  path.setAttribute(
+    'fill',
+    options.variant === 'highlight' ? EDGE_HIGHLIGHT_STROKE : EDGE_DEFAULT_MARKER_FILL
+  );
   marker.appendChild(path);
 
   options.markerDefs.appendChild(marker);

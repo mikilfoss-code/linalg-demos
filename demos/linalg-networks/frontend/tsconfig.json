@@ -1,0 +1,10 @@
+{
+  "extends": "../../shared/config/tsconfig.frontend.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["../../shared/src/*"]
+    }
+  },
+  "include": ["src", "../../shared/src"]
+}

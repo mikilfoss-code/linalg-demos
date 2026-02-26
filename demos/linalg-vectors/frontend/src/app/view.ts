@@ -1,16 +1,20 @@
 import {
-  renderLayoutPlan,
   type LayoutNodeRenderOutput,
   type LayoutRendererRegistry,
 } from '@shared/lib/layout-renderer';
 import {
   applyLayoutTokens,
+  mountResponsiveLayout,
   placementToInlineStyle,
   type ResolvedLayoutProfile,
 } from '@shared/lib/layout-runtime';
+import { createTemplateElement, requireElement } from '@shared/lib/dom';
 import {
   ACTIVE_VECTORS_LAYOUT_PROFILE,
   INCLUDE_DEBUG_PANEL,
+  VECTORS_FALLBACK_VARIANTS,
+  VECTORS_LAYOUT_MODE,
+  VECTORS_LAYOUT_SCHEMA,
   type VectorsPanelId,
 } from './layout-options';
 
@@ -122,9 +126,7 @@ ${panels}
  * Returns: The value produced by this function.
  * Side effects: May update local state, shared state, or the DOM when applicable.
  */
-function createRecursiveShellTemplate(
-  layoutProfile: ResolvedLayoutProfile<VectorsPanelId>
-): string {
+function createRecursiveShellTemplate(): string {
   return `
   <main class="app-shell">
     <header class="hero">
@@ -147,7 +149,7 @@ function createRecursiveShellTemplate(
     </header>
 
     <section
-      class="layout ${layoutProfile.containerModeClassName}"
+      class="layout"
       id="vectors-layout-root"
     ></section>
   </main>
@@ -314,22 +316,6 @@ function createLegacyDebugPanel(layoutProfile: ResolvedLayoutProfile<VectorsPane
         </div>
       </section>
 `;
-}
-
-/**
- * Purpose: createTemplateElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
- */
-function createTemplateElement<T extends HTMLElement>(markup: string): T {
-  const template = document.createElement('template');
-  template.innerHTML = markup.trim();
-  const node = template.content.firstElementChild;
-  if (!(node instanceof HTMLElement)) {
-    throw new Error('Panel renderer must return a single root HTMLElement.');
-  }
-  return node as T;
 }
 
 /**
@@ -550,22 +536,6 @@ const vectorsRendererRegistry: LayoutRendererRegistry<VectorsPanelId> = {
 };
 
 /**
- * Query a required element and throw early if missing.
- *
- * @param root - Root node used for query selection.
- * @param selector - CSS selector for required element.
- * @returns Matching element typed as `T`.
- * @throws Error when selector does not match an element.
- */
-function requireElement<T extends Element>(root: ParentNode, selector: string): T {
-  const element = root.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing required element: ${selector}`);
-  }
-  return element;
-}
-
-/**
  * Build and bind the vectors app view template.
  *
  * @param rootSelector - Selector for root mount element.
@@ -579,19 +549,21 @@ export function createAppView(rootSelector = '#app'): AppView {
   }
 
   if (USE_RECURSIVE_LAYOUT_ENGINE) {
-    app.innerHTML = createRecursiveShellTemplate(ACTIVE_VECTORS_LAYOUT_PROFILE);
+    app.innerHTML = createRecursiveShellTemplate();
     const layoutRoot = requireElement<HTMLDivElement>(app, '#vectors-layout-root');
-    renderLayoutPlan({
+    mountResponsiveLayout({
       container: layoutRoot,
-      plan: ACTIVE_VECTORS_LAYOUT_PROFILE.renderPlan,
+      tokenTarget: app,
+      schema: VECTORS_LAYOUT_SCHEMA,
+      preferredVariantId: VECTORS_LAYOUT_MODE,
+      fallbackVariant: VECTORS_FALLBACK_VARIANTS[VECTORS_LAYOUT_MODE],
       registry: vectorsRendererRegistry,
       shouldRenderPanel: ({ panelId }) => INCLUDE_DEBUG_PANEL || panelId !== 'debug',
     });
   } else {
     app.innerHTML = createLegacyAppTemplate(ACTIVE_VECTORS_LAYOUT_PROFILE, INCLUDE_DEBUG_PANEL);
+    applyLayoutTokens(app, ACTIVE_VECTORS_LAYOUT_PROFILE.tokens);
   }
-
-  applyLayoutTokens(app, ACTIVE_VECTORS_LAYOUT_PROFILE.tokens);
 
   const selectedBuffer = document.createElement('canvas');
   const selectedBufferCtx = selectedBuffer.getContext('2d');

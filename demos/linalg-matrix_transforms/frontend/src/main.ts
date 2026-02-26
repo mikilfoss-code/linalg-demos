@@ -1,11 +1,16 @@
 import '@shared/ui/base-shell.css';
 import './style.css';
 import {
-  renderLayoutPlan,
   type LayoutRendererRegistry,
 } from '@shared/lib/layout-renderer';
-import { applyLayoutTokens } from '@shared/lib/layout-runtime';
-import { ACTIVE_MATRIX_LAYOUT_PROFILE, type MatrixPanelId } from './layout-options';
+import { mountResponsiveLayout } from '@shared/lib/layout-runtime';
+import { createTemplateElement, requireElement } from '@shared/lib/dom';
+import {
+  MATRIX_FALLBACK_VARIANTS,
+  MATRIX_LAYOUT_MODE,
+  MATRIX_LAYOUT_SCHEMA,
+  type MatrixPanelId,
+} from './layout-options';
 import { getApiBaseUrl, health } from './lib/api';
 
 const API_BASE = getApiBaseUrl() || '(same origin)';
@@ -24,14 +29,13 @@ el.innerHTML = `
       </div>
     </header>
     <section
-      class="base-layout ${ACTIVE_MATRIX_LAYOUT_PROFILE.containerModeClassName}"
+      class="base-layout"
       id="matrix-layout-root"
     ></section>
   </div>
 `;
 
 const baseShell = requireElement<HTMLDivElement>(el, '.base-shell');
-applyLayoutTokens(baseShell, ACTIVE_MATRIX_LAYOUT_PROFILE.tokens);
 
 const matrixPanelRegistry: LayoutRendererRegistry<MatrixPanelId> = {
   byPanelId: {
@@ -60,9 +64,12 @@ const matrixPanelRegistry: LayoutRendererRegistry<MatrixPanelId> = {
 };
 
 const layoutRoot = requireElement<HTMLDivElement>(el, '#matrix-layout-root');
-renderLayoutPlan({
+mountResponsiveLayout({
   container: layoutRoot,
-  plan: ACTIVE_MATRIX_LAYOUT_PROFILE.renderPlan,
+  tokenTarget: baseShell,
+  schema: MATRIX_LAYOUT_SCHEMA,
+  preferredVariantId: MATRIX_LAYOUT_MODE,
+  fallbackVariant: MATRIX_FALLBACK_VARIANTS[MATRIX_LAYOUT_MODE],
   registry: matrixPanelRegistry,
 });
 
@@ -78,33 +85,3 @@ btn.addEventListener('click', async () => {
   }
   out.textContent = JSON.stringify(result.value, null, 2);
 });
-
-/**
- * Purpose: createTemplateElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
- */
-function createTemplateElement<T extends HTMLElement>(markup: string): T {
-  const template = document.createElement('template');
-  template.innerHTML = markup.trim();
-  const node = template.content.firstElementChild;
-  if (!(node instanceof HTMLElement)) {
-    throw new Error('Layout renderer must return a single root HTMLElement.');
-  }
-  return node as T;
-}
-
-/**
- * Purpose: requireElement function.
- * Inputs: Parameters declared in the function signature.
- * Returns: The value produced by this function.
- * Side effects: May update local state, shared state, or the DOM when applicable.
- */
-function requireElement<T extends Element>(root: ParentNode, selector: string): T {
-  const element = root.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing required element: ${selector}`);
-  }
-  return element;
-}

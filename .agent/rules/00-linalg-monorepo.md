@@ -20,6 +20,7 @@ These steps are required before any file edit or file-modifying command.
 5. If the change is substantial, ask for explicit authorization to proceed.
 6. For substantial changes, only after steps 4 and 5 are satisfied may code edits begin.
 7. For minor changes, option selection and explicit authorization are not required.
+8. If context has been compacted, review `AGENT.md` and `CODEMAP.md` in the repo root.
 
 ## Substantial change definition
 

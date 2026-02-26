@@ -66,6 +66,9 @@ export function renderLayoutPlan<PanelId extends string>({
     mountedPanels.set(node.panelId, rendered.element);
 
     const childMountPoint = rendered.childContainer ?? rendered.element;
+    if (node.childInlineStyle) {
+      applyInlineStyle(childMountPoint, node.childInlineStyle);
+    }
     node.children.forEach((child) => {
       mountNode(child, childMountPoint);
     });

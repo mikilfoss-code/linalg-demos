@@ -1,0 +1,52 @@
+/*
+ * Shared graph rendering primitives reused by graph-based demos.
+ */
+
+.graph-edge,
+.markov-edge {
+  stroke-linecap: round;
+  transition:
+    stroke 140ms ease,
+    stroke-width 140ms ease,
+    opacity 140ms ease;
+}
+
+.graph-edge-label,
+.markov-edge-label {
+  fill: rgba(10, 41, 68, 0.85);
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  font-family: var(--base-font-mono);
+  pointer-events: none;
+}
+
+.graph-node-label,
+.markov-node-label {
+  text-anchor: middle;
+  dominant-baseline: middle;
+  fill: #0d2a43;
+  font-weight: 700;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.graph-node-value,
+.markov-node-value {
+  text-anchor: middle;
+  fill: rgba(12, 38, 61, 0.82);
+  font-size: 11px;
+  font-family: var(--base-font-mono);
+  pointer-events: none;
+}
+
+.graph-node-circle,
+.markov-node-circle {
+  stroke: var(--graph-node-stroke-default, rgba(9, 39, 63, 0.45));
+  stroke-width: 1.4;
+  transition:
+    fill 0.25s ease,
+    stroke 0.14s ease,
+    stroke-width 0.14s ease,
+    filter 0.14s ease;
+}

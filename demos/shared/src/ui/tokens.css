@@ -59,6 +59,15 @@
   --base-bg-radial-2: #cfe9e2;
   --base-bg-linear-top: #f9f3ea;
   --base-bg-linear-bottom: #efe8dc;
+
+  /* Graph rendering tokens.
+   * Affects: shared graph edge/node default and highlight styling across demos. */
+  --graph-edge-stroke-default: hsl(208 72% 34%);
+  --graph-edge-stroke-highlight: hsl(2 72% 46%);
+  --graph-edge-marker-fill: #0f4c81;
+  --graph-node-stroke-default: rgba(9, 39, 63, 0.45);
+  --graph-node-stroke-highlight: hsl(2 72% 46%);
+  --graph-node-highlight-filter: drop-shadow(0 0 5px rgba(178, 35, 35, 0.35));
 }
 
 

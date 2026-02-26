@@ -1,17 +1,17 @@
 import '@shared/ui/base-shell.css';
 import './style.css';
 import {
-  renderLayoutPlan,
   type LayoutNodeRenderOutput,
   type LayoutRendererRegistry,
 } from '@shared/lib/layout-renderer';
-import { applyLayoutTokens } from '@shared/lib/layout-runtime';
+import { mountResponsiveLayout } from '@shared/lib/layout-runtime';
 import { getApiBaseUrl } from '@shared/lib/api';
 import { createGraphPanelController, type GraphPanelContextSnapshot } from './app/render-graph';
 import type { GraphInteractionTarget } from './app/graph-interaction-presenter';
 import type { PanelRenderContext, PanelScopeMode } from './app/panel-context';
 import { createMatrixPanelController } from './app/render-matrix-panel';
 import { createStatePanelController } from './app/render-state-panel';
+import { createTemplateElement, requireElement } from './app/dom-helpers';
 import type { Action } from './app/actions';
 import { reducer, createInitialState } from './app/reducer';
 import { createStepRuntime } from './app/step-runtime';
@@ -23,7 +23,12 @@ import { createTransitionGraphGenerator } from './lib/transition-graph-generator
 import { createMarkovDatasetApi } from './lib/dataset-api';
 import { buildValidationSummary, MAX_NODE_COUNT, normalizeTransitionRows } from './lib/markov';
 import { runSparseParitySelfCheck } from './lib/markov-sparse-self-check';
-import { ACTIVE_MARKOV_LAYOUT_PROFILE, type MarkovPanelId } from './layout-options';
+import {
+  MARKOV_FALLBACK_VARIANTS,
+  MARKOV_LAYOUT_MODE,
+  MARKOV_LAYOUT_SCHEMA,
+  type MarkovPanelId,
+} from './layout-options';
 
 const API_BASE = getApiBaseUrl() || '(same origin)';
 
@@ -45,14 +50,13 @@ root.innerHTML = `
       <div class="markov-api-pill" id="markov-step-runtime-pill">Step runtime: idle</div>
     </header>
     <section
-      class="markov-layout ${ACTIVE_MARKOV_LAYOUT_PROFILE.containerModeClassName}"
+      class="markov-layout"
       id="markov-layout-root"
     ></section>
   </div>
 `;
 
 const shell = requireElement<HTMLDivElement>(root, '.markov-shell');
-applyLayoutTokens(shell, ACTIVE_MARKOV_LAYOUT_PROFILE.tokens);
 const stepRuntimePill = requireElement<HTMLElement>(root, '#markov-step-runtime-pill');
 
 const store = createStore(createInitialState(), reducer);
@@ -403,9 +407,12 @@ const registry: LayoutRendererRegistry<MarkovPanelId> = {
 };
 
 const layoutRoot = requireElement<HTMLDivElement>(root, '#markov-layout-root');
-renderLayoutPlan({
+const responsiveLayout = mountResponsiveLayout({
   container: layoutRoot,
-  plan: ACTIVE_MARKOV_LAYOUT_PROFILE.renderPlan,
+  tokenTarget: shell,
+  schema: MARKOV_LAYOUT_SCHEMA,
+  preferredVariantId: MARKOV_LAYOUT_MODE,
+  fallbackVariant: MARKOV_FALLBACK_VARIANTS[MARKOV_LAYOUT_MODE],
   registry,
 });
 
@@ -512,6 +519,7 @@ window.addEventListener('beforeunload', () => {
   window.removeEventListener('keydown', handleGlobalEditUndoRedo, true);
   setAutoStepRunning(false);
   stepRuntime.dispose();
+  responsiveLayout.destroy();
   graphPanel.destroy();
 });
 
@@ -711,36 +719,6 @@ function createTopPanelNode(): LayoutNodeRenderOutput {
     element,
     childContainer,
   };
-}
-
-/**
- * Purpose: Create a single HTMLElement from markup and validate root shape.
- * Inputs: `markup` string containing one root element template.
- * Returns: The parsed root `HTMLElement`.
- * Side effects: Creates detached DOM nodes and throws if markup does not produce one root element.
- */
-function createTemplateElement(markup: string): HTMLElement {
-  const template = document.createElement('template');
-  template.innerHTML = markup.trim();
-  const node = template.content.firstElementChild;
-  if (!(node instanceof HTMLElement)) {
-    throw new Error('Expected a single root HTMLElement.');
-  }
-  return node;
-}
-
-/**
- * Purpose: Query for a required element and fail fast when it is missing.
- * Inputs: Parent query root and CSS selector to resolve.
- * Returns: The matching element cast to the requested type parameter.
- * Side effects: Reads the DOM and throws if the required element is missing.
- */
-function requireElement<T extends Element>(parent: ParentNode, selector: string): T {
-  const element = parent.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing required element: ${selector}`);
-  }
-  return element;
 }
 
 type FocusToken = {
