@@ -79,6 +79,8 @@
 - `demos/shared/src/lib/layout-validate.ts` - runtime layout schema validation checks.
 - `demos/shared/src/lib/result.ts` - shared `Result<T>` helpers.
 - `demos/shared/src/lib/types.ts` - shared matrix/vector runtime guards.
+- `demos/shared/src/lib/math-text.ts` - shared cached math-label formatters (subscript/index/assignment) with style-selectable output modes.
+- `demos/shared/src/lib/mathjax.ts` - shared lazy MathJax loader and static-label SVG rendering helper for `data-math-tex` elements.
 - `demos/shared/src/ui/tokens.css` - shared design tokens (typography, spacing, palette, shell geometry).
 - `demos/shared/src/ui/primitives.css` - shared panel/button UI primitives that consume `--ui-*` aliases.
 - `demos/shared/src/ui/graph-primitives.css` - shared graph edge/node/label primitive classes.
@@ -181,6 +183,8 @@
 - `demos/shared/src/lib/result.ts` - helpers for `ok/fail` result construction.
 - `demos/shared/src/lib/store.ts` - reusable reducer store helper used by multiple demos.
 - `demos/shared/src/lib/types.ts` - reusable matrix/vector type guards and assertions.
+- `demos/shared/src/lib/math-text.ts` - shared math text formatter/cache utilities for indexed symbols and assignments.
+- `demos/shared/src/lib/mathjax.ts` - shared static-label MathJax rendering helpers with graceful text fallback.
 
 ### demos/shared/src/graph/
 - `demos/shared/src/graph/types.ts` - shared graph scene/interaction/presentation type contracts.
@@ -401,6 +405,16 @@
 - `isVec`, `isMat` - runtime guards for vector/matrix values.
 - `assert(condition, message)` - shared assertion helper.
 
+### demos/shared/src/lib/math-text.ts
+- `formatSubscriptIndex(value)` - cached unicode subscript formatter for index rendering.
+- `formatIndexedMathSymbol(...)` - style-selectable indexed symbol formatter for plain text or HTML contexts.
+- `formatIndexedMathAssignment(...)` - indexed assignment formatter (`f_i=value`) for dynamic labels.
+- `mathTextClassName(style)` - shared CSS class resolver for current vs tex-like math text styles.
+
+### demos/shared/src/lib/mathjax.ts
+- `renderStaticMathLabels({ root, style?, selector? })` - typesets `data-math-tex` labels to SVG via lazy-loaded MathJax.
+- `queueStaticMathLabels(...)` - fire-and-forget wrapper for one-time static label rendering.
+
 ### demos/shared/src/graph/highlight.ts
 - `edgePathKey(fromIndex, toIndex)` - stable directed-edge key helper shared across graph demos.
 - `sanitizeGraphInteractionState(interaction, nodeCount)` - drops stale hover/selection targets when graph size changes.
@@ -518,6 +532,7 @@
 ### demos/linalg-networks/frontend/src/main.ts
 - command-event handlers (`command:*`) - maps panel command events into reducer actions.
 - state broadcast (`state:changed`) - emits canonical `NetworksState` snapshots to all panel controllers.
+- static math-label bootstrap (`queueStaticMathLabels`) - typesets shell-level fixed formulas while leaving dynamic labels on lightweight formatters.
 
 ### demos/linalg-networks/frontend/src/app/reducer.ts
 - `createInitialState() -> NetworksState` - seeds default graph/flow values and derived matrix-space state.
@@ -525,16 +540,16 @@
 - `selectedBasisVector(state)` - resolves selected basis vector for UI rendering.
 
 ### demos/linalg-networks/frontend/src/app/panels/graph-panel.ts
-- `createGraphPanelController(bus)` - graph controls and shared directed-graph SVG rendering with edge-flow/node-imbalance overlays.
+- `createGraphPanelController(bus)` - graph controls and shared directed-graph SVG rendering with dynamic, style-selectable flow/imbalance math labels.
 
 ### demos/linalg-networks/frontend/src/app/panels/flow-panel.ts
-- `createFlowPanelController(bus)` - edge flow vector editing and `b = M f` column-vector display.
+- `createFlowPanelController(bus)` - edge flow vector editing and `b = M f` column-vector display with MathJax static formulas and cached dynamic label formatting.
 
 ### demos/linalg-networks/frontend/src/app/panels/matrix-panel.ts
-- `createMatrixPanelController(bus)` - incidence matrix and `rref(M)` display rendering.
+- `createMatrixPanelController(bus)` - incidence matrix and `rref` displays (`M`, `rref(M)`, `rref(M^T)`) with MathJax static headings.
 
 ### demos/linalg-networks/frontend/src/app/panels/spaces-panel.ts
-- `createSpacesPanelController(bus)` - basis button rendering and selected-basis column-vector output.
+- `createSpacesPanelController(bus)` - basis button rendering and selected-basis column-vector output with static `Row/Col/Null` MathJax labels.
 
 ## Theme And Style Tokens
 
@@ -546,7 +561,7 @@
 - Demo-specific token inventories are intentionally documented in `DEMO-*.md` files.
 
 ### Global Base Tokens (`tokens.css`)
-- Typography: `--base-font-sans`, `--base-font-mono`.
+- Typography: `--base-font-sans`, `--base-font-mono`, `--math-font-current`, `--math-font-tex-like`.
 - Spacing scale: `--base-space-0` through `--base-space-9`.
 - Palette: `--base-ink`, `--base-ink-soft`, `--base-paper`, `--base-surface`, `--base-surface-2`, `--base-accent`, `--base-accent-2`, `--base-accent-contrast`.
 - Borders and effects: `--base-border`, `--base-shadow`, `--base-shadow-soft`, `--base-focus-accent`, `--base-focus-teal`, `--base-shadow-accent`, `--base-shadow-accent-soft`.

@@ -9,6 +9,9 @@
    * Affects: body copy, headings, monospace debug/output text. */
   --base-font-sans: 'Space Grotesk', sans-serif;
   --base-font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+  --math-font-current: var(--base-font-mono);
+  --math-font-tex-like:
+    'Cambria Math', 'STIX Two Text', 'STIX Two Math', 'Times New Roman', serif;
 
   /* Spacing scale.
    * Affects: gaps, paddings, margins across panels and controls. */

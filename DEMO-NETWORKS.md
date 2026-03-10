@@ -11,7 +11,7 @@ Purpose:
 - edit an edge-flow vector `f`
 - compute node imbalance `b = M f`
 - inspect incidence matrix `M` and `rref(M)`
-- inspect basis vectors for `Row(M)`, `Col(M)`, and `Null(M)`
+- inspect basis vectors for `Row(M)`, `Col(M)`, `Null(M)`, and `Null(M^T)`
 
 Conventions:
 
@@ -31,6 +31,7 @@ demos/linalg-networks/frontend/
     actions.ts
     events.ts
     graph-layout.ts
+    math-style.ts
     reducer.ts
     types.ts
     panels/
@@ -82,9 +83,11 @@ Additional long-lived runtime objects:
 - `src/app/panels/flow-panel.ts`
   - editable edge flow column vector and computed imbalance column vector
 - `src/app/panels/matrix-panel.ts`
-  - incidence matrix and `rref(M)` rendering
+  - incidence matrix and `rref(M)` / `rref(M^T)` rendering
 - `src/app/panels/spaces-panel.ts`
-  - row/column/null basis button groups and selected vector display
+  - row/column/null/left-null basis button groups and selected vector display
+- `src/app/math-style.ts`
+  - demo-level math text style selection used by all panels
 - `src/app/events.ts`
   - typed event-bus contract for commands and state fanout
 - `@shared/graph/highlight.ts`
@@ -93,6 +96,10 @@ Additional long-lived runtime objects:
   - reusable directed-graph SVG renderer used by the graph panel
 - `@shared/graph/style.ts`
   - reusable graph color/stroke/opacity helpers shared with Markov graph visuals
+- `@shared/lib/math-text.ts`
+  - cached dynamic math label formatters with current vs tex-like style options
+- `@shared/lib/mathjax.ts`
+  - lazy MathJax static-label renderer for one-time panel headings/formulas
 
 ## Key Functions And Methods
 
@@ -105,7 +112,7 @@ Additional long-lived runtime objects:
 - `createFlowPanelController(...)` (`src/app/panels/flow-panel.ts`)
   - edge-flow input handling and imbalance rendering.
 - `createMatrixPanelController(...)` (`src/app/panels/matrix-panel.ts`)
-  - matrix table rendering for `M` and `rref(M)`.
+  - matrix table rendering for `M`, `rref(M)`, and `rref(M^T)`.
 - `createSpacesPanelController(...)` (`src/app/panels/spaces-panel.ts`)
   - basis selection controls and selected vector column rendering.
 
@@ -115,6 +122,8 @@ Shared math helpers used by this demo:
 - `multiplyMatrixVector(...)`
 - `computeRref(...)`
 - `rowSpaceBasis(...)`, `columnSpaceBasis(...)`, `nullSpaceBasis(...)`
+- `formatIndexedMathSymbol(...)`, `formatIndexedMathAssignment(...)`
+- `queueStaticMathLabels(...)`
 
 ## Theme And Style Tokens
 
@@ -126,6 +135,8 @@ Token sources:
 
 The demo uses shared base-shell tokens and applies layout-level button token
 overrides from `src/layout-options.ts`.
+Math typography uses shared tokens `--math-font-current` and
+`--math-font-tex-like`, with the demo default set in `src/app/math-style.ts`.
 
 ## Data And API Contracts
 

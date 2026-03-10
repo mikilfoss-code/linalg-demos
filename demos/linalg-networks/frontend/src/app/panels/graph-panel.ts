@@ -1,5 +1,11 @@
 import { createTemplateElement, requireElement } from '@shared/lib/dom';
 import {
+  formatIndexedMathAssignment,
+  formatIndexedMathSymbol,
+  formatMathNumber,
+  mathTextClassName,
+} from '@shared/lib/math-text';
+import {
   buildGraphHighlightPresentation,
   createEmptyGraphInteractionState,
   isSameGraphInteractionTarget,
@@ -13,10 +19,12 @@ import { computeCircularNodeLayout } from '../graph-layout';
 import type { NetworksBus } from '../events';
 import type { NetworksState } from '../types';
 import { MAX_EDGES, MAX_NODES } from '../reducer';
+import { NETWORKS_MATH_TEXT_STYLE } from '../math-style';
 
 const GRAPH_WIDTH = 760;
 const GRAPH_HEIGHT = 500;
 const NODE_RADIUS = 24;
+type EdgeMenuKind = 'from' | 'to';
 
 export type GraphPanelController = {
   element: HTMLElement;
@@ -42,9 +50,43 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
 
         <div class="networks-edge-add">
           <label class="networks-control-label" for="graph-edge-from">Tail</label>
-          <select id="graph-edge-from" class="networks-select"></select>
+          <div class="networks-math-select" data-select-kind="from">
+            <button
+              id="graph-edge-from"
+              class="networks-math-select-trigger"
+              type="button"
+              data-action="toggle-edge-menu"
+              data-menu-kind="from"
+              aria-haspopup="listbox"
+              aria-controls="graph-edge-from-menu"
+              aria-expanded="false"
+            ></button>
+            <div
+              id="graph-edge-from-menu"
+              class="networks-math-select-menu"
+              role="listbox"
+              aria-label="Tail node options"
+            ></div>
+          </div>
           <label class="networks-control-label" for="graph-edge-to">Head</label>
-          <select id="graph-edge-to" class="networks-select"></select>
+          <div class="networks-math-select" data-select-kind="to">
+            <button
+              id="graph-edge-to"
+              class="networks-math-select-trigger"
+              type="button"
+              data-action="toggle-edge-menu"
+              data-menu-kind="to"
+              aria-haspopup="listbox"
+              aria-controls="graph-edge-to-menu"
+              aria-expanded="false"
+            ></button>
+            <div
+              id="graph-edge-to-menu"
+              class="networks-math-select-menu"
+              role="listbox"
+              aria-label="Head node options"
+            ></div>
+          </div>
           <button class="base-button" type="button" data-action="add-edge">Add edge</button>
         </div>
       </div>
@@ -61,8 +103,12 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
     </section>
   `);
 
-  const edgeFromSelect = requireElement<HTMLSelectElement>(element, '#graph-edge-from');
-  const edgeToSelect = requireElement<HTMLSelectElement>(element, '#graph-edge-to');
+  const edgeFromSelect = requireElement<HTMLButtonElement>(element, '#graph-edge-from');
+  const edgeToSelect = requireElement<HTMLButtonElement>(element, '#graph-edge-to');
+  const edgeFromMenu = requireElement<HTMLElement>(element, '#graph-edge-from-menu');
+  const edgeToMenu = requireElement<HTMLElement>(element, '#graph-edge-to-menu');
+  const edgeFromSelectRoot = requireElement<HTMLElement>(element, '[data-select-kind="from"]');
+  const edgeToSelectRoot = requireElement<HTMLElement>(element, '[data-select-kind="to"]');
   const graphNodeCount = requireElement<HTMLElement>(element, '#graph-node-count');
   const graphEdgeCount = requireElement<HTMLElement>(element, '#graph-edge-count');
   const graphStatus = requireElement<HTMLElement>(element, '#graph-status');
@@ -71,14 +117,40 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
 
   let interaction: GraphInteractionState = createEmptyGraphInteractionState();
   let lastState: NetworksState | null = null;
+  let openEdgeMenu: EdgeMenuKind | null = null;
 
   const handleClick = (event: MouseEvent) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
       return;
     }
+    const actionTarget = target.closest<HTMLElement>('[data-action]');
+    const action = actionTarget?.dataset.action;
 
-    const action = target.dataset.action;
+    if (action === 'toggle-edge-menu') {
+      const menuKind = actionTarget?.dataset.menuKind;
+      if (menuKind !== 'from' && menuKind !== 'to') {
+        return;
+      }
+      setEdgeMenuOpen(openEdgeMenu === menuKind ? null : menuKind);
+      return;
+    }
+
+    if (action === 'select-edge-node') {
+      const menuKind = actionTarget?.dataset.menuKind;
+      const nodeId = Number.parseInt(actionTarget?.dataset.nodeId ?? '', 10);
+      if ((menuKind !== 'from' && menuKind !== 'to') || !Number.isInteger(nodeId)) {
+        return;
+      }
+      if (menuKind === 'from') {
+        bus.emit('command:set-edge-draft-from', { nodeId });
+      } else {
+        bus.emit('command:set-edge-draft-to', { nodeId });
+      }
+      setEdgeMenuOpen(null);
+      return;
+    }
+
     if (action === 'add-node') {
       bus.emit('command:add-node', undefined);
       return;
@@ -92,7 +164,7 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
       return;
     }
     if (action === 'remove-edge') {
-      const edgeId = target.dataset.edgeId;
+      const edgeId = actionTarget?.dataset.edgeId;
       if (!edgeId) {
         return;
       }
@@ -137,21 +209,30 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
   edgeList.addEventListener('pointermove', handlePointerMoveTarget);
   edgeList.addEventListener('pointerleave', clearHoveredTarget);
 
-  edgeFromSelect.addEventListener('change', () => {
-    const nodeId = Number.parseInt(edgeFromSelect.value, 10);
-    if (!Number.isInteger(nodeId)) {
+  const handleDocumentPointerDown = (event: PointerEvent) => {
+    if (!(event.target instanceof Node)) {
       return;
     }
-    bus.emit('command:set-edge-draft-from', { nodeId });
-  });
+    if (!element.contains(event.target)) {
+      setEdgeMenuOpen(null);
+      return;
+    }
+    if (!(event.target instanceof HTMLElement)) {
+      return;
+    }
+    if (!event.target.closest('.networks-math-select')) {
+      setEdgeMenuOpen(null);
+    }
+  };
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
 
-  edgeToSelect.addEventListener('change', () => {
-    const nodeId = Number.parseInt(edgeToSelect.value, 10);
-    if (!Number.isInteger(nodeId)) {
+  const handleDocumentKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || openEdgeMenu === null) {
       return;
     }
-    bus.emit('command:set-edge-draft-to', { nodeId });
-  });
+    setEdgeMenuOpen(null);
+  };
+  document.addEventListener('keydown', handleDocumentKeyDown);
 
   const unsubscribe = bus.on('state:changed', (state) => {
     lastState = state;
@@ -167,6 +248,8 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
       graphSvg.removeEventListener('pointerleave', clearHoveredTarget);
       edgeList.removeEventListener('pointermove', handlePointerMoveTarget);
       edgeList.removeEventListener('pointerleave', clearHoveredTarget);
+      document.removeEventListener('pointerdown', handleDocumentPointerDown);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
     },
   };
 
@@ -187,16 +270,40 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
   }
 
   function renderEdgeDraftSelectors(state: NetworksState): void {
-    const options = state.nodes
-      .map((node, index) => `<option value="${node.id}">N${index + 1}</option>`)
-      .join('');
-    edgeFromSelect.innerHTML = options;
-    edgeToSelect.innerHTML = options;
-    edgeFromSelect.value = String(state.edgeDraftFrom);
-    edgeToSelect.value = String(state.edgeDraftTo);
+    const nodeIndexById = new Map<number, number>();
+    state.nodes.forEach((node, index) => {
+      nodeIndexById.set(node.id, index);
+    });
+
+    edgeFromMenu.innerHTML = renderEdgeMenuOptions({
+      kind: 'from',
+      state,
+      selectedNodeId: state.edgeDraftFrom,
+    });
+    edgeToMenu.innerHTML = renderEdgeMenuOptions({
+      kind: 'to',
+      state,
+      selectedNodeId: state.edgeDraftTo,
+    });
+
+    const fromLabel = renderEdgeMenuTriggerLabel({
+      nodeIndex: nodeIndexById.get(state.edgeDraftFrom),
+    });
+    const toLabel = renderEdgeMenuTriggerLabel({
+      nodeIndex: nodeIndexById.get(state.edgeDraftTo),
+    });
+    edgeFromSelect.innerHTML = fromLabel;
+    edgeToSelect.innerHTML = toLabel;
+
     const canSelectEdge = state.nodes.length > 1;
     edgeFromSelect.disabled = !canSelectEdge;
     edgeToSelect.disabled = !canSelectEdge;
+    if (!canSelectEdge) {
+      setEdgeMenuOpen(null);
+    } else {
+      setEdgeMenuOpen(openEdgeMenu);
+    }
+
   }
 
   function renderGraphSvgScene(state: NetworksState): void {
@@ -206,7 +313,7 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
       nodeCount: state.nodes.length,
       width: GRAPH_WIDTH,
       height: GRAPH_HEIGHT,
-      padding: 86,
+      padding: 60,
     });
     const nodeIndexById = new Map<number, number>();
     state.nodes.forEach((node, index) => {
@@ -252,9 +359,19 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
             index: nodeIndex,
             x: point.x,
             y: point.y,
-            label: `N${nodeIndex + 1}`,
+            label: formatIndexedMathSymbol({
+              symbol: 'N',
+              index: nodeIndex + 1,
+              style: NETWORKS_MATH_TEXT_STYLE,
+            }),
             value: imbalanceWeights[nodeIndex] ?? 0,
-            annotation: `b${nodeIndex + 1}=${formatNumber(state.derived.imbalanceVector[nodeIndex] ?? 0)}`,
+            annotation: formatIndexedMathAssignment({
+              symbol: 'b',
+              index: nodeIndex + 1,
+              value: state.derived.imbalanceVector[nodeIndex] ?? 0,
+              style: NETWORKS_MATH_TEXT_STYLE,
+              fractionDigits: 2,
+            }),
           };
         }),
         edges: state.edges
@@ -268,7 +385,13 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
               fromIndex,
               toIndex,
               weight: flowWeights[edgeIndex] ?? 0,
-              label: `f${edgeIndex + 1}=${formatNumber(state.flowVector[edgeIndex] ?? 0)}`,
+              label: formatIndexedMathAssignment({
+                symbol: 'f',
+                index: edgeIndex + 1,
+                value: state.flowVector[edgeIndex] ?? 0,
+                style: NETWORKS_MATH_TEXT_STYLE,
+                fractionDigits: 2,
+              }),
             };
           })
           .filter((edge): edge is NonNullable<typeof edge> => edge !== null),
@@ -284,7 +407,14 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
 
     const nodeLabelById = new Map<number, string>();
     state.nodes.forEach((node, index) => {
-      nodeLabelById.set(node.id, `N${index + 1}`);
+      nodeLabelById.set(
+        node.id,
+        formatIndexedMathSymbol({
+          symbol: 'N',
+          index: index + 1,
+          style: NETWORKS_MATH_TEXT_STYLE,
+        })
+      );
     });
 
     const leftColumnCount = Math.ceil(state.edges.length / 2);
@@ -330,6 +460,68 @@ export function createGraphPanelController(bus: NetworksBus): GraphPanelControll
       </div>
     `;
   }
+
+  function setEdgeMenuOpen(nextMenu: EdgeMenuKind | null): void {
+    const canSelectEdge = (lastState?.nodes.length ?? 0) > 1;
+    openEdgeMenu = canSelectEdge ? nextMenu : null;
+
+    const isFromOpen = openEdgeMenu === 'from';
+    const isToOpen = openEdgeMenu === 'to';
+    edgeFromSelectRoot.classList.toggle('is-open', isFromOpen);
+    edgeToSelectRoot.classList.toggle('is-open', isToOpen);
+    edgeFromSelect.setAttribute('aria-expanded', String(isFromOpen));
+    edgeToSelect.setAttribute('aria-expanded', String(isToOpen));
+  }
+}
+
+function renderEdgeMenuOptions(options: {
+  kind: EdgeMenuKind;
+  state: NetworksState;
+  selectedNodeId: number;
+}): string {
+  if (options.state.nodes.length === 0) {
+    return '<p class="networks-empty">No nodes available.</p>';
+  }
+  return options.state.nodes
+    .map((node, index) => {
+      const nodeLabel = formatIndexedMathSymbol({
+        symbol: 'N',
+        index: index + 1,
+        style: NETWORKS_MATH_TEXT_STYLE,
+        mode: 'html',
+      });
+      return `
+        <button
+          class="networks-math-select-option"
+          type="button"
+          role="option"
+          data-action="select-edge-node"
+          data-menu-kind="${options.kind}"
+          data-node-id="${node.id}"
+          aria-selected="${node.id === options.selectedNodeId ? 'true' : 'false'}"
+        >
+          <span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${nodeLabel}</span>
+        </button>
+      `;
+    })
+    .join('');
+}
+
+function renderEdgeMenuTriggerLabel(options: {
+  nodeIndex: number | undefined;
+}): string {
+  if (options.nodeIndex === undefined) {
+    return '<span class="networks-empty">Select</span>';
+  }
+  const nodeLabel = formatIndexedMathSymbol({
+    symbol: 'N',
+    index: options.nodeIndex + 1,
+    style: NETWORKS_MATH_TEXT_STYLE,
+    mode: 'html',
+  });
+  return `
+    <span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${nodeLabel}</span>
+  `;
 }
 
 function renderEdgeColumnRows(options: {
@@ -346,8 +538,20 @@ function renderEdgeColumnRows(options: {
     .slice(options.startIndex, options.endIndex)
     .map((edge, columnIndex) => {
       const edgeIndex = options.startIndex + columnIndex;
-      const fromLabel = options.nodeLabelById.get(edge.from) ?? `Node ${edge.from}`;
-      const toLabel = options.nodeLabelById.get(edge.to) ?? `Node ${edge.to}`;
+      const fromLabel =
+        options.nodeLabelById.get(edge.from) ??
+        `Node ${formatIndexedMathSymbol({
+          symbol: 'N',
+          index: edge.from,
+          style: NETWORKS_MATH_TEXT_STYLE,
+        })}`;
+      const toLabel =
+        options.nodeLabelById.get(edge.to) ??
+        `Node ${formatIndexedMathSymbol({
+          symbol: 'N',
+          index: edge.to,
+          style: NETWORKS_MATH_TEXT_STYLE,
+        })}`;
       const fromIndex = options.state.nodes.findIndex((node) => node.id === edge.from);
       const toIndex = options.state.nodes.findIndex((node) => node.id === edge.to);
       const targetAttrs =
@@ -357,8 +561,12 @@ function renderEdgeColumnRows(options: {
 
       return `
         <tr ${targetAttrs}>
-          <td ${targetAttrs}>e${edgeIndex + 1}: ${fromLabel} -> ${toLabel}</td>
-          <td ${targetAttrs}>${formatNumber(options.state.flowVector[edgeIndex] ?? 0)}</td>
+          <td ${targetAttrs}><span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+            symbol: 'e',
+            index: edgeIndex + 1,
+            style: NETWORKS_MATH_TEXT_STYLE,
+          })}</span>: <span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${fromLabel}</span> -> <span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${toLabel}</span></td>
+          <td ${targetAttrs}><span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatMathNumber(options.state.flowVector[edgeIndex] ?? 0, 2)}</span></td>
           <td>
             <button
               class="base-button base-button--secondary networks-table-button"
@@ -404,11 +612,4 @@ function normalizeSignedMagnitudes(values: readonly number[]): number[] {
     }
     return normalized;
   });
-}
-
-function formatNumber(value: number): string {
-  if (!Number.isFinite(value)) {
-    return '0.00';
-  }
-  return value.toFixed(2);
 }

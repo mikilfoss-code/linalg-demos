@@ -5,12 +5,15 @@ import { createStore } from '@shared/lib/store';
 import { createTemplateElement, requireElement } from '@shared/lib/dom';
 import { type LayoutNodeRenderOutput, type LayoutRendererRegistry } from '@shared/lib/layout-renderer';
 import { mountResponsiveLayout } from '@shared/lib/layout-runtime';
+import { mathTextClassName } from '@shared/lib/math-text';
+import { queueStaticMathLabels } from '@shared/lib/mathjax';
 import {
   NETWORKS_FALLBACK_VARIANTS,
   NETWORKS_LAYOUT_MODE,
   NETWORKS_LAYOUT_SCHEMA,
   type NetworksPanelId,
 } from './layout-options';
+import { NETWORKS_MATH_TEXT_STYLE } from './app/math-style';
 import { createInitialState, reducer } from './app/reducer';
 import type { NetworksEventMap } from './app/events';
 import { createGraphPanelController } from './app/panels/graph-panel';
@@ -32,7 +35,14 @@ root.innerHTML = `
           Connect directed graphs to incidence matrices, edge flows, and the row/column/null spaces.
         </p>
       </div>
-      <div class="networks-pill">Convention: rows = nodes, columns = edges, b = M f</div>
+      <div class="networks-pill">
+        Convention: rows = nodes, columns = edges,
+        <span
+          class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+          data-math-tex="\\mathbf{b} = \\mathbf{\\mathsf{M}}\\,\\mathbf{f}"
+          data-math-fallback="b = M f"
+        >b = M f</span>
+      </div>
     </header>
     <section
       class="networks-layout"
@@ -42,6 +52,10 @@ root.innerHTML = `
 `;
 
 const shell = requireElement<HTMLDivElement>(root, '.networks-shell');
+queueStaticMathLabels({
+  root: shell,
+  style: NETWORKS_MATH_TEXT_STYLE,
+});
 
 const bus = createEventBus<NetworksEventMap>();
 const store = createStore(createInitialState(), reducer);

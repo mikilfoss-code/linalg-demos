@@ -1,6 +1,11 @@
 import { createTemplateElement, requireElement } from '@shared/lib/dom';
+import {
+  formatIndexedMathSymbol,
+  mathTextClassName,
+} from '@shared/lib/math-text';
 import type { NetworksBus } from '../events';
 import type { NetworksState } from '../types';
+import { NETWORKS_MATH_TEXT_STYLE } from '../math-style';
 
 export type MatrixPanelController = {
   element: HTMLElement;
@@ -15,20 +20,30 @@ export function createMatrixPanelController(bus: NetworksBus): MatrixPanelContro
     <section class="base-panel networks-panel networks-panel-matrix">
       <h2 class="base-panel-title">Incidence Matrix and RREF</h2>
       <p class="networks-panel-subtitle">
-        Rows are nodes, columns are directed edges, and each edge column has -1 at the tail and +1 at the head.
+        Rows are nodes, columns are directed edges, and each edge column has
+        <span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">-1</span>
+        at the tail and
+        <span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">+1</span>
+        at the head.
       </p>
 
       <div class="networks-matrix-grid">
         <section>
-          <h3 class="networks-subheading">M</h3>
+          <h3 class="networks-subheading">
+            <span class="networks-matrix-heading">M</span>
+          </h3>
           <div id="incidence-matrix" class="networks-matrix-wrap"></div>
         </section>
         <section>
-          <h3 class="networks-subheading">rref(M)</h3>
+          <h3 class="networks-subheading">
+            <span class="networks-matrix-heading">rref(M)</span>
+          </h3>
           <div id="rref-matrix" class="networks-matrix-wrap"></div>
         </section>
         <section>
-          <h3 class="networks-subheading">rref(M^T)</h3>
+          <h3 class="networks-subheading">
+            <span class="networks-matrix-heading">rref(M<sup>T</sup>)</span>
+          </h3>
           <div id="rref-transpose-matrix" class="networks-matrix-wrap"></div>
         </section>
       </div>
@@ -51,10 +66,38 @@ export function createMatrixPanelController(bus: NetworksBus): MatrixPanelContro
   };
 
   function renderMatrixPanel(state: NetworksState): void {
-    const edgeLabels = state.edges.map((_, index) => `e${index + 1}`);
-    const nodeLabels = state.nodes.map((_, index) => `N${index + 1}`);
-    const rrefRowLabels = state.derived.rrefMatrix.map((_, index) => `R${index + 1}`);
-    const rrefTransposeRowLabels = state.derived.rrefTransposeMatrix.map((_, index) => `R${index + 1}`);
+    const edgeLabels = state.edges.map((_, index) =>
+      `<span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+        symbol: 'e',
+        index: index + 1,
+        style: NETWORKS_MATH_TEXT_STYLE,
+        mode: 'html',
+      })}</span>`
+    );
+    const nodeLabels = state.nodes.map((_, index) =>
+      `<span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+        symbol: 'N',
+        index: index + 1,
+        style: NETWORKS_MATH_TEXT_STYLE,
+        mode: 'html',
+      })}</span>`
+    );
+    const rrefRowLabels = state.derived.rrefMatrix.map((_, index) =>
+      `<span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+        symbol: 'R',
+        index: index + 1,
+        style: NETWORKS_MATH_TEXT_STYLE,
+        mode: 'html',
+      })}</span>`
+    );
+    const rrefTransposeRowLabels = state.derived.rrefTransposeMatrix.map((_, index) =>
+      `<span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+        symbol: 'R',
+        index: index + 1,
+        style: NETWORKS_MATH_TEXT_STYLE,
+        mode: 'html',
+      })}</span>`
+    );
 
     incidenceEl.innerHTML = renderMatrixTable({
       matrix: state.derived.incidenceMatrix,
@@ -100,7 +143,14 @@ function renderMatrixTable(options: {
       <tbody>
         ${options.matrix
           .map((row, rowIndex) => {
-            const label = options.rowLabels[rowIndex] ?? `R${rowIndex + 1}`;
+            const label =
+              options.rowLabels[rowIndex] ??
+              `<span class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+                symbol: 'R',
+                index: rowIndex + 1,
+                style: NETWORKS_MATH_TEXT_STYLE,
+                mode: 'html',
+              })}</span>`;
             return `
               <tr>
                 <th scope="row">${label}</th>

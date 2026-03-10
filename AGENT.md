@@ -46,7 +46,7 @@ If this sequence is skipped, stop immediately, disclose the miss, and offer to r
 ### After authorization is given
 
 - As code is generated and files are edited, provide the reasoning for the changes and an explanation of how the changes will contribute to the task at hand.
-- After generating code and making changes, provide a summary of the changes made and any additional notes.
+- After generating code and making changes, provide a summary of the changes made and any additional notes. When refering to specific blocks of code, include the line numbers with the filename.
 - After completing a task, suggest additional changes that could be made to improve the code, reduce redundancy, or improve performance and user experience.
 - Include comments within the code to explain its purpose and logic. Explain "the why" behind a non-obvious piece of logic and the reason the code is necessary.
 

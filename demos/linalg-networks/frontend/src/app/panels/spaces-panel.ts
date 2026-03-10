@@ -1,7 +1,14 @@
 import { createTemplateElement, requireElement } from '@shared/lib/dom';
+import {
+  formatIndexedMathSymbol,
+  formatMathNumber,
+  mathTextClassName,
+} from '@shared/lib/math-text';
+import { queueStaticMathLabels } from '@shared/lib/mathjax';
 import { selectedBasisVector } from '../reducer';
 import type { NetworksBus } from '../events';
 import type { BasisSpace, NetworksState } from '../types';
+import { NETWORKS_MATH_TEXT_STYLE } from '../math-style';
 
 export type SpacesPanelController = {
   element: HTMLElement;
@@ -16,24 +23,70 @@ export function createSpacesPanelController(bus: NetworksBus): SpacesPanelContro
     <section class="base-panel networks-panel networks-panel-spaces">
       <h2 class="base-panel-title">Space Bases</h2>
       <p class="networks-panel-subtitle">
-        Select a basis vector from row space, column space, null space, or left null space to inspect it as a column vector.
+        Select a basis vector from
+        <span
+          class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+          data-math-tex="\\operatorname{row}(\\mathbf{\\mathsf{M}})"
+          data-math-fallback="row(M)"
+        >row(M)</span>,
+        <span
+          class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+          data-math-tex="\\operatorname{col}(\\mathbf{\\mathsf{M}})"
+          data-math-fallback="col(M)"
+        >col(M)</span>,
+        <span
+          class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+          data-math-tex="\\operatorname{null}(\\mathbf{\\mathsf{M}})"
+          data-math-fallback="null(M)"
+        >null(M)</span>,
+        or
+        <span
+          class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+          data-math-tex="\\operatorname{null}(\\mathbf{\\mathsf{M}}^{T})"
+          data-math-fallback="null(M^T)"
+        >null(M^T)</span>
+        to inspect it as a column vector.
       </p>
 
       <div class="networks-space-groups">
         <section class="networks-space-group">
-          <h3 class="networks-subheading">Row Space of M</h3>
+          <h3 class="networks-subheading">
+            <span
+              class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+              data-math-tex="\\operatorname{row}(\\mathbf{\\mathsf{M}})"
+              data-math-fallback="row(M)"
+            >row(M)</span>
+          </h3>
           <div id="row-space-buttons" class="networks-basis-buttons"></div>
         </section>
         <section class="networks-space-group">
-          <h3 class="networks-subheading">Column Space of M</h3>
+          <h3 class="networks-subheading">
+            <span
+              class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+              data-math-tex="\\operatorname{col}(\\mathbf{\\mathsf{M}})"
+              data-math-fallback="col(M)"
+            >col(M)</span>
+          </h3>
           <div id="column-space-buttons" class="networks-basis-buttons"></div>
         </section>
         <section class="networks-space-group">
-          <h3 class="networks-subheading">Null Space of M</h3>
+          <h3 class="networks-subheading">
+            <span
+              class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+              data-math-tex="\\operatorname{null}(\\mathbf{\\mathsf{M}})"
+              data-math-fallback="null(M)"
+            >null(M)</span>
+          </h3>
           <div id="null-space-buttons" class="networks-basis-buttons"></div>
         </section>
         <section class="networks-space-group">
-          <h3 class="networks-subheading">Left Null Space of M</h3>
+          <h3 class="networks-subheading">
+            <span
+              class="${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}"
+              data-math-tex="\\operatorname{null}(\\mathbf{\\mathsf{M}}^{T})"
+              data-math-fallback="null(M^T)"
+            >null(M^T)</span>
+          </h3>
           <div id="left-null-space-buttons" class="networks-basis-buttons"></div>
         </section>
       </div>
@@ -44,6 +97,10 @@ export function createSpacesPanelController(bus: NetworksBus): SpacesPanelContro
       </section>
     </section>
   `);
+  queueStaticMathLabels({
+    root: element,
+    style: NETWORKS_MATH_TEXT_STYLE,
+  });
 
   const rowButtonsEl = requireElement<HTMLElement>(element, '#row-space-buttons');
   const columnButtonsEl = requireElement<HTMLElement>(element, '#column-space-buttons');
@@ -56,12 +113,13 @@ export function createSpacesPanelController(bus: NetworksBus): SpacesPanelContro
     if (!(target instanceof HTMLElement)) {
       return;
     }
-    if (target.dataset.action !== 'select-basis') {
+    const trigger = target.closest<HTMLElement>('[data-action="select-basis"]');
+    if (!trigger) {
       return;
     }
 
-    const space = target.dataset.space as BasisSpace | undefined;
-    const index = Number.parseInt(target.dataset.index ?? '', 10);
+    const space = trigger.dataset.space as BasisSpace | undefined;
+    const index = Number.parseInt(trigger.dataset.index ?? '', 10);
     if (!space || !Number.isInteger(index)) {
       return;
     }
@@ -153,7 +211,12 @@ function renderBasisButtons(options: {
           data-index="${index}"
           aria-pressed="${isActive ? 'true' : 'false'}"
         >
-          ${options.prefix}${index + 1}
+          <span class="networks-vector-name ${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+            symbol: options.prefix,
+            index: index + 1,
+            style: NETWORKS_MATH_TEXT_STYLE,
+            mode: 'html',
+          })}</span>
         </button>
       `;
     })
@@ -162,37 +225,51 @@ function renderBasisButtons(options: {
 
 function renderColumnVector(vector: readonly number[]): string {
   return `
-    <div class="networks-vector-bracket networks-vector-bracket--selected">
-      ${vector
-        .map((value, index) => {
-          return `
-            <div class="networks-vector-row networks-vector-row--readonly">
-              <span class="networks-vector-label">${index + 1}</span>
-              <span class="networks-vector-value">${formatNumber(value)}</span>
-            </div>
-          `;
-        })
-        .join('')}
+    <div class="networks-column-vector-frame">
+      <div class="networks-vector-label-column">
+        ${vector
+          .map((_, index) => {
+            return `
+              <div class="networks-vector-label-row networks-scalar-symbol ${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+                symbol: 'a',
+                index: index + 1,
+                style: NETWORKS_MATH_TEXT_STYLE,
+                mode: 'html',
+              })}</div>
+            `;
+          })
+          .join('')}
+      </div>
+      <div class="networks-vector-bracket networks-vector-bracket--values networks-vector-bracket--selected">
+        ${vector
+          .map((value) => {
+            return `
+              <div class="networks-vector-entry-row networks-vector-entry-row--readonly">
+                <span class="networks-vector-value ${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatMathNumber(value, 2)}</span>
+              </div>
+            `;
+          })
+          .join('')}
+      </div>
     </div>
   `;
 }
 
 function labelForSelectedBasis(space: BasisSpace, index: number): string {
+  const label = `<span class="networks-vector-name ${mathTextClassName(NETWORKS_MATH_TEXT_STYLE)}">${formatIndexedMathSymbol({
+    symbol: space === 'left-null' ? 'ln' : space === 'row' ? 'r' : space === 'column' ? 'c' : 'n',
+    index: index + 1,
+    style: NETWORKS_MATH_TEXT_STYLE,
+    mode: 'html',
+  })}</span>`;
   if (space === 'row') {
-    return `Row basis vector r${index + 1}`;
+    return `row basis vector ${label}`;
   }
   if (space === 'column') {
-    return `Column basis vector c${index + 1}`;
+    return `col basis vector ${label}`;
   }
   if (space === 'left-null') {
-    return `Left null basis vector ln${index + 1}`;
+    return `left null basis vector ${label}`;
   }
-  return `Null basis vector n${index + 1}`;
-}
-
-function formatNumber(value: number): string {
-  if (!Number.isFinite(value)) {
-    return '0.00';
-  }
-  return value.toFixed(2);
+  return `null basis vector ${label}`;
 }

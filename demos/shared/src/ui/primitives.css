@@ -48,5 +48,64 @@
   outline-offset: 2px;
 }
 
+/* Shared math-text primitives.
+ * Affects: dynamic and static math label typography across demos. */
+.math-text {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.math-text--current {
+  font-family: var(--math-font-current, var(--base-font-mono));
+}
+
+.math-text--tex-like {
+  font-family: var(--math-font-tex-like, var(--base-font-sans));
+}
+
+.math-text--tex-like .math-symbol {
+  font-style: italic;
+}
+
+.math-indexed {
+  display: inline-block;
+}
+
+.math-text sub,
+.math-subscript {
+  font-size: 0.8em;
+  line-height: 0;
+  vertical-align: -0.32em;
+}
+
+.math-static {
+  display: inline-block;
+  line-height: 1;
+  vertical-align: -0.08em;
+  min-height: 0;
+}
+
+.math-static--display {
+  display: block;
+}
+
+.math-static svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.math-static--inline svg {
+  height: 1em;
+}
+
+.math-static--fallback {
+  vertical-align: baseline;
+  line-height: inherit;
+}
+
 
 
